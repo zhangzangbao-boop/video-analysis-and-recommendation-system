@@ -1,11 +1,4 @@
 /*
- Navicat Premium Data Transfer
- Source Database       : short_video_platform
- Target Server Type    : MySQL
- Target Server Version : 80020
- File Encoding         : 65001
-
- Date: 2024-01-01
  Project: 基于Spark的短视频智能分析系统
  Description: 包含用户、视频、交互、统计全量表结构 (已优化索引与ID策略)
 */
@@ -255,5 +248,6 @@ INSERT INTO `sys_user` (`username`, `password`, `nickname`, `status`) VALUES
 INSERT INTO `sys_user_role` (`user_id`, `role_id`)
 SELECT u.id, r.id FROM sys_user u, sys_role r
 WHERE u.username = 'admin' AND r.role_code = 'ROLE_ADMIN';
+
 
 SET FOREIGN_KEY_CHECKS = 1;
