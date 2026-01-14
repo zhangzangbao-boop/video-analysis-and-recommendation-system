@@ -12,6 +12,12 @@ target/
 node_modules/
 dist/
 
+# 忽略npm缓存目录
+frontend-web/npm-cache/
+# 通用npm缓存忽略（可选，覆盖更多场景）
+**/npm-cache/
+.npm/
+
 # 系统文件
 .DS_Store
 Thumbs.db
