@@ -33,14 +33,14 @@
                  OR action LIKE CONCAT('%', #{keyword}, '%'))
         </if>
         <if test="startDate != null and startDate != ''">
-            AND DATE(create_time) >= #{startDate}
+            AND DATE(create_time) &gt;= #{startDate}
         </if>
         <if test="endDate != null and endDate != ''">
-            AND DATE(create_time) <= #{endDate}
+            AND DATE(create_time) &lt;= #{endDate}
         </if>
         ORDER BY create_time DESC
         <if test="offset != null and limit != null">
-            LIMIT #{offset}, #{limit}
+            LIMIT #{limit} OFFSET #{offset}
         </if>
     </select>
 
@@ -53,10 +53,10 @@
                  OR action LIKE CONCAT('%', #{keyword}, '%'))
         </if>
         <if test="startDate != null and startDate != ''">
-            AND DATE(create_time) >= #{startDate}
+            AND DATE(create_time) &gt;= #{startDate}
         </if>
         <if test="endDate != null and endDate != ''">
-            AND DATE(create_time) <= #{endDate}
+            AND DATE(create_time) &lt;= #{endDate}
         </if>
     </select>
 
