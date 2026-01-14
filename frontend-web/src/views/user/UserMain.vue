@@ -17,9 +17,9 @@
         <el-menu
           :default-active="activeMenu"
           @select="handleMenuSelect"
-          background-color="#545c64"
+          background-color=" #56586d"
           text-color="#fff"
-          active-text-color="#ffd04b"
+          active-text-color="#0064fa"
           router
         >
           <el-menu-item index="/main/video">
@@ -90,7 +90,7 @@ export default {
 }
 
 .main-header {
-  background-color: #409EFF;
+  background-color: #56586d;
   color: white;
   display: flex;
   justify-content: space-between;
@@ -118,11 +118,24 @@ export default {
 }
 
 .side-menu {
-  background-color: #545c64;
+  background-color: #56586d;
 }
 
 .content-area {
   padding: 20px;
   background-color: #f0f2f5;
+}
+
+/* 侧边栏菜单项字体大小 */
+.side-menu .el-menu-item {
+  font-size: 18px !important; /* 默认14px，这里设为16px */
+  height: 50px !important;     /* 增加高度，让字体有更多空间 */
+  line-height: 50px !important; /* 垂直居中 */
+}
+
+/* 菜单项图标大小 */
+.side-menu .el-menu-item .el-icon {
+  font-size: 20px !important; /* 图标也相应放大 */
+  margin-right: 8px;
 }
 </style>
