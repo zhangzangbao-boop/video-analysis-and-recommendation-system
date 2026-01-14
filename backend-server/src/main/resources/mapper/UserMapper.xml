@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.video.server.mapper.UserMapper">
+
+    <resultMap id="BaseResultMap" type="com.video.server.entity.User">
+        <id column="id" property="id"/>
+        <result column="username" property="username"/>
+        <result column="password" property="password"/>
+        <result column="salt" property="salt"/>
+        <result column="phone" property="phone"/>
+        <result column="nickname" property="nickname"/>
+        <result column="real_name" property="realName"/>
+        <result column="email" property="email"/>
+        <result column="gender" property="gender"/>
+        <result column="bio" property="bio"/>
+        <result column="avatar_url" property="avatarUrl"/>
+        <result column="level" property="level"/>
+        <result column="balance" property="balance"/>
+        <result column="points" property="points"/>
+        <result column="status" property="status"/>
+        <result column="status_str" property="statusStr"/>
+        <result column="is_deleted" property="isDeleted"/>
+        <result column="create_time" property="createTime"/>
+        <result column="last_login" property="lastLogin"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, username, password, salt, phone, nickname, real_name, email, gender, bio, avatar_url, level, balance, points, status, status_str, is_deleted, create_time, last_login, update_time
+    </sql>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM sys_user
+        WHERE id = #{id} AND is_deleted = 0
+    </select>
+
+    <select id="selectByUsername" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM sys_user
+        WHERE username = #{username} AND is_deleted = 0
+    </select>
+
+    <select id="selectByCondition" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM sys_user
+        WHERE is_deleted = 0
+        <if test="keyword != null and keyword != ''">
+            AND (username LIKE CONCAT('%', #{keyword}, '%') 
+                 OR phone LIKE CONCAT('%', #{keyword}, '%')
+                 OR CAST(id AS CHAR) LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <if test="status != null and status != ''">
+            AND status_str = #{status}
+        </if>
+        <if test="level != null and level != ''">
+            AND level = #{level}
+        </if>
+        ORDER BY create_time DESC
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO sys_user (username, password, salt, phone, nickname, avatar_url, status, create_time, update_time)
+        VALUES (#{username}, #{password}, #{salt}, #{phone}, #{nickname}, #{avatarUrl}, #{status}, #{createTime}, #{updateTime})
+    </insert>
+
+    <update id="updateById">
+        UPDATE sys_user
+        SET username = #{username},
+            phone = #{phone},
+            nickname = #{nickname},
+            avatar_url = #{avatarUrl},
+            status = #{status},
+            update_time = #{updateTime}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        UPDATE sys_user
+        SET is_deleted = 1
+        WHERE id = #{id}
+    </delete>
+
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM sys_user
+        WHERE is_deleted = 0
+    </select>
+
+    <update id="updateStatusById">
+        UPDATE sys_user
+        SET status = #{status}
+        WHERE id = #{userId}
+    </update>
+
+    <update id="updatePasswordById">
+        UPDATE sys_user
+        SET password = #{password},
+            salt = #{salt}
+        WHERE id = #{userId}
+    </update>
+
+</mapper>

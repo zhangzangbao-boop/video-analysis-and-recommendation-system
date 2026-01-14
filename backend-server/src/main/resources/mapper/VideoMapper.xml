@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.video.server.mapper.VideoMapper">
+
+    <resultMap id="BaseResultMap" type="com.video.server.entity.Video">
+        <id column="id" property="id"/>
+        <result column="title" property="title"/>
+        <result column="description" property="description"/>
+        <result column="user_id" property="authorId"/>
+        <result column="cover_url" property="coverUrl"/>
+        <result column="video_url" property="videoUrl"/>
+        <result column="category_id" property="categoryId"/>
+        <result column="duration" property="duration"/>
+        <result column="view_count" property="playCount"/>
+        <result column="like_count" property="likeCount"/>
+        <result column="comment_count" property="commentCount"/>
+        <result column="share_count" property="shareCount"/>
+        <result column="status" property="status" typeHandler="com.video.server.config.VideoStatusTypeHandler"/>
+        <result column="audit_msg" property="auditMsg"/>
+        <result column="is_hot" property="isHot"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, title, description, user_id, cover_url, video_url, category_id, duration, view_count, like_count, comment_count, share_count, status, audit_msg, is_hot, create_time, update_time
+    </sql>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM video_info
+        WHERE id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO video_info (title, user_id, cover_url, video_url, view_count, like_count, status, create_time, update_time)
+        VALUES (#{title}, #{authorId}, #{coverUrl}, #{videoUrl}, #{playCount}, #{likeCount}, #{status}, #{createTime}, #{updateTime})
+    </insert>
+
+    <update id="updateById">
+        UPDATE video_info
+        SET title = #{title},
+            user_id = #{authorId},
+            cover_url = #{coverUrl},
+            video_url = #{videoUrl},
+            view_count = #{playCount},
+            like_count = #{likeCount},
+            status = #{status},
+            update_time = #{updateTime}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM video_info WHERE id = #{id}
+    </delete>
+
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM video_info
+    </select>
+
+    <select id="selectByStatusOrderByPlayCountDesc" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM video_info
+        WHERE status = CASE #{status}
+            WHEN 'PENDING' THEN 0
+            WHEN 'PASSED' THEN 1
+            WHEN 'REJECTED' THEN 2
+            ELSE 0
+        END
+        ORDER BY view_count DESC
+        LIMIT #{limit}
+    </select>
+
+    <update id="incrementLikeCount">
+        UPDATE video_info
+        SET like_count = like_count + 1
+        WHERE id = #{videoId}
+    </update>
+
+    <update id="updateStatusById">
+        UPDATE video_info
+        SET status = CASE #{status}
+            WHEN 'PENDING' THEN 0
+            WHEN 'PASSED' THEN 1
+            WHEN 'REJECTED' THEN 2
+            ELSE 0
+        END
+        WHERE id = #{videoId}
+    </update>
+
+    <select id="selectByCondition" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM video_info
+        WHERE is_deleted = 0
+        <if test="keyword != null and keyword != ''">
+            AND (title LIKE CONCAT('%', #{keyword}, '%') OR id = #{keyword})
+        </if>
+        <if test="status != null and status != ''">
+            AND status = CASE #{status}
+                WHEN 'PENDING' THEN 0
+                WHEN 'PASSED' THEN 1
+                WHEN 'REJECTED' THEN 2
+                ELSE 0
+            END
+        </if>
+        ORDER BY create_time DESC
+        <if test="offset != null and limit != null">
+            LIMIT #{offset}, #{limit}
+        </if>
+    </select>
+
+    <select id="countByCondition" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM video_info
+        WHERE is_deleted = 0
+        <if test="keyword != null and keyword != ''">
+            AND (title LIKE CONCAT('%', #{keyword}, '%') OR id = #{keyword})
+        </if>
+        <if test="status != null and status != ''">
+            AND status = CASE #{status}
+                WHEN 'PENDING' THEN 0
+                WHEN 'PASSED' THEN 1
+                WHEN 'REJECTED' THEN 2
+                ELSE 0
+            END
+        </if>
+    </select>
+
+    <update id="updateHotStatus">
+        UPDATE video_info
+        SET is_hot = #{isHot}
+        WHERE id = #{videoId}
+    </update>
+
+</mapper>
