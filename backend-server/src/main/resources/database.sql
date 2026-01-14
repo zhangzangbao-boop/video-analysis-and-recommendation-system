@@ -21,6 +21,49 @@ CREATE DATABASE IF NOT EXISTS `short_video_platform` DEFAULT CHARACTER SET utf8m
 USE `short_video_platform`;
 
 -- =================================================================
+-- 2. 清理原有数据库表（按依赖关系逆序删除）
+-- =================================================================
+-- 说明：在执行创建表之前，先删除所有可能存在的表
+-- 注意：此操作会清空所有数据，请谨慎使用！
+
+-- 删除用户通知相关表
+DROP TABLE IF EXISTS `sys_user_notice`;
+DROP TABLE IF EXISTS `sys_notice`;
+
+-- 删除统计相关表
+DROP TABLE IF EXISTS `sys_statistics_category`;
+DROP TABLE IF EXISTS `sys_statistics_daily`;
+
+-- 删除评论和互动相关表
+DROP TABLE IF EXISTS `video_comment`;
+DROP TABLE IF EXISTS `video_play_record`;
+DROP TABLE IF EXISTS `video_interaction`;
+DROP TABLE IF EXISTS `sys_user_follow`;
+
+-- 删除视频相关表
+DROP TABLE IF EXISTS `video_topic_relation`;
+DROP TABLE IF EXISTS `video_topic`;
+DROP TABLE IF EXISTS `video_info`;
+DROP TABLE IF EXISTS `video_category`;
+
+-- 删除日志相关表
+DROP TABLE IF EXISTS `sys_operation_log`;
+DROP TABLE IF EXISTS `sys_login_log`;
+
+-- 删除用户权限相关表
+DROP TABLE IF EXISTS `sys_user_role`;
+DROP TABLE IF EXISTS `sys_role`;
+DROP TABLE IF EXISTS `sys_user`;
+
+-- 删除废弃的表（如果存在）
+DROP TABLE IF EXISTS `user_behavior`;
+DROP TABLE IF EXISTS `sys_admin`;
+
+-- =================================================================
+-- 3. 创建表结构
+-- =================================================================
+
+-- =================================================================
 -- 模块一：用户权限与安全 (ID策略: 数据库自增)
 -- =================================================================
 
