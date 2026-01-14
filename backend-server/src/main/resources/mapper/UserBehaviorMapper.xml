@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.video.server.mapper.UserBehaviorMapper">
+
+    <resultMap id="BaseResultMap" type="com.video.server.entity.UserBehavior">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="video_id" property="videoId"/>
+        <result column="action_type" property="actionType"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, user_id, video_id, action_type, create_time
+    </sql>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM user_behavior
+        WHERE id = #{id}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO user_behavior (user_id, video_id, action_type, create_time)
+        VALUES (#{userId}, #{videoId}, #{actionType}, #{createTime})
+    </insert>
+
+    <update id="updateById">
+        UPDATE user_behavior
+        SET user_id = #{userId},
+            video_id = #{videoId},
+            action_type = #{actionType},
+            create_time = #{createTime}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM user_behavior WHERE id = #{id}
+    </delete>
+
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM user_behavior
+    </select>
+
+</mapper>
