@@ -76,9 +76,19 @@ public class User {
     private String gender;
     
     /**
-     * 个人简介
+     * 个人简介/个性签名
      */
     private String bio;
+    
+    /**
+     * 粉丝数
+     */
+    private Integer fansCount;
+    
+    /**
+     * 关注数
+     */
+    private Integer followCount;
     
     /**
      * 状态：1-正常，0-冻结/封禁，2-禁言
