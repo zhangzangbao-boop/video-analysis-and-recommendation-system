@@ -827,6 +827,7 @@ export default {
   justify-content: space-around;
   padding: 15px 0;
   border-top: 1px solid #eee;
+  background: #ffffff; /* 添加背景色 */
 }
 
 .action-item {
