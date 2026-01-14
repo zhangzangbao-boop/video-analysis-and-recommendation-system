@@ -1,6 +1,6 @@
 /*
  Project: 基于Spark的短视频智能分析系统
- Description: 包含用户、视频、交互、统计全量表结构 (已优化索引与ID策略)
+ Description: 全量表结构 V2.0 (包含用户画像、操作审计、关注关系、话题与通知)
 */
 
 SET NAMES utf8mb4;
@@ -13,11 +13,11 @@ CREATE DATABASE IF NOT EXISTS `short_video_platform` DEFAULT CHARACTER SET utf8m
 USE `short_video_platform`;
 
 -- =================================================================
--- 模块一：用户权限与安全 (ID策略: 数据库自增)
+-- 模块一：用户权限与安全
 -- =================================================================
 
 -- ----------------------------
--- Table structure for sys_user
+-- Table structure for sys_user (已扩展画像与资产字段)
 -- ----------------------------
 DROP TABLE IF EXISTS `sys_user`;
 CREATE TABLE `sys_user` (
@@ -28,6 +28,18 @@ CREATE TABLE `sys_user` (
                             `phone` varchar(255) DEFAULT NULL COMMENT '手机号(AES加密存储)',
                             `nickname` varchar(64) DEFAULT NULL COMMENT '昵称',
                             `avatar_url` varchar(512) DEFAULT NULL COMMENT '头像地址(MinIO URL)',
+
+    -- [NEW] 新增画像与资产字段
+                            `real_name` varchar(64) DEFAULT NULL COMMENT '真实姓名',
+                            `email` varchar(128) DEFAULT NULL COMMENT '邮箱',
+                            `gender` tinyint DEFAULT '0' COMMENT '性别: 0-未知, 1-男, 2-女',
+                            `level` int DEFAULT '1' COMMENT '用户等级',
+                            `balance` decimal(10,2) DEFAULT '0.00' COMMENT '钱包余额',
+                            `points` int DEFAULT '0' COMMENT '积分',
+                            `fans_count` int DEFAULT '0' COMMENT '粉丝数',
+                            `follow_count` int DEFAULT '0' COMMENT '关注数',
+                            `signature` varchar(255) DEFAULT NULL COMMENT '个性签名(Bio)',
+
                             `status` tinyint NOT NULL DEFAULT '1' COMMENT '状态: 1-正常, 0-冻结/封禁',
                             `is_deleted` tinyint NOT NULL DEFAULT '0' COMMENT '逻辑删除: 0-未删除, 1-已删除',
                             `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '注册时间',
@@ -42,7 +54,7 @@ CREATE TABLE `sys_user` (
 -- ----------------------------
 DROP TABLE IF EXISTS `sys_role`;
 CREATE TABLE `sys_role` (
-                            `id` bigint NOT NULL AUTO_INCREMENT COMMENT '角色ID (自增)',
+                            `id` bigint NOT NULL AUTO_INCREMENT COMMENT '角色ID',
                             `role_code` varchar(32) NOT NULL COMMENT '角色编码',
                             `role_name` varchar(32) NOT NULL COMMENT '角色名称',
                             `description` varchar(128) DEFAULT NULL COMMENT '描述',
@@ -64,7 +76,7 @@ CREATE TABLE `sys_user_role` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户角色关联表';
 
 -- ----------------------------
--- Table structure for sys_login_log
+-- Table structure for sys_login_log (登录日志)
 -- ----------------------------
 DROP TABLE IF EXISTS `sys_login_log`;
 CREATE TABLE `sys_login_log` (
@@ -80,13 +92,48 @@ CREATE TABLE `sys_login_log` (
                                  KEY `idx_user_time` (`user_id`,`login_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户登录审计日志';
 
+-- ----------------------------
+-- Table structure for sys_oper_log (操作/审计日志) [NEW]
+-- ----------------------------
+DROP TABLE IF EXISTS `sys_oper_log`;
+CREATE TABLE `sys_oper_log` (
+                                `id` bigint NOT NULL AUTO_INCREMENT,
+                                `module` varchar(32) NOT NULL COMMENT '模块标题',
+                                `business_type` int DEFAULT '0' COMMENT '业务类型(0其它 1新增 2修改 3删除)',
+                                `method` varchar(128) DEFAULT NULL COMMENT '方法名称',
+                                `operator_name` varchar(64) DEFAULT NULL COMMENT '操作人员',
+                                `oper_url` varchar(255) DEFAULT NULL COMMENT '请求URL',
+                                `oper_ip` varchar(128) DEFAULT NULL COMMENT '主机地址',
+                                `oper_param` varchar(2000) DEFAULT NULL COMMENT '请求参数',
+                                `status` int DEFAULT '0' COMMENT '操作状态(0正常 1异常)',
+                                `error_msg` varchar(2000) DEFAULT NULL COMMENT '错误消息',
+                                `oper_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '操作时间',
+                                PRIMARY KEY (`id`),
+                                KEY `idx_oper_time` (`oper_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作日志记录';
+
+-- ----------------------------
+-- Table structure for sys_notice (系统通知) [NEW]
+-- ----------------------------
+DROP TABLE IF EXISTS `sys_notice`;
+CREATE TABLE `sys_notice` (
+                              `id` bigint NOT NULL AUTO_INCREMENT,
+                              `title` varchar(128) NOT NULL COMMENT '通知标题',
+                              `content` text NOT NULL COMMENT '通知内容(支持HTML)',
+                              `type` tinyint DEFAULT '1' COMMENT '类型: 1-系统通知, 2-活动通知, 3-维护公告',
+                              `status` tinyint DEFAULT '1' COMMENT '状态: 1-正常, 0-关闭',
+                              `create_by` varchar(64) DEFAULT NULL COMMENT '发布者',
+                              `create_time` datetime DEFAULT CURRENT_TIMESTAMP,
+                              PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统通知公告表';
+
 
 -- =================================================================
--- 模块二：视频内容管理 (ID策略: 雪花算法 & 自增混合)
+-- 模块二：视频内容管理
 -- =================================================================
 
 -- ----------------------------
--- Table structure for video_category (字典表用自增)
+-- Table structure for video_category
 -- ----------------------------
 DROP TABLE IF EXISTS `video_category`;
 CREATE TABLE `video_category` (
@@ -98,7 +145,20 @@ CREATE TABLE `video_category` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='视频分类字典表';
 
 -- ----------------------------
--- Table structure for video_info (核心表用雪花算法)
+-- Table structure for video_topic (话题/标签) [NEW]
+-- ----------------------------
+DROP TABLE IF EXISTS `video_topic`;
+CREATE TABLE `video_topic` (
+                               `id` bigint NOT NULL AUTO_INCREMENT,
+                               `name` varchar(64) NOT NULL COMMENT '话题名称(如 #生活小技巧)',
+                               `view_count` bigint DEFAULT '0' COMMENT '话题相关视频浏览量',
+                               `create_time` datetime DEFAULT CURRENT_TIMESTAMP,
+                               PRIMARY KEY (`id`),
+                               UNIQUE KEY `uk_name` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='视频话题表';
+
+-- ----------------------------
+-- Table structure for video_info
 -- ----------------------------
 DROP TABLE IF EXISTS `video_info`;
 CREATE TABLE `video_info` (
@@ -109,7 +169,7 @@ CREATE TABLE `video_info` (
                               `video_url` varchar(512) NOT NULL COMMENT 'MinIO文件地址',
                               `cover_url` varchar(512) DEFAULT NULL COMMENT '封面地址',
                               `category_id` int DEFAULT NULL COMMENT '分类ID',
-                              `tags` varchar(255) DEFAULT NULL COMMENT '标签',
+                              `tags` varchar(255) DEFAULT NULL COMMENT '标签/话题 (逗号分隔)',
                               `duration` int DEFAULT '0' COMMENT '时长(秒)',
                               `status` tinyint NOT NULL DEFAULT '0' COMMENT '状态: 0-待审核, 1-已发布, 2-驳回',
                               `audit_msg` varchar(255) DEFAULT NULL COMMENT '审核意见',
@@ -129,11 +189,25 @@ CREATE TABLE `video_info` (
 
 
 -- =================================================================
--- 模块三：互动与评论 (ID策略: 雪花算法 & 自增混合)
+-- 模块三：互动与评论
 -- =================================================================
 
 -- ----------------------------
--- Table structure for video_interaction (流水表用自增)
+-- Table structure for sys_user_follow (用户关注) [NEW]
+-- ----------------------------
+DROP TABLE IF EXISTS `sys_user_follow`;
+CREATE TABLE `sys_user_follow` (
+                                   `id` bigint NOT NULL AUTO_INCREMENT,
+                                   `user_id` bigint NOT NULL COMMENT '粉丝ID (谁关注)',
+                                   `follow_user_id` bigint NOT NULL COMMENT '被关注者ID (关注了谁)',
+                                   `create_time` datetime DEFAULT CURRENT_TIMESTAMP,
+                                   PRIMARY KEY (`id`),
+                                   UNIQUE KEY `uk_follow` (`user_id`, `follow_user_id`),
+                                   KEY `idx_follow_user` (`follow_user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户关注关系表';
+
+-- ----------------------------
+-- Table structure for video_interaction
 -- ----------------------------
 DROP TABLE IF EXISTS `video_interaction`;
 CREATE TABLE `video_interaction` (
@@ -148,7 +222,7 @@ CREATE TABLE `video_interaction` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='视频互动记录表';
 
 -- ----------------------------
--- Table structure for video_play_record (日志表用自增)
+-- Table structure for video_play_record
 -- ----------------------------
 DROP TABLE IF EXISTS `video_play_record`;
 CREATE TABLE `video_play_record` (
@@ -165,7 +239,7 @@ CREATE TABLE `video_play_record` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='视频播放历史记录表';
 
 -- ----------------------------
--- Table structure for video_comment (核心内容用雪花算法)
+-- Table structure for video_comment
 -- ----------------------------
 DROP TABLE IF EXISTS `video_comment`;
 CREATE TABLE `video_comment` (
@@ -181,13 +255,12 @@ CREATE TABLE `video_comment` (
                                  `create_time` datetime DEFAULT CURRENT_TIMESTAMP,
                                  PRIMARY KEY (`id`),
                                  KEY `idx_video_status` (`video_id`,`status`),
-    -- [NEW] 新增索引：查询"谁回复了我"
                                  KEY `idx_reply_user` (`reply_user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='视频评论表';
 
 
 -- =================================================================
--- 模块四：离线统计与看板 (ID策略: 自增)
+-- 模块四：离线统计与看板
 -- =================================================================
 
 -- ----------------------------
@@ -226,7 +299,7 @@ CREATE TABLE `sys_statistics_category` (
 -- 5. 基础数据初始化
 -- =================================================================
 
--- 初始化角色 (仅两类)
+-- 初始化角色
 INSERT INTO `sys_role` (`role_code`, `role_name`, `description`) VALUES
                                                                      ('ROLE_USER', '普通用户', '拥有观看、互动、上传权限'),
                                                                      ('ROLE_ADMIN', '管理员', '拥有内容审核、用户管理、系统配置权限');
@@ -240,14 +313,21 @@ INSERT INTO `video_category` (`name`, `code`, `sort`) VALUES
                                                           ('美食', 'food', 5),
                                                           ('萌宠', 'pet', 6);
 
+-- 初始化话题
+INSERT INTO `video_topic` (`name`, `view_count`) VALUES
+                                                     ('#热门挑战', 1000), ('#日常生活', 500);
+
+-- 初始化系统通知
+INSERT INTO `sys_notice` (`title`, `content`, `type`, `create_by`) VALUES
+    ('系统维护通知', '系统将于今晚24:00进行升级维护。', 1, 'admin');
+
 -- 初始化系统管理员 (假设密码 'admin123' 的Hash)
-INSERT INTO `sys_user` (`username`, `password`, `nickname`, `status`) VALUES
-    ('admin', 'e10adc3949ba59abbe56e057f20f883e', '系统管理员', 1);
+INSERT INTO `sys_user` (`username`, `password`, `nickname`, `status`, `level`, `points`) VALUES
+    ('admin', 'e10adc3949ba59abbe56e057f20f883e', '系统管理员', 1, 99, 9999);
 
 -- 绑定管理员权限
 INSERT INTO `sys_user_role` (`user_id`, `role_id`)
 SELECT u.id, r.id FROM sys_user u, sys_role r
 WHERE u.username = 'admin' AND r.role_code = 'ROLE_ADMIN';
-
 
 SET FOREIGN_KEY_CHECKS = 1;
