@@ -3,8 +3,10 @@ package com.shortvideo.recommendation.common.utils
 import redis.clients.jedis.{Jedis, JedisPool, JedisPoolConfig}
 import com.shortvideo.recommendation.common.Constants
 import com.shortvideo.recommendation.common.config.RedisConfig
+import com.shortvideo.recommendation.common.entity.Recommendation
+
 import scala.collection.JavaConverters._
-import scala.util.{Try, Success, Failure}
+import scala.util.{Failure, Success, Try}
 import java.util.{Map => JMap}
 
 /**
@@ -285,6 +287,30 @@ object RedisUtils {
         }
       case None => None
     }
+  }
+
+  /**
+   * 保存用户推荐结果到Redis
+   * 使用ZSet存储，视频ID为member，推荐分数为score
+   */
+  def saveUserRecs(userId: Long, recs: List[Recommendation]): Unit = {
+    if (recs.nonEmpty) {
+      val key = s"user_recs:$userId"
+      val members = recs.map(rec => rec.videoId.toString -> rec.score).toMap
+      zaddBatch(key, members)
+
+      // 设置过期时间为7天
+      expire(key, 7 * 24 * 60 * 60)
+    }
+  }
+
+  /**
+   * 获取相似视频
+   * 从预计算的相似视频集合中获取
+   */
+  def getSimilarVideos(videoId: Long, count: Int = 10): List[String] = {
+    val key = s"similar_videos:$videoId"
+    zrevrange(key, 0, count - 1)
   }
 
   // ============ 列表操作 ============
