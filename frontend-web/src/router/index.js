@@ -16,6 +16,7 @@ import AdminStats from '../views/admin/AdminStats.vue'
 import VideoManage from '../views/admin/VideoManage.vue'
 import UserManage from '../views/admin/UserManage.vue'
 import AdminLogs from '../views/admin/AdminLogs.vue'
+import SystemNotice from '../views/admin/SystemNotice.vue' // 新增
 
 Vue.use(VueRouter)
 
@@ -47,7 +48,8 @@ const routes = [
       { path: '', name: 'AdminStats', component: AdminStats },
       { path: 'videos', name: 'VideoManage', component: VideoManage },
       { path: 'users', name: 'UserManage', component: UserManage },
-      { path: 'logs', name: 'AdminLogs', component: AdminLogs }
+      { path: 'logs', name: 'AdminLogs', component: AdminLogs },
+      { path: 'notice', name: 'SystemNotice', component: SystemNotice } // 新增路由
     ]
   },
 
