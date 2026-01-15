@@ -7,6 +7,7 @@ import com.video.server.entity.Video;
 import com.video.server.mapper.VideoMapper;
 import com.video.server.service.VideoService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -21,26 +22,31 @@ import java.util.concurrent.TimeUnit;
 public class VideoServiceImpl implements VideoService {
     
     private final VideoMapper videoMapper;
-    private final RedisTemplate<String, Object> redisTemplate;
+    
+    // RedisTemplate 设为可选依赖，如果Redis不可用则直接查询数据库
+    @Autowired(required = false)
+    private RedisTemplate<String, Object> redisTemplate;
     
     private static final String HOT_VIDEO_LIST_KEY = "hot:video:list";
     private static final long CACHE_EXPIRE_HOURS = 1;
     
     @Override
     public List<Video> getHotVideoList() {
-        // 先从 Redis 获取缓存
-        @SuppressWarnings("unchecked")
-        List<Video> cachedList = (List<Video>) redisTemplate.opsForValue().get(HOT_VIDEO_LIST_KEY);
-        
-        if (cachedList != null && !cachedList.isEmpty()) {
-            return cachedList;
+        // 如果Redis可用，先从 Redis 获取缓存
+        if (redisTemplate != null) {
+            @SuppressWarnings("unchecked")
+            List<Video> cachedList = (List<Video>) redisTemplate.opsForValue().get(HOT_VIDEO_LIST_KEY);
+            
+            if (cachedList != null && !cachedList.isEmpty()) {
+                return cachedList;
+            }
         }
         
-        // 缓存不存在，从数据库查询
+        // 缓存不存在或Redis不可用，从数据库查询
         List<Video> videoList = videoMapper.selectByStatusOrderByPlayCountDesc("PASSED", 20);
         
-        // 存入 Redis，设置过期时间为1小时
-        if (videoList != null && !videoList.isEmpty()) {
+        // 如果Redis可用，存入 Redis，设置过期时间为1小时
+        if (redisTemplate != null && videoList != null && !videoList.isEmpty()) {
             redisTemplate.opsForValue().set(HOT_VIDEO_LIST_KEY, videoList, CACHE_EXPIRE_HOURS, TimeUnit.HOURS);
         }
         
@@ -103,8 +109,8 @@ public class VideoServiceImpl implements VideoService {
     public void setHot(Long videoId, Boolean isHot) {
         int hotStatus = isHot ? 1 : 0;
         videoMapper.updateHotStatus(videoId, hotStatus);
-        // 如果设置为热门，清除缓存
-        if (isHot) {
+        // 如果设置为热门且Redis可用，清除缓存
+        if (isHot && redisTemplate != null) {
             redisTemplate.delete(HOT_VIDEO_LIST_KEY);
         }
     }

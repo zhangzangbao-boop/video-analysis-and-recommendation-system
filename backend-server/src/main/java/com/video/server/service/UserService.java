@@ -26,13 +26,27 @@ public interface UserService {
     /**
      * 更新用户状态
      * @param userId 用户ID
-     * @param status 状态（1-正常，0-冻结）
+     * @param status 状态（1-正常，0-冻结，2-禁言）
      */
     void updateUserStatus(Long userId, Integer status);
+    
+    /**
+     * 更新用户状态（通过状态字符串）
+     * @param userId 用户ID
+     * @param statusStr 状态字符串（normal/frozen/muted）
+     */
+    void updateUserStatusByStr(Long userId, String statusStr);
     
     /**
      * 重置用户密码
      * @param userId 用户ID
      */
     void resetPassword(Long userId);
+    
+    /**
+     * 创建用户
+     * @param request 创建用户请求
+     * @return 创建的用户信息
+     */
+    User createUser(com.video.server.dto.UserCreateRequest request);
 }

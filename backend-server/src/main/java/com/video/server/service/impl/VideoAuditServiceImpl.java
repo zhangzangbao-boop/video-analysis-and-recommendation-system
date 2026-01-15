@@ -6,6 +6,7 @@ import com.video.server.dto.VideoAuditRequest;
 import com.video.server.service.VideoAuditService;
 import com.video.server.service.VideoService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,7 +21,10 @@ import java.util.List;
 public class VideoAuditServiceImpl implements VideoAuditService {
     
     private final VideoService videoService;
-    private final RedisTemplate<String, Object> redisTemplate;
+    
+    // RedisTemplate 设为可选依赖，如果Redis不可用则跳过缓存操作
+    @Autowired(required = false)
+    private RedisTemplate<String, Object> redisTemplate;
     
     private static final String HOT_VIDEO_LIST_KEY = "hot:video:list";
     
@@ -29,8 +33,10 @@ public class VideoAuditServiceImpl implements VideoAuditService {
         String status;
         if ("pass".equalsIgnoreCase(request.getAction())) {
             status = VideoStatus.PASSED.name();
-            // 删除热门视频缓存
-            redisTemplate.delete(HOT_VIDEO_LIST_KEY);
+            // 如果Redis可用，删除热门视频缓存
+            if (redisTemplate != null) {
+                redisTemplate.delete(HOT_VIDEO_LIST_KEY);
+            }
         } else if ("reject".equalsIgnoreCase(request.getAction())) {
             status = VideoStatus.REJECTED.name();
         } else {
@@ -56,8 +62,10 @@ public class VideoAuditServiceImpl implements VideoAuditService {
             for (Long videoId : videoIds) {
                 videoService.updateStatus(videoId, status);
             }
-            // 删除热门视频缓存
-            redisTemplate.delete(HOT_VIDEO_LIST_KEY);
+            // 如果Redis可用，删除热门视频缓存
+            if (redisTemplate != null) {
+                redisTemplate.delete(HOT_VIDEO_LIST_KEY);
+            }
         } else if ("delete".equalsIgnoreCase(action)) {
             // 批量下架
             for (Long videoId : videoIds) {

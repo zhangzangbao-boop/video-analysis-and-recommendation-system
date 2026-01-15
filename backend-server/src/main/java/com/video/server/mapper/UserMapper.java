@@ -37,6 +37,14 @@ public interface UserMapper extends BaseMapper<User> {
     int updateStatusById(@Param("userId") Long userId, @Param("status") Integer status);
     
     /**
+     * 更新用户状态字符串
+     * @param userId 用户ID
+     * @param statusStr 状态字符串
+     * @return 更新行数
+     */
+    int updateStatusStrById(@Param("userId") Long userId, @Param("statusStr") String statusStr);
+    
+    /**
      * 重置密码
      * @param userId 用户ID
      * @param password 新密码（加密后）

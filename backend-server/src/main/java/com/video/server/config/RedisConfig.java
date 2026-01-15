@@ -1,5 +1,6 @@
 package com.video.server.config;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -9,8 +10,11 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 /**
  * Redis 配置类
+ * 只有在 RedisConnectionFactory 存在时才会创建 RedisTemplate
+ * 这样在测试环境中（Redis 被禁用时）不会尝试创建此 bean
  */
 @Configuration
+@ConditionalOnBean(RedisConnectionFactory.class)
 public class RedisConfig {
     
     @Bean

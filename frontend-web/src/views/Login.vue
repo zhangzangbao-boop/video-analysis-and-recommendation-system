@@ -32,6 +32,8 @@
 </template>
 
 <script>
+import { authApi } from '@/api/admin'
+
 export default {
   name: 'UserLogin',
   data() {
@@ -48,44 +50,52 @@ export default {
     }
   },
   methods: {
-    handleLogin() {
-      this.$refs.loginForm.validate((valid) => {
+    async handleLogin() {
+      this.$refs.loginForm.validate(async (valid) => {
         if (valid) {
           this.loading = true;
-          // 模拟网络延迟，让交互更真实
-          setTimeout(() => {
+          try {
             const { username, password } = this.loginForm;
-
-            // --- 场景 1: 管理员登录 (去后台) ---
-            if (username === 'admin' && password === '123456') {
-              // 1. 存 Token
-              localStorage.setItem('adminToken', 'admin-token-secret');
-              localStorage.setItem('username', 'Admin'); // 存个名字
-              
-              // 2. 提示并跳转
-              this.$message.success('管理员登录成功，正在进入后台...');
-              this.$router.push('/admin'); 
-            } 
             
-            // --- 场景 2: 普通用户登录 (去前台) ---
-            // 只要账号不是 admin，且密码不为空，都视为普通用户
-            else if (username !== 'admin' && password.length >= 1) {
-              // 1. 存 Token
-              localStorage.setItem('userToken', 'user-token-secret');
-              localStorage.setItem('username', username);
-              
-              // 2. 提示并跳转
-              this.$message.success('用户登录成功，欢迎回来！');
-              this.$router.push('/main'); 
-            } 
+            // 调用登录API
+            const response = await authApi.login(username, password);
             
-            // --- 场景 3: 账号或密码错误 ---
-            else {
-              this.$message.error('账号或密码错误 (管理员: admin/123456)');
+            if (response && response.data) {
+              const { token, userId, username: responseUsername, userType } = response.data;
+              
+              // 根据角色存储token
+              if (userType === 'admin') {
+                localStorage.setItem('adminToken', token);
+                localStorage.setItem('adminId', userId);
+                localStorage.setItem('username', responseUsername);
+                this.$message.success('管理员登录成功，正在进入后台...');
+                this.$router.push('/admin');
+              } else {
+                localStorage.setItem('userToken', token);
+                localStorage.setItem('userId', userId);
+                localStorage.setItem('username', responseUsername);
+                this.$message.success('用户登录成功，欢迎回来！');
+                this.$router.push('/main');
+              }
             }
-            
+          } catch (error) {
+            // 错误信息已经在request.js中显示，这里只记录详细日志
+            console.error('登录失败:', error);
+            console.error('错误详情:', {
+              message: error.message,
+              code: error.code,
+              status: error.response?.status,
+              url: error.config?.url,
+              baseURL: error.config?.baseURL,
+              response: error.response?.data
+            });
+            // 如果是404错误，提供额外的提示
+            if (error.response?.status === 404) {
+              this.$message.warning('无法连接到登录接口，请检查后端服务是否已启动');
+            }
+          } finally {
             this.loading = false;
-          }, 800);
+          }
         }
       });
     }

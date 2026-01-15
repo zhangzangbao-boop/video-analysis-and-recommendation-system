@@ -6,6 +6,7 @@ import com.video.server.mapper.UserBehaviorMapper;
 import com.video.server.service.UserBehaviorService;
 import com.video.server.service.VideoService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 
@@ -20,7 +21,10 @@ public class UserBehaviorServiceImpl implements UserBehaviorService {
     
     private final UserBehaviorMapper userBehaviorMapper;
     private final VideoService videoService;
-    private final KafkaTemplate<String, Object> kafkaTemplate;
+    
+    // KafkaTemplate 设为可选依赖，如果Kafka不可用则跳过消息发送
+    @Autowired(required = false)
+    private KafkaTemplate<String, Object> kafkaTemplate;
     
     private static final String KAFKA_TOPIC = "user-behavior-topic";
     
@@ -39,7 +43,14 @@ public class UserBehaviorServiceImpl implements UserBehaviorService {
             videoService.incrementLikeCount(request.getVideoId());
         }
         
-        // 3. 发送行为数据到 Kafka
-        kafkaTemplate.send(KAFKA_TOPIC, userBehavior);
+        // 3. 如果Kafka可用，发送行为数据到 Kafka
+        if (kafkaTemplate != null) {
+            try {
+                kafkaTemplate.send(KAFKA_TOPIC, userBehavior);
+            } catch (Exception e) {
+                // Kafka发送失败不影响主流程，只记录日志
+                System.err.println("Kafka消息发送失败: " + e.getMessage());
+            }
+        }
     }
 }

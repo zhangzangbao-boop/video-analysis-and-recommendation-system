@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
  */
 @RestController
 @RequestMapping("/api/admin/user")
+@CrossOrigin(origins = "*", maxAge = 3600)
 @RequiredArgsConstructor
 public class UserManageController {
     
@@ -39,12 +40,23 @@ public class UserManageController {
     
     /**
      * 更新用户状态
+     * @param id 用户ID
+     * @param status 状态（1-正常，0-冻结，2-禁言）或状态字符串（normal/frozen/muted）
      */
     @PutMapping("/{id}/status")
     public ResponseEntity<ApiResponse<Void>> updateUserStatus(
             @PathVariable Long id,
-            @RequestParam Integer status) {
-        userService.updateUserStatus(id, status);
+            @RequestParam(required = false) Integer status,
+            @RequestParam(required = false) String statusStr) {
+        if (statusStr != null && !statusStr.isEmpty()) {
+            // 如果传的是状态字符串，使用字符串更新方法
+            userService.updateUserStatusByStr(id, statusStr);
+        } else if (status != null) {
+            // 如果传的是整数，使用整数更新方法
+            userService.updateUserStatus(id, status);
+        } else {
+            return ResponseEntity.badRequest().body(ApiResponse.fail(400, "状态参数不能为空"));
+        }
         return ResponseEntity.ok(ApiResponse.success());
     }
     
@@ -55,5 +67,14 @@ public class UserManageController {
     public ResponseEntity<ApiResponse<Void>> resetPassword(@PathVariable Long id) {
         userService.resetPassword(id);
         return ResponseEntity.ok(ApiResponse.success());
+    }
+    
+    /**
+     * 创建用户
+     */
+    @PostMapping
+    public ResponseEntity<ApiResponse<User>> createUser(@RequestBody com.video.server.dto.UserCreateRequest request) {
+        User user = userService.createUser(request);
+        return ResponseEntity.ok(ApiResponse.success(user));
     }
 }

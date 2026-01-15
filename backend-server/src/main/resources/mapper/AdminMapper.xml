@@ -10,7 +10,6 @@
         <result column="real_name" property="realName"/>
         <result column="phone" property="phone"/>
         <result column="email" property="email"/>
-        <result column="role_id" property="roleId"/>
         <result column="status" property="status"/>
         <result column="is_deleted" property="isDeleted"/>
         <result column="create_time" property="createTime"/>
@@ -18,27 +17,27 @@
     </resultMap>
 
     <sql id="Base_Column_List">
-        id, username, password, salt, real_name, phone, email, role_id, status, is_deleted, create_time, update_time
+        id, username, password, salt, real_name, phone, email, status, is_deleted, create_time, update_time
     </sql>
 
     <select id="selectById" resultMap="BaseResultMap">
         SELECT
         <include refid="Base_Column_List"/>
-        FROM sys_admin
+        FROM sys_user
         WHERE id = #{id} AND is_deleted = 0
     </select>
 
     <select id="selectByUsername" resultMap="BaseResultMap">
         SELECT
         <include refid="Base_Column_List"/>
-        FROM sys_admin
+        FROM sys_user
         WHERE username = #{username} AND is_deleted = 0
     </select>
 
     <select id="selectByCondition" resultMap="BaseResultMap">
         SELECT
         <include refid="Base_Column_List"/>
-        FROM sys_admin
+        FROM sys_user
         WHERE is_deleted = 0
         <if test="keyword != null and keyword != ''">
             AND (username LIKE CONCAT('%', #{keyword}, '%') 
@@ -52,17 +51,16 @@
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO sys_admin (username, password, salt, real_name, phone, email, role_id, status, is_deleted, create_time, update_time)
-        VALUES (#{username}, #{password}, #{salt}, #{realName}, #{phone}, #{email}, #{roleId}, #{status}, #{isDeleted}, #{createTime}, #{updateTime})
+        INSERT INTO sys_user (username, password, salt, real_name, phone, email, status, is_deleted, create_time, update_time)
+        VALUES (#{username}, #{password}, #{salt}, #{realName}, #{phone}, #{email}, #{status}, #{isDeleted}, #{createTime}, #{updateTime})
     </insert>
 
     <update id="updateById">
-        UPDATE sys_admin
+        UPDATE sys_user
         SET username = #{username},
             real_name = #{realName},
             phone = #{phone},
             email = #{email},
-            role_id = #{roleId},
             <if test="password != null and password != ''">
             password = #{password},
             salt = #{salt},
@@ -72,7 +70,7 @@
     </update>
 
     <delete id="deleteById">
-        UPDATE sys_admin
+        UPDATE sys_user
         SET is_deleted = 1
         WHERE id = #{id}
     </delete>
@@ -80,18 +78,18 @@
     <select id="selectAll" resultMap="BaseResultMap">
         SELECT
         <include refid="Base_Column_List"/>
-        FROM sys_admin
+        FROM sys_user
         WHERE is_deleted = 0
     </select>
 
     <update id="updateStatusById">
-        UPDATE sys_admin
+        UPDATE sys_user
         SET status = #{status}
         WHERE id = #{adminId}
     </update>
 
     <update id="updatePasswordById">
-        UPDATE sys_admin
+        UPDATE sys_user
         SET password = #{password},
             salt = #{salt}
         WHERE id = #{adminId}

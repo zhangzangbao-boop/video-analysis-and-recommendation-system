@@ -28,6 +28,17 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Object>> handleException(Exception e) {
         log.error("系统异常: {}", e.getMessage(), e);
-        return ResponseEntity.ok(ApiResponse.fail(500, "系统异常，请稍后重试"));
+        // 打印完整的堆栈信息到控制台，方便调试
+        e.printStackTrace();
+        
+        // 开发环境返回详细错误信息，生产环境返回通用提示
+        String message = "系统异常，请稍后重试";
+        if (e.getCause() != null) {
+            message += " (" + e.getCause().getMessage() + ")";
+        } else {
+            message += " (" + e.getMessage() + ")";
+        }
+        
+        return ResponseEntity.ok(ApiResponse.fail(500, message));
     }
 }

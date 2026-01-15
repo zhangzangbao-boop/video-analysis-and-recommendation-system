@@ -30,7 +30,7 @@
         </div>
         
         <div class="filter-right">
-          <el-button type="success" size="small" icon="el-icon-plus">添加测试用户</el-button>
+          <el-button type="success" size="small" icon="el-icon-plus" @click="showAddUserDialog">添加新用户</el-button>
         </div>
       </div>
 
@@ -48,8 +48,8 @@
             <div style="display: flex; align-items: center; cursor: pointer;" @click="openDrawer(scope.row)">
               <el-avatar shape="square" size="medium" :src="scope.row.avatar"></el-avatar>
               <div style="margin-left: 10px;">
-                <div style="font-weight: bold; color: #409EFF;">{{ scope.row.username }}</div>
-                <div style="font-size: 12px; color: #909399;">{{ scope.row.phone }}</div>
+                <div style="font-weight: bold; color: #409EFF;">{{ scope.row.username || scope.row.nickname }}</div>
+                <div style="font-size: 12px; color: #909399;">{{ scope.row.phone || '未绑定' }}</div>
               </div>
             </div>
           </template>
@@ -68,12 +68,16 @@
           </template>
         </el-table-column>
 
-        <el-table-column prop="regTime" label="注册时间" width="160" sortable align="center" show-overflow-tooltip></el-table-column>
+        <el-table-column prop="regTime" label="注册时间" width="160" sortable align="center" show-overflow-tooltip>
+          <template slot-scope="scope">
+            {{ scope.row.regTime || (scope.row.createTime ? formatDateTime(scope.row.createTime) : '') }}
+          </template>
+        </el-table-column>
         
         <el-table-column label="状态" width="100" align="center">
           <template slot-scope="scope">
-            <el-tag v-if="scope.row.status === 'normal'" type="success" size="small" effect="dark">正常</el-tag>
-            <el-tag v-else-if="scope.row.status === 'frozen'" type="danger" size="small" effect="dark">已冻结</el-tag>
+            <el-tag v-if="scope.row.statusStr === 'normal' || scope.row.status === 1" type="success" size="small" effect="dark">正常</el-tag>
+            <el-tag v-else-if="scope.row.statusStr === 'frozen' || scope.row.status === 0" type="danger" size="small" effect="dark">已冻结</el-tag>
             <el-tag v-else type="warning" size="small" effect="dark">禁言中</el-tag>
           </template>
         </el-table-column>
@@ -88,7 +92,7 @@
               </span>
               <el-dropdown-menu slot="dropdown">
                 <el-dropdown-item command="resetPwd">重置密码</el-dropdown-item>
-                <el-dropdown-item command="freeze" style="color: #F56C6C;" v-if="scope.row.status !== 'frozen'">冻结账号</el-dropdown-item>
+                <el-dropdown-item command="freeze" style="color: #F56C6C;" v-if="scope.row.statusStr !== 'frozen' && scope.row.status !== 0">冻结账号</el-dropdown-item>
                 <el-dropdown-item command="unfreeze" style="color: #67C23A;" v-else>解封账号</el-dropdown-item>
               </el-dropdown-menu>
             </el-dropdown>
@@ -166,99 +170,287 @@
           
           <div class="drawer-footer">
             <el-button type="warning" plain icon="el-icon-message-solid">发送通知</el-button>
-            <el-button type="danger" v-if="currentUser.status !== 'frozen'" icon="el-icon-lock" @click="handleCommand('freeze', currentUser)">冻结账号</el-button>
+            <el-button type="danger" v-if="currentUser.statusStr !== 'frozen' && currentUser.status !== 0" icon="el-icon-lock" @click="handleCommand('freeze', currentUser)">冻结账号</el-button>
             <el-button type="success" v-else icon="el-icon-unlock" @click="handleCommand('unfreeze', currentUser)">解封账号</el-button>
           </div>
         </div>
       </div>
     </el-drawer>
+
+    <!-- 添加用户对话框 -->
+    <el-dialog
+      title="添加新用户"
+      :visible.sync="addUserDialogVisible"
+      width="500px"
+      :close-on-click-modal="false">
+      <el-form 
+        :model="addUserForm" 
+        :rules="addUserFormRules" 
+        ref="addUserForm" 
+        label-width="100px">
+        <el-form-item label="用户名" prop="username">
+          <el-input v-model="addUserForm.username" placeholder="请输入用户名"></el-input>
+        </el-form-item>
+        <el-form-item label="密码" prop="password">
+          <el-input 
+            v-model="addUserForm.password" 
+            type="password" 
+            placeholder="请输入密码"
+            show-password></el-input>
+        </el-form-item>
+        <el-form-item label="手机号" prop="phone">
+          <el-input v-model="addUserForm.phone" placeholder="请输入手机号（可选）"></el-input>
+        </el-form-item>
+        <el-form-item label="昵称" prop="nickname">
+          <el-input v-model="addUserForm.nickname" placeholder="请输入昵称（可选）"></el-input>
+        </el-form-item>
+        <el-form-item label="邮箱" prop="email">
+          <el-input v-model="addUserForm.email" placeholder="请输入邮箱（可选）"></el-input>
+        </el-form-item>
+      </el-form>
+      <div slot="footer" class="dialog-footer">
+        <el-button @click="addUserDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleAddUser" :loading="loading">确定</el-button>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
 <script>
+import { userApi } from '@/api/admin'
+
 export default {
   name: 'UserManage',
   data() {
     return {
-      query: { keyword: '', status: '', level: '' },
+      query: { keyword: '', status: '', level: '', page: 1, pageSize: 10 },
       loading: false,
       drawerVisible: false,
       loadingDetail: false,
       currentUser: {},
-      // 模拟更丰富的数据
-      userList: [
-        { id: 10001, username: '极客阿辉', realName: '张辉', gender: 'male', phone: '13800138000', email: 'hui@geek.com', avatar: 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png', level: 3, balance: 1250.00, points: 5600, status: 'normal', regTime: '2025-05-12', fansCount: 12030, videoCount: 45, likeCount: 89000 },
-        { id: 10002, username: '美妆小皇后', realName: '李莉', gender: 'female', phone: '13912345678', email: 'lili@beauty.com', avatar: 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png', level: 2, balance: 88.50, points: 1200, status: 'normal', regTime: '2025-08-20', fansCount: 5600, videoCount: 12, likeCount: 23000 },
-        { id: 10003, username: '暴躁老哥', realName: '王五', gender: 'male', phone: '15011112222', email: '', avatar: 'https://cube.elemecdn.com/9/c2/f0ee8a3c7c9638a54940382568c9dpng.png', level: 1, balance: 0.00, points: 50, status: 'frozen', regTime: '2026-01-01', fansCount: 2, videoCount: 0, likeCount: 5 },
-        { id: 10004, username: '匿名用户_9527', realName: '', gender: 'male', phone: '18899998888', email: 'test@qq.com', avatar: 'https://cube.elemecdn.com/6/94/4d3ea53c084bad6931a56d5158a48jpeg.jpeg', level: 1, balance: 12.00, points: 300, status: 'muted', regTime: '2026-01-10', fansCount: 10, videoCount: 2, likeCount: 120 }
-      ]
+      userList: [],
+      total: 0,
+      addUserDialogVisible: false,
+      addUserForm: {
+        username: '',
+        password: '',
+        phone: '',
+        nickname: '',
+        email: ''
+      },
+      addUserFormRules: {
+        username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+        password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
+        phone: [{ pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }],
+        email: [{ type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }]
+      }
     }
   },
   computed: {
     filteredList() {
+      // 前端筛选（如果后端不支持筛选，可以在这里做）
       return this.userList.filter(user => {
-        // 1. 关键词 (ID/手机/昵称)
         const keyword = this.query.keyword.toLowerCase();
         const matchKey = !keyword || 
                          String(user.id).includes(keyword) || 
-                         user.phone.includes(keyword) || 
-                         user.username.toLowerCase().includes(keyword);
-        // 2. 状态
-        const matchStatus = !this.query.status || user.status === this.query.status;
-        // 3. 等级
+                         (user.phone && user.phone.includes(keyword)) || 
+                         (user.username && user.username.toLowerCase().includes(keyword));
+        const matchStatus = !this.query.status || user.statusStr === this.query.status;
         const matchLevel = !this.query.level || String(user.level) === this.query.level;
-
         return matchKey && matchStatus && matchLevel;
       });
     }
   },
+  mounted() {
+    this.loadUserList()
+  },
   methods: {
+    // 加载用户列表
+    async loadUserList() {
+      this.loading = true
+      try {
+        const response = await userApi.getUserList(this.query)
+        // 检查响应结构
+        if (!response || !response.data) {
+          console.warn('响应数据格式异常:', response)
+          this.userList = []
+          this.total = 0
+          return
+        }
+        if (response.data) {
+          this.userList = response.data.list || []
+          this.total = response.data.total || 0
+          // 转换状态：1=normal, 0=frozen, 2=muted
+          this.userList.forEach(user => {
+            if (user.status === 1) user.statusStr = 'normal'
+            else if (user.status === 0) user.statusStr = 'frozen'
+            else if (user.status === 2) user.statusStr = 'muted'
+            // 格式化时间
+            if (user.createTime) {
+              user.regTime = this.formatDateTime(user.createTime)
+            }
+            // 设置默认头像
+            if (!user.avatarUrl) {
+              user.avatar = 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'
+            } else {
+              user.avatar = user.avatarUrl
+            }
+          })
+        }
+      } catch (error) {
+        // 错误信息已经在request.js中显示，这里只记录日志
+        console.error('加载用户列表失败:', error)
+        console.error('错误详情:', {
+          message: error.message,
+          response: error.response?.data,
+          code: error.code
+        })
+        // 如果是连接错误，提供更详细的提示
+        if (error.code === 'ECONNREFUSED' || error.message?.includes('ERR_CONNECTION_REFUSED')) {
+          this.$message({
+            message: '无法连接到后端服务，请确保后端服务已启动在 http://localhost:8090',
+            type: 'error',
+            duration: 5000
+          })
+        }
+        // 设置空列表，避免页面显示异常
+        this.userList = []
+        this.total = 0
+      } finally {
+        this.loading = false
+      }
+    },
     handleSearch() {
-      this.loading = true;
-      setTimeout(() => { this.loading = false; }, 300);
+      this.query.page = 1
+      this.loadUserList()
     },
     resetFilter() {
-      this.query = { keyword: '', status: '', level: '' };
-      this.handleSearch();
+      this.query = { keyword: '', status: '', level: '', page: 1, pageSize: 10 }
+      this.loadUserList()
     },
-    openDrawer(row) {
-      this.drawerVisible = true;
-      this.loadingDetail = true;
-      this.currentUser = {}; // 先清空，防止闪烁旧数据
+    async openDrawer(row) {
+      this.drawerVisible = true
+      this.loadingDetail = true
+      this.currentUser = {}
       
-      // 模拟异步获取详情
-      setTimeout(() => {
-        this.currentUser = row;
-        this.loadingDetail = false;
-      }, 500);
+      try {
+        const response = await userApi.getUserById(row.id)
+        if (response.data) {
+          const user = response.data
+          // 转换状态
+          if (user.status === 1) user.statusStr = 'normal'
+          else if (user.status === 0) user.statusStr = 'frozen'
+          else if (user.status === 2) user.statusStr = 'muted'
+          
+          // 格式化数据
+          user.regTime = user.createTime ? this.formatDateTime(user.createTime) : ''
+          user.lastLogin = user.lastLogin ? this.formatDateTime(user.lastLogin) : ''
+          user.avatar = user.avatarUrl || 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png'
+          
+          this.currentUser = user
+        }
+      } catch (error) {
+        this.$message.error('加载用户详情失败：' + (error.message || '网络错误'))
+        console.error('加载用户详情失败:', error)
+        // 如果API失败，使用行数据
+        this.currentUser = { ...row }
+      } finally {
+        this.loadingDetail = false
+      }
     },
-    handleCommand(command, row) {
+    async handleCommand(command, row) {
       if (command === 'freeze' || command === 'unfreeze') {
-        const isFreeze = command === 'freeze';
-        const actionText = isFreeze ? '冻结' : '解封';
-        const type = isFreeze ? 'error' : 'warning';
+        const isFreeze = command === 'freeze'
+        const actionText = isFreeze ? '冻结' : '解封'
+        const newStatus = isFreeze ? 'frozen' : 'normal'
+        const type = isFreeze ? 'error' : 'warning'
         
         this.$confirm(`确定要${actionText}用户 "${row.username}" 吗？此操作将影响用户登录。`, '高危操作警告', {
           confirmButtonText: `确定${actionText}`,
           cancelButtonText: '取消',
           type: type
-        }).then(() => {
-          // 更新本地状态
-          const target = this.userList.find(u => u.id === row.id);
-          if (target) {
-            target.status = isFreeze ? 'frozen' : 'normal';
+        }).then(async () => {
+          try {
+            await userApi.updateUserStatus(row.id, newStatus)
+            this.$message.success(`用户已成功${actionText}`)
+            // 更新本地状态
+            const target = this.userList.find(u => u.id === row.id)
+            if (target) {
+              target.statusStr = newStatus
+              target.status = isFreeze ? 0 : 1
+            }
+            // 如果在抽屉里操作，同步更新 currentUser
+            if (this.currentUser.id === row.id) {
+              this.currentUser.statusStr = newStatus
+              this.currentUser.status = isFreeze ? 0 : 1
+            }
+            // 重新加载列表
+            this.loadUserList()
+          } catch (error) {
+            this.$message.error(`${actionText}用户失败：` + (error.message || '网络错误'))
+            console.error(`${actionText}用户失败:`, error)
           }
-          this.$message.success(`用户已成功${actionText}`);
-          // 如果在抽屉里操作，同步更新 currentUser
-          if (this.currentUser.id === row.id) {
-            this.currentUser.status = target.status;
-          }
-        }).catch(() => {});
+        }).catch(() => {})
       } else if (command === 'resetPwd') {
-        this.$confirm(`确定重置用户 "${row.username}" 的密码为默认密码 (123456) 吗？`, '提示').then(() => {
-          this.$message.success('密码重置成功');
-        });
+        this.$confirm(`确定重置用户 "${row.username}" 的密码为默认密码 (123456) 吗？`, '提示').then(async () => {
+          try {
+            await userApi.resetPassword(row.id)
+            this.$message.success('密码重置成功')
+          } catch (error) {
+            this.$message.error('密码重置失败：' + (error.message || '网络错误'))
+            console.error('密码重置失败:', error)
+          }
+        })
       }
+    },
+    // 显示添加用户对话框
+    showAddUserDialog() {
+      this.addUserForm = {
+        username: '',
+        password: '',
+        phone: '',
+        nickname: '',
+        email: ''
+      }
+      this.addUserDialogVisible = true
+      // 清除表单验证
+      this.$nextTick(() => {
+        if (this.$refs.addUserForm) {
+          this.$refs.addUserForm.clearValidate()
+        }
+      })
+    },
+    // 添加用户
+    async handleAddUser() {
+      this.$refs.addUserForm.validate(async (valid) => {
+        if (valid) {
+          this.loading = true
+          try {
+            await userApi.createUser(this.addUserForm)
+            this.$message.success('用户创建成功')
+            this.addUserDialogVisible = false
+            // 重新加载用户列表
+            this.loadUserList()
+          } catch (error) {
+            this.$message.error('创建用户失败：' + (error.message || '网络错误'))
+            console.error('创建用户失败:', error)
+          } finally {
+            this.loading = false
+          }
+        }
+      })
+    },
+    // 格式化日期时间
+    formatDateTime(dateTime) {
+      if (!dateTime) return ''
+      const date = new Date(dateTime)
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      const hours = String(date.getHours()).padStart(2, '0')
+      const minutes = String(date.getMinutes()).padStart(2, '0')
+      const seconds = String(date.getSeconds()).padStart(2, '0')
+      return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
     }
   }
 }
