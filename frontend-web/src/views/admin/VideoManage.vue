@@ -57,7 +57,7 @@
         <el-table-column label="操作" width="220" fixed="right" align="center">
           <template slot-scope="scope">
             <div v-if="activeTab === 'pending'">
-              <el-button size="mini" type="primary" plain @click="openVideoDrawer(scope.row)">审核 / 预览</el-button>
+              <el-button size="mini" type="primary" plain @click="openVideoDrawer(scope.row)">AI 审核 / 预览</el-button>
             </div>
             <div v-else>
               <el-button size="mini" type="text" @click="openVideoDrawer(scope.row)">查看详情</el-button>
@@ -81,11 +81,51 @@
             :src="currentVideo.url" 
             controls 
             autoplay 
-            style="width: 100%; height: 340px; background: #000; border-radius: 8px;"
+            style="width: 100%; height: 300px; background: #000; border-radius: 8px;"
           ></video>
         </div>
 
-        <div class="video-meta">
+        <div class="ai-report-section" style="margin-top: 20px; background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px dashed #409EFF;">
+          <h4 style="margin-top: 0; color: #409EFF;"><i class="el-icon-cpu"></i> AI 智能分析报告</h4>
+          
+          <el-row :gutter="20">
+            <el-col :span="12">
+              <div class="report-item">
+                <span class="label">涉黄指数：</span>
+                <el-progress :percentage="2" status="success" :format="formatScore"></el-progress>
+              </div>
+              <div class="report-item">
+                <span class="label">暴力恐怖：</span>
+                <el-progress :percentage="0" status="success" :format="formatScore"></el-progress>
+              </div>
+              <div class="report-item">
+                <span class="label">政治敏感：</span>
+                <el-progress :percentage="currentVideo.riskLevel || 5" :status="currentVideo.riskLevel > 50 ? 'exception' : 'success'" :format="formatScore"></el-progress>
+              </div>
+            </el-col>
+            
+            <el-col :span="12">
+              <div class="report-item">
+                <div class="label" style="margin-bottom: 5px;">AI 识别标签：</div>
+                <div>
+                  <el-tag size="mini" effect="dark" type="info" style="margin-right: 5px;">风景</el-tag>
+                  <el-tag size="mini" effect="dark" type="info" style="margin-right: 5px;">户外</el-tag>
+                  <el-tag size="mini" effect="dark" type="danger" style="margin-right: 5px;" v-if="currentVideo.riskLevel > 50">疑似违规</el-tag>
+                </div>
+              </div>
+              <div class="report-item" style="margin-top: 10px;">
+                 <div class="label" style="margin-bottom: 5px;">关键帧抽样：</div>
+                 <div style="display: flex; gap: 5px;">
+                   <img :src="currentVideo.cover" style="width: 40px; height: 40px; border-radius: 4px; object-fit: cover;">
+                   <img :src="`https://picsum.photos/40/40?random=${currentVideo.id}`" style="border-radius: 4px;">
+                   <img :src="`https://picsum.photos/40/40?random=${currentVideo.id+1}`" style="border-radius: 4px;">
+                 </div>
+              </div>
+            </el-col>
+          </el-row>
+        </div>
+
+        <div class="video-meta" style="margin-top: 20px;">
           <h3>{{ currentVideo.title }}</h3>
           <p class="desc">{{ currentVideo.description || '暂无简介' }}</p>
           <div class="tags">
@@ -98,14 +138,22 @@
         <el-divider></el-divider>
 
         <div v-if="currentVideo.status === 'pending'" class="audit-action">
-           <h4><i class="el-icon-s-check"></i> 审核操作</h4>
+           <h4><i class="el-icon-s-check"></i> 人工复审结果</h4>
+           <el-alert 
+              v-if="currentVideo.riskLevel > 50"
+              title="AI 提示：检测到该视频存在敏感内容，请人工仔细甄别。" 
+              type="error" 
+              show-icon 
+              :closable="false" 
+              style="margin-bottom: 10px;">
+           </el-alert>
            <el-form>
              <el-form-item label="审核意见">
                <el-input type="textarea" v-model="auditReason" placeholder="如果驳回，请填写原因..."></el-input>
              </el-form-item>
              <el-form-item>
-               <el-button type="success" icon="el-icon-check" @click="submitAudit('pass')">通过发布</el-button>
-               <el-button type="danger" icon="el-icon-close" @click="submitAudit('reject')">驳回视频</el-button>
+               <el-button type="success" icon="el-icon-check" @click="submitAudit('pass')">确认无误，通过</el-button>
+               <el-button type="danger" icon="el-icon-close" @click="submitAudit('reject')">确认违规，驳回</el-button>
              </el-form-item>
            </el-form>
         </div>
@@ -127,9 +175,9 @@ export default {
       searchQuery: '',
       drawerVisible: false,
       auditReason: '',
-      currentVideo: {}, // 当前选中的视频对象
+      currentVideo: {},
       
-      // --- 真实测试数据 (带有可播放的 url) ---
+      // 真实测试数据 (整合了稳定链接和 AI 风险模拟数据)
       allVideos: [
         { 
           id: 101, 
@@ -139,8 +187,8 @@ export default {
           uploadTime: '2026-01-14 10:00',
           duration: '0:46',
           status: 'pending',
+          riskLevel: 5, // 低风险
           cover: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60',
-          // 真实视频链接
           url: 'https://vjs.zencdn.net/v/oceans.mp4' 
         },
         { 
@@ -151,7 +199,7 @@ export default {
           uploadTime: '2026-01-13 15:30',
           duration: '0:52',
           status: 'pending',
-          // 🔴 修改点：换成了 Picsum 的随机图片链接，更稳定
+          riskLevel: 85, // 高风险（模拟需要审核）
           cover: 'https://picsum.photos/id/237/500/300', 
           url: 'https://media.w3.org/2010/05/sintel/trailer.mp4'
         },
@@ -163,6 +211,7 @@ export default {
           uploadTime: '2026-01-12 09:20',
           duration: '1:00',
           status: 'published',
+          riskLevel: 10,
           cover: 'https://picsum.photos/500/300?random=103',
           url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'
         }
@@ -182,16 +231,17 @@ export default {
     }
   },
   methods: {
-    // 打开抽屉并播放
     openVideoDrawer(row) {
       this.currentVideo = row;
       this.auditReason = '';
       this.drawerVisible = true;
     },
     handleCloseDrawer(done) {
-      // 关闭时清空视频，防止声音继续播放
       this.currentVideo = {};
       done();
+    },
+    formatScore(percentage) {
+      return percentage >= 80 ? '高风险' : (percentage + '%');
     },
     submitAudit(action) {
       const msg = action === 'pass' ? '审核通过，已发布' : '已驳回该视频';
@@ -200,7 +250,6 @@ export default {
       this.$message({ type, message: msg });
       this.drawerVisible = false;
       
-      // 更新本地数据状态
       const target = this.allVideos.find(v => v.id === this.currentVideo.id);
       if (target) {
         target.status = action === 'pass' ? 'published' : 'rejected';
@@ -225,11 +274,11 @@ export default {
   color: #fff; font-size: 24px; opacity: 0.8; transition: all 0.3s;
   text-shadow: 0 2px 4px rgba(0,0,0,0.5);
 }
-/* 抽屉内容样式 */
 .drawer-content { padding: 20px; height: 100%; overflow-y: auto; }
 .video-meta { margin-top: 15px; }
 .video-meta h3 { margin: 0 0 10px 0; }
 .desc { color: #666; font-size: 14px; margin-bottom: 15px; line-height: 1.5; }
 .tags .el-tag { margin-right: 10px; }
-.audit-action { margin-top: 20px; }
+.report-item { margin-bottom: 12px; font-size: 13px; color: #606266; }
+.report-item .label { display: block; margin-bottom: 4px; font-weight: bold; }
 </style>
