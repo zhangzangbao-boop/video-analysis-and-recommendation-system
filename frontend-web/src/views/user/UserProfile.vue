@@ -1,5 +1,38 @@
 <template>
   <div class="profile-container">
+    <!-- 未登录状态提示 -->
+    <div v-if="!isLogin" class="not-logged-card">
+      <el-card class="not-logged-card-inner">
+        <div class="not-logged-content">
+          <div class="not-logged-icon">
+            <i class="el-icon-user"></i>
+          </div>
+          <h3 class="not-logged-title">您尚未登录</h3>
+          <p class="not-logged-desc">登录后可查看个人资料、播放历史和账号设置</p>
+          <div class="not-logged-actions">
+            <el-button 
+              type="primary" 
+              size="large" 
+              icon="el-icon-user" 
+              @click="$router.push('/login')"
+              class="login-btn"
+            >
+              立即登录
+            </el-button>
+            <el-button 
+              type="text" 
+              size="large"
+              @click="$router.push('/main/video')"
+            >
+              返回首页
+            </el-button>
+          </div>
+        </div>
+      </el-card>
+    </div>
+
+    <!-- 已登录状态显示个人资料 -->
+    <div v-else>
     <!-- 用户信息卡片 - 视觉强化 -->
     <el-card class="profile-main-card">
       <!-- 上半部分：用户信息和统计 -->
@@ -149,6 +182,102 @@
             </div>
           </div>
           
+          <!-- 上传视频 -->
+          <div v-show="activeTab === 'upload'" class="tab-pane enhanced">
+            <div class="content-header">
+              <h3><i class="el-icon-upload"></i> 上传视频</h3>
+              <p>分享你的精彩瞬间</p>
+            </div>
+            
+            <div class="upload-video-section">
+              <el-form 
+                ref="uploadForm" 
+                :model="uploadForm" 
+                :rules="uploadRules" 
+                label-width="100px" 
+                class="upload-form"
+              >
+                <!-- 视频标题 -->
+                <el-form-item label="视频标题" prop="title">
+                  <el-input 
+                    v-model="uploadForm.title" 
+                    placeholder="请输入视频标题（必填）"
+                    maxlength="50"
+                    show-word-limit
+                  ></el-input>
+                </el-form-item>
+                
+                <!-- 视频介绍 -->
+                <el-form-item label="视频介绍" prop="description">
+                  <el-input 
+                    v-model="uploadForm.description" 
+                    type="textarea" 
+                    :rows="4"
+                    placeholder="简单介绍一下你的视频吧（选填）"
+                    maxlength="500"
+                    show-word-limit
+                  ></el-input>
+                </el-form-item>
+                
+                <!-- 视频上传 -->
+                <el-form-item label="上传视频" prop="videoFile" class="upload-item">
+                  <div class="upload-area" @click="triggerFileInput">
+                    <div v-if="!uploadForm.videoFile" class="upload-placeholder">
+                      <i class="el-icon-upload"></i>
+                      <p class="upload-text">点击或拖拽视频文件到此区域</p>
+                      <p class="upload-hint">支持 MP4, AVI, MOV 格式，最大 500MB</p>
+                    </div>
+                    <div v-else class="upload-preview">
+                      <div class="video-preview">
+                        <i class="el-icon-video-play"></i>
+                        <div class="video-info">
+                          <p class="video-name">{{ uploadForm.videoFile.name }}</p>
+                          <p class="video-size">{{ formatFileSize(uploadForm.videoFile.size) }}</p>
+                        </div>
+                        <i class="el-icon-close remove-btn" @click.stop="removeVideoFile"></i>
+                      </div>
+                    </div>
+                  </div>
+                  <input 
+                    type="file" 
+                    ref="fileInput"
+                    accept="video/mp4,video/avi,video/mov,video/quicktime"
+                    @change="handleFileSelect"
+                    style="display: none;"
+                  >
+                </el-form-item>
+                
+                <!-- 视频预览 -->
+                <el-form-item v-if="uploadForm.videoPreview" label="视频预览">
+                  <div class="video-preview-player">
+                    <video 
+                      ref="videoPreview" 
+                      :src="uploadForm.videoPreview"
+                      controls
+                      class="preview-video"
+                    >
+                      您的浏览器不支持 video 标签。
+                    </video>
+                  </div>
+                </el-form-item>
+                
+                <!-- 操作按钮 -->
+                <el-form-item class="upload-actions">
+                  <el-button 
+                    type="primary" 
+                    :loading="uploading"
+                    :disabled="!uploadForm.videoFile"
+                    @click="submitUpload"
+                    class="submit-btn"
+                  >
+                    {{ uploading ? '上传中...' : '发布视频' }}
+                  </el-button>
+                  <el-button @click="resetUploadForm">重置</el-button>
+                </el-form-item>
+              </el-form>
+            </div>
+          </div>
+          
           <!-- 设置 -->
           <div v-show="activeTab === 'settings'" class="tab-pane enhanced">
             <div class="content-header">
@@ -249,6 +378,7 @@
         </div>
       </el-card>
     </div>
+    </div>
   </div>
 </template>
 
@@ -262,6 +392,7 @@ export default {
         { name: 'history', label: '播放历史', icon: 'el-icon-time' },
         { name: 'likes', label: '点赞记录', icon: 'el-icon-star-on' },
         { name: 'comments', label: '评论记录', icon: 'el-icon-chat-dot-round' },
+        { name: 'upload', label: '上传视频', icon: 'el-icon-upload' },
         { name: 'settings', label: '账号设置', icon: 'el-icon-setting' }
       ],
       userInfo: {
@@ -279,12 +410,129 @@ export default {
         themeColor: '#409EFF',
         allowComments: true,
         fontSize: 'medium'
-      }
+      },
+      // 上传表单数据
+      uploadForm: {
+        title: '',
+        description: '',
+        videoFile: null,
+        videoPreview: null
+      },
+      // 表单验证规则
+      uploadRules: {
+        title: [
+          { required: true, message: '请输入视频标题', trigger: 'blur' },
+          { min: 2, max: 50, message: '标题长度在 2 到 50 个字符', trigger: 'blur' }
+        ],
+        description: [
+          { max: 500, message: '介绍不能超过 500 个字符', trigger: 'blur' }
+        ],
+        videoFile: [
+          { required: true, message: '请选择视频文件', trigger: 'change' }
+        ]
+      },
+      uploading: false
+    }
+  },
+  
+  computed: {
+    // 检查用户是否已登录
+    isLogin() {
+      return !!localStorage.getItem('userToken');
     }
   },
   
   methods: {
-    // 保持原有功能，这里不需要增加新方法
+    // 触发文件选择
+    triggerFileInput() {
+      this.$refs.fileInput.click();
+    },
+    
+    // 处理文件选择
+    handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      
+      // 验证文件类型
+      const validTypes = ['video/mp4', 'video/avi', 'video/mov', 'video/quicktime'];
+      if (!validTypes.includes(file.type)) {
+        this.$message.error('请选择有效的视频文件格式（MP4、AVI、MOV）');
+        return;
+      }
+      
+      // 验证文件大小（500MB）
+      const maxSize = 500 * 1024 * 1024; // 500MB
+      if (file.size > maxSize) {
+        this.$message.error('视频文件大小不能超过500MB');
+        return;
+      }
+      
+      this.uploadForm.videoFile = file;
+      
+      // 生成预览URL
+      const fileURL = URL.createObjectURL(file);
+      this.uploadForm.videoPreview = fileURL;
+      
+      // 清除文件输入，以便可以选择同一个文件
+      event.target.value = '';
+    },
+    
+    // 移除视频文件
+    removeVideoFile() {
+      if (this.uploadForm.videoPreview) {
+        URL.revokeObjectURL(this.uploadForm.videoPreview);
+      }
+      this.uploadForm.videoFile = null;
+      this.uploadForm.videoPreview = null;
+    },
+    
+    // 格式化文件大小
+    formatFileSize(bytes) {
+      if (bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    },
+    
+    // 提交上传
+    submitUpload() {
+      this.$refs.uploadForm.validate((valid) => {
+        if (valid) {
+          this.uploading = true;
+          
+          // 模拟上传过程
+          setTimeout(() => {
+            this.$message.success('视频上传成功！');
+            
+            // 重置表单
+            this.resetUploadForm();
+            
+            this.uploading = false;
+          }, 2000);
+        } else {
+          this.$message.warning('请完善表单信息');
+          return false;
+        }
+      });
+    },
+    
+    // 重置上传表单
+    resetUploadForm() {
+      this.$refs.uploadForm.resetFields();
+      if (this.uploadForm.videoPreview) {
+        URL.revokeObjectURL(this.uploadForm.videoPreview);
+      }
+      this.uploadForm.videoFile = null;
+      this.uploadForm.videoPreview = null;
+    }
+  },
+  
+  // 组件销毁前释放URL
+  beforeDestroy() {
+    if (this.uploadForm.videoPreview) {
+      URL.revokeObjectURL(this.uploadForm.videoPreview);
+    }
   }
 }
 </script>
@@ -645,6 +893,204 @@ export default {
   border-radius: 10px;
 }
 
+/* 未登录卡片样式 */
+.not-logged-card {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 60vh;
+}
+
+.not-logged-card-inner {
+  width: 100%;
+  max-width: 500px;
+  text-align: center;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  border: none;
+}
+
+.not-logged-content {
+  padding: 60px 40px;
+}
+
+.not-logged-icon {
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 25px;
+  font-size: 36px;
+  color: white;
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+}
+
+.not-logged-title {
+  font-size: 24px;
+  color: #333;
+  margin: 0 0 15px 0;
+  font-weight: bold;
+}
+
+.not-logged-desc {
+  font-size: 16px;
+  color: #666;
+  line-height: 1.6;
+  margin: 0 0 35px 0;
+}
+
+.not-logged-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  align-items: center;
+}
+
+.login-btn {
+  width: 200px;
+  padding: 12px 0;
+  font-size: 16px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+  border: none;
+}
+
+/* 上传视频区域 */
+.upload-video-section {
+  padding: 20px 0;
+}
+
+.upload-form {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.upload-item {
+  margin-bottom: 30px;
+}
+
+/* 上传区域样式 */
+.upload-area {
+  border: 2px dashed #dcdfe6;
+  border-radius: 8px;
+  background-color: #fafafa;
+  padding: 40px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  min-height: 150px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.upload-area:hover {
+  border-color: #409EFF;
+  background-color: #f0f7ff;
+}
+
+.upload-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+}
+
+.upload-placeholder i {
+  font-size: 48px;
+  color: #909399;
+}
+
+.upload-text {
+  font-size: 16px;
+  color: #333;
+  margin: 0;
+}
+
+.upload-hint {
+  font-size: 14px;
+  color: #909399;
+  margin: 0;
+}
+
+/* 上传预览 */
+.upload-preview {
+  width: 100%;
+}
+
+.video-preview {
+  display: flex;
+  align-items: center;
+  background: #f5f7fa;
+  border-radius: 8px;
+  padding: 15px;
+  border: 1px solid #ebeef5;
+}
+
+.video-preview .el-icon-video-play {
+  font-size: 36px;
+  color: #409EFF;
+  margin-right: 15px;
+}
+
+.video-info {
+  flex: 1;
+}
+
+.video-name {
+  font-weight: 500;
+  color: #333;
+  margin: 0 0 5px 0;
+  word-break: break-all;
+}
+
+.video-size {
+  color: #909399;
+  font-size: 14px;
+  margin: 0;
+}
+
+.remove-btn {
+  font-size: 18px;
+  color: #f56c6c;
+  cursor: pointer;
+  padding: 5px;
+  border-radius: 50%;
+  transition: background-color 0.3s;
+}
+
+.remove-btn:hover {
+  background-color: #ffeded;
+}
+
+/* 视频预览播放器 */
+.video-preview-player {
+  margin-top: 10px;
+}
+
+.preview-video {
+  width: 100%;
+  max-height: 400px;
+  border-radius: 8px;
+  background: #000;
+}
+
+/* 上传操作按钮 */
+.upload-actions {
+  margin-top: 30px;
+  display: flex;
+  justify-content: center;
+}
+
+.submit-btn {
+  padding: 12px 40px;
+  font-size: 16px;
+  border-radius: 8px;
+}
+
 /* 响应式设计 */
 @media (max-width: 1200px) {
   .profile-header-enhanced {
@@ -699,6 +1145,50 @@ export default {
   
   .settings-actions .el-button {
     width: 100%;
+  }
+  
+  .not-logged-content {
+    padding: 40px 20px;
+  }
+  
+  .not-logged-icon {
+    width: 70px;
+    height: 70px;
+    font-size: 32px;
+  }
+  
+  .not-logged-title {
+    font-size: 20px;
+  }
+  
+  .not-logged-desc {
+    font-size: 14px;
+  }
+  
+  .login-btn {
+    width: 100%;
+  }
+  
+  .upload-area {
+    padding: 30px 15px;
+    min-height: 120px;
+  }
+  
+  .upload-placeholder i {
+    font-size: 36px;
+  }
+  
+  .upload-text {
+    font-size: 14px;
+  }
+  
+  .upload-hint {
+    font-size: 12px;
+  }
+  
+  .submit-btn {
+    width: 100%;
+    margin-bottom: 10px;
   }
 }
 

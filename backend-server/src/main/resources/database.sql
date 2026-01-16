@@ -479,14 +479,4 @@ WHERE u.username = 'admin' AND r.role_code = 'ROLE_ADMIN';
 -- DROP TABLE IF EXISTS `user_behavior`;
 -- DROP TABLE IF EXISTS `sys_admin`;
 
--- =================================================================
--- 7. 数据库迁移脚本（用于已有数据库的字段更新）
--- =================================================================
-
--- 为 sys_user 表添加 IP 地址字段（如果字段不存在）
--- 注意：如果字段已存在，执行此语句会报错，可以忽略
-ALTER TABLE `sys_user` 
-ADD COLUMN `ip_address` varchar(64) DEFAULT NULL COMMENT 'IP地址' 
-AFTER `last_login`;
-
 SET FOREIGN_KEY_CHECKS = 1;

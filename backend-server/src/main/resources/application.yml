@@ -44,3 +44,23 @@ mybatis:
 
 jwt:
   secret: your-secret-key-here-please-change-it-to-a-secure-random-string
+
+# 腾讯云COS配置（用于存储视频和封面）
+tencent:
+  cos:
+    # 腾讯云API密钥ID（必填）- 在腾讯云控制台获取
+    secret-id: your-secret-id
+    # 腾讯云API密钥Key（必填）- 在腾讯云控制台获取
+    secret-key: your-secret-key
+    # 存储桶地域（必填）- 如：ap-guangzhou, ap-beijing 等
+    region: ap-guangzhou
+    # 存储桶名称（必填）- 如：my-video-bucket
+    bucket-name: your-bucket-name
+    # 存储桶访问域名（必填）- 如：https://my-video-bucket.cos.ap-guangzhou.myqcloud.com
+    domain: https://your-bucket-name.cos.ap-guangzhou.myqcloud.com
+    # 文件访问权限（可选，默认PublicRead）- PublicRead: 公有读私有写
+    access-control: PublicRead
+    # 视频文件存储文件夹（可选，默认video/）
+    video-folder: video/
+    # 封面图片存储文件夹（可选，默认cover/）
+    cover-folder: cover/

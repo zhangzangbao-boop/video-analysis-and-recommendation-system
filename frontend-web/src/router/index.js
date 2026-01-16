@@ -69,7 +69,6 @@ const router = new VueRouter({
 // --- 全局路由守卫 (双重安检) ---
 router.beforeEach((to, from, next) => {
   const adminToken = localStorage.getItem('adminToken'); // 管理员令牌
-  const userToken = localStorage.getItem('userToken');   // 普通用户令牌
 
   // 1. 如果要去【管理后台】
   if (to.path.startsWith('/admin')) {
@@ -80,14 +79,9 @@ router.beforeEach((to, from, next) => {
       next('/login');
     }
   } 
-  // 2. 如果要去【用户前台】
+  // 2. 如果要去【用户前台】- 允许游客访问
   else if (to.path.startsWith('/main')) {
-    if (userToken || adminToken) { // 管理员也可以看前台，或者要求必须有 userToken
-      next();
-    } else {
-      Vue.prototype.$message.warning('请先登录');
-      next('/login');
-    }
+    next(); // 任何人（包括游客）都能访问
   } 
   // 3. 其他页面 (登录页等) 直接放行
   else {

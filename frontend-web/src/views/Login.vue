@@ -23,6 +23,14 @@
         </el-form-item>
         <el-form-item>
           <el-button type="primary" class="login-btn" @click="handleLogin" :loading="loading">立即登录</el-button>
+          
+          <el-button 
+            type="text" 
+            class="guest-btn" 
+            @click="enterAsGuest"
+          >
+            暂不登录，以游客身份逛逛 >
+          </el-button>
         </el-form-item>
       </el-form>
       
@@ -116,6 +124,15 @@ export default {
           }
         }
       });
+    },
+    
+    // 以游客身份进入
+    enterAsGuest() {
+      // 确保清除可能的登录状态
+      localStorage.removeItem('userToken');
+      localStorage.removeItem('username');
+      localStorage.removeItem('userId');
+      this.$router.push('/main');
     }
   }
 }
@@ -156,6 +173,18 @@ export default {
   transition: opacity 0.3s;
 }
 .login-btn:hover { opacity: 0.9; }
+
+.guest-btn {
+  width: 100%;
+  margin-top: 15px;
+  color: #909399;
+  font-size: 13px;
+}
+
+.guest-btn:hover {
+  color: #764ba2;
+  text-decoration: underline;
+}
 
 .footer { margin-top: 20px; font-size: 12px; color: #bbb; }
 </style>

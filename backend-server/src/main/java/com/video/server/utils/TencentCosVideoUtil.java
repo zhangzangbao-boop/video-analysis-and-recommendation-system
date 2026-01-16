@@ -4,11 +4,11 @@ import com.qcloud.cos.model.CannedAccessControlList;
 import com.qcloud.cos.model.PutObjectRequest;
 import com.qcloud.cos.model.PutObjectResult;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
 
-import javax.annotation.Resource;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.UUID;
@@ -16,28 +16,29 @@ import java.util.UUID;
 /**
  * 腾讯云COS工具类 - 短视频专属
  * 封装：视频上传、封面上传、视频删除、封面删除、获取播放链接等方法
+ * 注意：COS客户端为可选依赖，如果未配置COS，相关方法将抛出异常
  */
 @Component
 @Slf4j
 public class TencentCosVideoUtil {
 
-    @Resource
+    @Autowired(required = false)
     private COSClient cosClient;
 
     // ========== 从yml读取配置 ==========
-    @Value("${tencent.cos.bucket-name}")
+    @Value("${tencent.cos.bucket-name:}")
     private String bucketName;
 
-    @Value("${tencent.cos.domain}")
+    @Value("${tencent.cos.domain:}")
     private String domain;
 
-    @Value("${tencent.cos.access-control}")
+    @Value("${tencent.cos.access-control:PublicRead}")
     private String accessControl;
 
-    @Value("${tencent.cos.video-folder}")
+    @Value("${tencent.cos.video-folder:video/}")
     private String videoFolder;
 
-    @Value("${tencent.cos.cover-folder}")
+    @Value("${tencent.cos.cover-folder:cover/}")
     private String coverFolder;
 
     /**
@@ -62,6 +63,10 @@ public class TencentCosVideoUtil {
      * 公共上传方法 - 内部调用，封装视频/封面的共同上传逻辑
      */
     private String uploadFile(MultipartFile file, String folderPath) {
+        if (cosClient == null || bucketName == null || bucketName.isEmpty()) {
+            log.error("COS客户端未配置，无法上传文件");
+            throw new RuntimeException("文件上传服务未配置，请联系管理员");
+        }
         try {
             // 判空
             if (file.isEmpty()) {
@@ -100,6 +105,10 @@ public class TencentCosVideoUtil {
      * @return true-删除成功 false-删除失败
      */
     public boolean deleteFile(String cosFileUrl) {
+        if (cosClient == null || bucketName == null || bucketName.isEmpty() || domain == null || domain.isEmpty()) {
+            log.error("COS客户端未配置，无法删除文件");
+            return false;
+        }
         try {
             // 从完整URL中提取COS的文件路径（核心：截取domain后面的部分）
             String cosFilePath = cosFileUrl.substring(domain.length() + 1);
@@ -119,6 +128,10 @@ public class TencentCosVideoUtil {
      * @return true-存在 false-不存在
      */
     public boolean isFileExist(String cosFileUrl) {
+        if (cosClient == null || bucketName == null || bucketName.isEmpty() || domain == null || domain.isEmpty()) {
+            log.error("COS客户端未配置，无法检查文件");
+            return false;
+        }
         try {
             String cosFilePath = cosFileUrl.substring(domain.length() + 1);
             return cosClient.doesObjectExist(bucketName, cosFilePath);

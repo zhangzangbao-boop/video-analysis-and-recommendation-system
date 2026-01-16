@@ -6,8 +6,14 @@
         <h2>短视频推荐系统</h2>
       </div>
       <div class="header-right">
-        <span class="username">欢迎, {{ username }}</span>
-        <el-button type="text" @click="handleLogout" style="color: white;">退出登录</el-button>
+        <div v-if="isLogin" style="display: flex; align-items: center;">
+          <span class="username">欢迎, {{ username }}</span>
+          <el-button type="text" @click="handleLogout" style="color: rgba(255,255,255,0.8); margin-left: 15px;">退出</el-button>
+        </div>
+        <div v-else>
+          <span class="username" style="margin-right: 15px;">当前身份：游客</span>
+          <el-button size="small" round @click="$router.push('/login')">去登录</el-button>
+        </div>
       </div>
     </el-header>
 
@@ -50,8 +56,20 @@ export default {
   name: 'UserMain',
   data() {
     return {
-      username: localStorage.getItem('username') || '用户',
       activeMenu: '/main/video'
+    }
+  },
+  computed: {
+    // 判断是否有 userToken（仅当通过登录页面登录时才有）
+    isLogin() {
+      return !!localStorage.getItem('userToken');
+    },
+    username() {
+      // 只有登录用户才显示用户名
+      if (this.isLogin) {
+        return localStorage.getItem('username') || '用户';
+      }
+      return '游客';
     }
   },
   created() {
@@ -73,10 +91,14 @@ export default {
         cancelButtonText: '取消',
         type: 'warning'
       }).then(() => {
-        localStorage.removeItem('userToken')
-        localStorage.removeItem('username')
-        this.$router.push('/login')
-      })
+        localStorage.removeItem('userToken');
+        localStorage.removeItem('username');
+        localStorage.removeItem('userId');
+        // 刷新页面，状态变回游客
+        location.reload(); 
+      }).catch(() => {
+        // 用户点击取消，什么都不做，直接关闭弹窗
+      });
     }
   }
 }

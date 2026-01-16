@@ -171,10 +171,10 @@
                 </div>
                 <div class="comment-text">{{ comment.content }}</div>
                 <div class="comment-actions">
-                  <el-button type="text" size="mini">
+                  <el-button type="text" size="mini" @click="checkLogin('commentLike')">
                     <i class="el-icon-heart-off"></i> 点赞
                   </el-button>
-                  <el-button type="text" size="mini">
+                  <el-button type="text" size="mini" @click="checkLogin('reply')">
                     回复
                   </el-button>
                 </div>
@@ -270,122 +270,38 @@
 </template>
 
 <script>
+import { userVideoApi } from '@/api/user'
+
 export default {
   name: 'VideoPlayer',
   data() {
     return {
       // 当前播放视频
       currentVideo: {
-        id: 1,
-        title: '超美风景航拍：云海日出，大自然的壮丽景色',
-        url: 'https://example.com/video1.mp4',
-        thumbnail: 'https://picsum.photos/300/200?random=1',
-        duration: '3:45',
-        description: '在海拔3000米的山顶拍摄的云海日出，大自然的美景让人心旷神怡。视频拍摄于黄山光明顶，使用无人机航拍记录下这壮丽的时刻。',
-        views: '125.8万',
-        likes: 24500,
+        id: null,
+        title: '',
+        url: '',
+        thumbnail: '',
+        duration: '0:00',
+        description: '',
+        views: 0,
+        likes: 0,
         isLiked: false,
-        uploadTime: '3天前',
+        uploadTime: '',
         author: {
-          id: 1,
-          name: '旅行摄影师',
-          avatar: 'https://picsum.photos/40/40?random=2'
+          id: null,
+          name: '未知作者',
+          avatar: ''
         },
         isFollowing: false,
-        comments: [
-          { id: 1, userName: '用户A', userAvatar: 'https://picsum.photos/32/32?random=3', content: '太美了！这景色太震撼了，我也想去黄山看日出。', time: '2小时前' },
-          { id: 2, userName: '用户B', userAvatar: 'https://picsum.photos/32/32?random=4', content: '拍得真好！', time: '5小时前' },
-          { id: 3, userName: '用户C', userAvatar: 'https://picsum.photos/32/32?random=5', content: '大自然的鬼斧神工。', time: '1天前' },
-        ]
+        comments: []
       },
       
       // 推荐视频列表
-      recommendedVideos: [
-        { 
-          id: 2, 
-          title: '美食探店', 
-          thumbnail: 'https://picsum.photos/160/90?random=5', 
-          duration: '4:20', 
-          views: '89.2万', 
-          uploadTime: '1天前', 
-          author: { name: '美食家' } 
-        },
-        { 
-          id: 3, 
-          title: '健身教程', 
-          thumbnail: 'https://picsum.photos/160/90?random=6', 
-          duration: '5:30', 
-          views: '102.5万', 
-          uploadTime: '2天前', 
-          author: { name: '健身教练' } 
-        },
-        { 
-          id: 4, 
-          title: '搞笑宠物合集', 
-          thumbnail: 'https://picsum.photos/160/90?random=7', 
-          duration: '2:15', 
-          views: '156.3万', 
-          uploadTime: '5小时前', 
-          author: { name: '萌宠日记' } 
-        },
-        { 
-          id: 5, 
-          title: '科技产品评测', 
-          thumbnail: 'https://picsum.photos/160/90?random=8', 
-          duration: '6:45', 
-          views: '78.9万', 
-          uploadTime: '3天前', 
-          author: { name: '科技达人' } 
-        },
-        { 
-          id: 6, 
-          title: '流行歌曲翻唱', 
-          thumbnail: 'https://picsum.photos/160/90?random=9', 
-          duration: '3:50', 
-          views: '210.4万', 
-          uploadTime: '1周前', 
-          author: { name: '音乐现场' } 
-        },
-      ],
+      recommendedVideos: [],
       
       // 热门排行榜（纯文字版）
-      hotRanking: [
-        { 
-          id: 7, 
-          title: '舞蹈挑战赛冠军', 
-          author: '舞蹈达人', 
-          views: '350.2万', 
-          likes: '4.5万' 
-        },
-        { 
-          id: 8, 
-          title: '搞笑情景剧', 
-          author: '喜剧工厂', 
-          views: '289.7万', 
-          likes: '3.8万' 
-        },
-        { 
-          id: 9, 
-          title: '旅行vlog', 
-          author: '旅行日记', 
-          views: '265.4万', 
-          likes: '3.2万' 
-        },
-        { 
-          id: 14, 
-          title: '五分钟学会做蛋糕', 
-          author: '美食家', 
-          views: '240.1万', 
-          likes: '2.9万' 
-        },
-        { 
-          id: 15, 
-          title: '新款手机深度评测', 
-          author: '科技测评', 
-          views: '198.5万', 
-          likes: '2.5万' 
-        },
-      ],
+      hotRanking: [],
       
       // UI状态
       showComments: true,
@@ -393,6 +309,7 @@ export default {
       isPlaying: true,
       likeLoading: false,
       newComment: '',
+      loading: false, // 视频加载状态
       
       // 用户信息
       userAvatar: 'https://picsum.photos/40/40?random=50',
@@ -406,9 +323,16 @@ export default {
     }
   },
   
+  computed: {
+    // 检查用户是否已登录
+    isLogin() {
+      return !!localStorage.getItem('userToken');
+    }
+  },
+  
   mounted() {
+    this.loadInitialVideo()
     this.initializeVideoPlayer()
-    this.startBehaviorTracking()
   },
   
   beforeDestroy() {
@@ -416,6 +340,122 @@ export default {
   },
   
   methods: {
+    // 加载初始视频数据
+    async loadInitialVideo() {
+      this.loading = true
+      try {
+        // 获取推荐视频列表
+        const recommendRes = await userVideoApi.getRecommendVideos(
+          localStorage.getItem('userId') ? parseInt(localStorage.getItem('userId')) : null,
+          10
+        )
+        
+        if (recommendRes && recommendRes.data && recommendRes.data.length > 0) {
+          // 转换并设置推荐视频列表
+          this.recommendedVideos = recommendRes.data.map(v => this.convertVideoData(v))
+          
+          // 设置第一个推荐视频为当前播放视频
+          this.currentVideo = this.convertVideoData(recommendRes.data[0], true)
+          this.startBehaviorTracking()
+          
+          // 加载热门排行榜
+          await this.loadHotRanking()
+        } else {
+          this.$message.warning('暂无推荐视频')
+        }
+      } catch (error) {
+        console.error('加载视频失败:', error)
+        this.$message.error('加载视频失败，请稍后重试')
+      } finally {
+        this.loading = false
+      }
+    },
+    
+    // 加载热门排行榜
+    async loadHotRanking() {
+      try {
+        const hotRes = await userVideoApi.getHotVideos()
+        if (hotRes && hotRes.data && hotRes.data.length > 0) {
+          // 只取前5个作为排行榜
+          this.hotRanking = hotRes.data.slice(0, 5).map(v => ({
+            id: v.id,
+            title: v.title,
+            author: v.authorId ? `用户${v.authorId}` : '未知',
+            views: this.formatNumber(v.playCount || 0),
+            likes: this.formatNumber(v.likeCount || 0)
+          }))
+        }
+      } catch (error) {
+        console.error('加载排行榜失败:', error)
+      }
+    },
+    
+    // 将后端视频数据转换为前端需要的格式
+    convertVideoData(backendVideo, includeComments = false) {
+      return {
+        id: backendVideo.id,
+        title: backendVideo.title || '无标题',
+        url: backendVideo.videoUrl || '',
+        thumbnail: backendVideo.coverUrl || '',
+        duration: this.formatDuration(backendVideo.duration || 0),
+        description: backendVideo.description || '',
+        views: backendVideo.playCount || 0,
+        likes: backendVideo.likeCount || 0,
+        isLiked: false, // 需要单独查询用户是否点赞
+        uploadTime: this.formatTime(backendVideo.createTime),
+        author: {
+          id: backendVideo.authorId || null,
+          name: backendVideo.authorId ? `用户${backendVideo.authorId}` : '未知作者',
+          avatar: '' // 需要单独查询作者信息
+        },
+        isFollowing: false, // 需要单独查询是否关注
+        comments: includeComments ? [] : [] // 评论需要单独加载
+      }
+    },
+    
+    // 格式化时长（秒 -> mm:ss）
+    formatDuration(seconds) {
+      if (!seconds) return '0:00'
+      const mins = Math.floor(seconds / 60)
+      const secs = Math.floor(seconds % 60)
+      return `${mins}:${secs.toString().padStart(2, '0')}`
+    },
+    
+    // 格式化时间（相对时间）
+    formatTime(timeStr) {
+      if (!timeStr) return '未知'
+      const time = new Date(timeStr)
+      const now = new Date()
+      const diff = now - time
+      const seconds = Math.floor(diff / 1000)
+      const minutes = Math.floor(seconds / 60)
+      const hours = Math.floor(minutes / 60)
+      const days = Math.floor(hours / 24)
+      
+      if (days > 0) return `${days}天前`
+      if (hours > 0) return `${hours}小时前`
+      if (minutes > 0) return `${minutes}分钟前`
+      return '刚刚'
+    },
+    
+    // 格式化数字（如：12580 -> 1.3万）
+    formatNumber(num) {
+      if (num >= 10000) {
+        return (num / 10000).toFixed(1) + '万'
+      }
+      return num.toString()
+    },
+    
+    // 检查登录状态，如果未登录则提示
+    // eslint-disable-next-line no-unused-vars
+    checkLogin(action) {
+      if (!this.isLogin) {
+        this.$message.warning('请先登录后再进行此操作');
+        return false;
+      }
+      return true;
+    },
+    
     // 初始化视频播放器
     initializeVideoPlayer() {
       const videoElement = this.$refs.videoPlayer
@@ -441,18 +481,32 @@ export default {
     },
     
     // 切换视频
-    switchVideo(video) {
+    async switchVideo(video) {
       this.stopBehaviorTracking()
       
       // 保存当前视频行为数据
       this.sendUserBehavior()
       
+      // 如果传入的是简单的视频对象（推荐列表中的），需要加载完整信息
+      if (!video.url && video.id) {
+        try {
+          const res = await userVideoApi.getVideoById(video.id)
+          if (res && res.data) {
+            video = this.convertVideoData(res.data, true)
+          }
+        } catch (error) {
+          console.error('加载视频详情失败:', error)
+          this.$message.error('加载视频失败')
+          return
+        }
+      }
+      
       // 切换到新视频
       this.currentVideo = {
         ...video,
-        isLiked: false,
-        isFollowing: false,
-        comments: [] // 清空评论
+        isLiked: video.isLiked || false,
+        isFollowing: video.isFollowing || false,
+        comments: video.comments || [] // 清空评论
       }
       
       // 开始跟踪新视频行为
@@ -470,6 +524,9 @@ export default {
     
     // 点赞处理
     handleLike() {
+      // 检查登录状态
+      if (!this.checkLogin('like')) return;
+      
       this.likeLoading = true
       
       // 模拟API调用延迟
@@ -486,6 +543,9 @@ export default {
     
     // 关注作者
     handleFollow() {
+      // 检查登录状态
+      if (!this.checkLogin('follow')) return;
+      
       this.currentVideo.isFollowing = true
       this.$message.success('关注成功')
       
@@ -495,6 +555,9 @@ export default {
     
     // 分享视频
     handleShare() {
+      // 检查登录状态
+      if (!this.checkLogin('share')) return;
+      
       this.$message.success('分享功能已调用')
       
       // 记录分享行为
@@ -503,12 +566,15 @@ export default {
     
     // 提交评论
     submitComment() {
+      // 检查登录状态
+      if (!this.checkLogin('comment')) return;
+      
       if (!this.newComment.trim()) return
       
       const newComment = {
         id: Date.now(),
         userName: localStorage.getItem('username') || '用户',
-        //userAvatar: 'https://picsum.photos/32/32?random=' + Date.now(),
+        userAvatar: 'https://picsum.photos/32/32?random=' + Date.now(),
         content: this.newComment,
         time: '刚刚'
       }
@@ -522,6 +588,9 @@ export default {
     
     // 处理不喜欢
     handleDislike() {
+      // 检查登录状态
+      if (!this.checkLogin('dislike')) return;
+      
       this.$confirm('将减少此类视频的推荐，确定吗？', '不感兴趣', {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
@@ -534,19 +603,29 @@ export default {
         this.refreshRecommendations()
         
         this.$message.success('已记录您的偏好')
+      }).catch(() => {
+        // 用户点击取消，什么都不做，直接关闭弹窗
       })
     },
     
     // 刷新推荐
-    refreshRecommendations() {
-      // 向后端请求新的推荐
-      console.log('刷新推荐列表')
+    async refreshRecommendations() {
       this.$message.info('正在为您推荐新内容...')
-      
-      // 模拟刷新
-      setTimeout(() => {
-        this.$message.success('推荐内容已更新')
-      }, 1000)
+      try {
+        const res = await userVideoApi.getRecommendVideos(
+          localStorage.getItem('userId') ? parseInt(localStorage.getItem('userId')) : null,
+          10
+        )
+        if (res && res.data && res.data.length > 0) {
+          this.recommendedVideos = res.data.map(v => this.convertVideoData(v))
+          this.$message.success('推荐内容已更新')
+        } else {
+          this.$message.warning('暂无新的推荐内容')
+        }
+      } catch (error) {
+        console.error('刷新推荐失败:', error)
+        this.$message.error('刷新推荐失败，请稍后重试')
+      }
     },
     
     // 刷新当前视频
@@ -556,17 +635,8 @@ export default {
     
     // 改变排行榜类型
     changeRankingType() {
+      // 目前只支持加载热门排行榜，可以后续扩展
       this.loadHotRanking()
-    },
-    
-    // 加载热门排行榜
-    loadHotRanking() {
-      console.log(`加载${this.rankingType}热门排行榜`)
-      
-      // 实际应调用后端API
-      // this.$api.video.getHotRanking({ type: this.rankingType }).then(res => {
-      //   this.hotRanking = res.data
-      // })
     },
     
     // 获取排序样式
