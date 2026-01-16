@@ -24,11 +24,12 @@
         <result column="is_deleted" property="isDeleted"/>
         <result column="create_time" property="createTime"/>
         <result column="last_login" property="lastLogin"/>
+        <result column="ip_address" property="ipAddress"/>
         <result column="update_time" property="updateTime"/>
     </resultMap>
 
     <sql id="Base_Column_List">
-        id, username, password, salt, phone, nickname, real_name, email, gender, bio, fans_count, follow_count, avatar_url, level, balance, points, status, status_str, is_deleted, create_time, last_login, update_time
+        id, username, password, salt, phone, nickname, real_name, email, gender, bio, fans_count, follow_count, avatar_url, level, balance, points, status, status_str, is_deleted, create_time, last_login, ip_address, update_time
     </sql>
 
     <select id="selectById" resultMap="BaseResultMap">
@@ -73,8 +74,8 @@
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO sys_user (username, password, salt, phone, nickname, avatar_url, real_name, email, level, balance, points, fans_count, follow_count, status, status_str, is_deleted, create_time, update_time)
-        VALUES (#{username}, #{password}, #{salt}, #{phone}, #{nickname}, #{avatarUrl}, #{realName}, #{email}, #{level}, #{balance}, #{points}, #{fansCount}, #{followCount}, #{status}, #{statusStr}, #{isDeleted}, #{createTime}, #{updateTime})
+        INSERT INTO sys_user (username, password, salt, phone, nickname, avatar_url, real_name, email, level, balance, points, fans_count, follow_count, status, status_str, is_deleted, create_time, last_login, ip_address, update_time)
+        VALUES (#{username}, #{password}, #{salt}, #{phone}, #{nickname}, #{avatarUrl}, #{realName}, #{email}, #{level}, #{balance}, #{points}, #{fansCount}, #{followCount}, #{status}, #{statusStr}, #{isDeleted}, #{createTime}, #{lastLogin}, #{ipAddress}, #{updateTime})
     </insert>
 
     <update id="updateById">
@@ -88,6 +89,7 @@
             gender = #{gender},
             bio = #{bio},
             status = #{status},
+            ip_address = #{ipAddress},
             update_time = #{updateTime}
         WHERE id = #{id}
     </update>
@@ -123,5 +125,37 @@
             salt = #{salt}
         WHERE id = #{userId}
     </update>
+
+    <select id="selectByConditionForOffline" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM sys_user
+        WHERE is_deleted = 0
+        <if test="startTime != null">
+            AND create_time &gt;= #{startTime}
+        </if>
+        <if test="endTime != null">
+            AND create_time &lt;= #{endTime}
+        </if>
+        <if test="lastId != null">
+            AND id &gt; #{lastId}
+        </if>
+        ORDER BY id ASC
+        <if test="limit != null">
+            LIMIT #{limit}
+        </if>
+    </select>
+
+    <select id="countByConditionForOffline" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM sys_user
+        WHERE is_deleted = 0
+        <if test="startTime != null">
+            AND create_time &gt;= #{startTime}
+        </if>
+        <if test="endTime != null">
+            AND create_time &lt;= #{endTime}
+        </if>
+    </select>
 
 </mapper>

@@ -82,11 +82,38 @@ public class VideoServiceImpl implements VideoService {
     
     @Override
     public List<Video> getRecommendVideoList(Long userId, Integer limit) {
-        // 简化版推荐：直接返回热门视频
-        // 实际应该根据用户画像和协同过滤算法推荐
         if (limit == null || limit <= 0) {
             limit = 10;
         }
+        
+        // 如果用户未登录，直接返回热门视频
+        if (userId == null) {
+            return videoMapper.selectByStatusOrderByPlayCountDesc("PASSED", limit);
+        }
+        
+        // 如果Redis可用，尝试从Redis获取推荐结果
+        if (redisTemplate != null) {
+            String recommendKey = "recommend:user:" + userId;
+            @SuppressWarnings("unchecked")
+            List<Long> recommendVideoIds = (List<Long>) redisTemplate.opsForValue().get(recommendKey);
+            
+            if (recommendVideoIds != null && !recommendVideoIds.isEmpty()) {
+                // 限制数量
+                if (recommendVideoIds.size() > limit) {
+                    recommendVideoIds = recommendVideoIds.subList(0, limit);
+                }
+                
+                // 根据ID列表查询视频详情
+                List<Video> recommendVideos = videoMapper.selectByIds(recommendVideoIds);
+                
+                // 如果推荐结果不为空，返回推荐结果
+                if (recommendVideos != null && !recommendVideos.isEmpty()) {
+                    return recommendVideos;
+                }
+            }
+        }
+        
+        // 降级策略：如果Redis中没有推荐结果，返回热门视频
         return videoMapper.selectByStatusOrderByPlayCountDesc("PASSED", limit);
     }
     

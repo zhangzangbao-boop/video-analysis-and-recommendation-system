@@ -116,6 +116,11 @@ public class User {
     private LocalDateTime lastLogin;
     
     /**
+     * IP地址
+     */
+    private String ipAddress;
+    
+    /**
      * 更新时间
      */
     private LocalDateTime updateTime;

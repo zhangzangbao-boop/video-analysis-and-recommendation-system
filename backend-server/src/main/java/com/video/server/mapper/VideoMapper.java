@@ -70,4 +70,33 @@ public interface VideoMapper extends BaseMapper<Video> {
      * @return 更新行数
      */
     int updateHotStatus(@Param("videoId") Long videoId, @Param("isHot") Integer isHot);
+    
+    /**
+     * 根据ID列表查询视频
+     * @param videoIds 视频ID列表
+     * @return 视频列表
+     */
+    List<Video> selectByIds(@Param("videoIds") List<Long> videoIds);
+    
+    /**
+     * 根据条件查询视频列表（分页，用于离线分析）
+     * @param startTime 开始时间
+     * @param endTime 结束时间
+     * @param lastId 上次最后一条ID（用于增量提取）
+     * @param limit 限制数量
+     * @return 视频列表
+     */
+    List<Video> selectByConditionForOffline(@Param("startTime") java.time.LocalDateTime startTime,
+                                             @Param("endTime") java.time.LocalDateTime endTime,
+                                             @Param("lastId") Long lastId,
+                                             @Param("limit") Integer limit);
+    
+    /**
+     * 统计符合条件的视频数量（用于离线分析）
+     * @param startTime 开始时间
+     * @param endTime 结束时间
+     * @return 总数
+     */
+    Long countByConditionForOffline(@Param("startTime") java.time.LocalDateTime startTime,
+                                     @Param("endTime") java.time.LocalDateTime endTime);
 }
