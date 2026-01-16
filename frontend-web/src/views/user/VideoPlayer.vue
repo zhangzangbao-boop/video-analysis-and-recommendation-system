@@ -31,17 +31,21 @@
           <div class="video-wrapper-large">
             <video 
               ref="videoPlayer"
-              :src="currentVideo.url"
+              :src="currentVideo.url || undefined"
               class="video-element-large"
               controls
-              autoplay
+              :autoplay="!!currentVideo.url"
               @timeupdate="handleTimeUpdate"
               @ended="handleVideoEnded"
               @play="handleVideoPlay"
               @pause="handleVideoPause"
+              v-if="currentVideo.url"
             >
               您的浏览器不支持 video 标签。
             </video>
+            <div v-else class="video-placeholder" style="width: 100%; height: 500px; display: flex; align-items: center; justify-content: center; background: #000; color: #fff;">
+              <span>正在加载视频...</span>
+            </div>
             
             <!-- 视频遮罩层控制按钮 -->
             <div class="video-overlay-controls">
@@ -56,7 +60,7 @@
             <div class="author-main">
               <el-avatar 
                 :size="40" 
-                :src="currentVideo.author.avatar"
+                :src="currentVideo.author.avatar || undefined"
                 class="author-avatar"
               ></el-avatar>
               <div class="author-details">
@@ -132,7 +136,7 @@
           <div class="comment-input-large">
             <el-avatar 
               :size="40" 
-              :src="userAvatar"
+              :src="userAvatar || undefined"
               class="comment-user-avatar"
             ></el-avatar>
             <div class="comment-input-wrapper">
@@ -161,7 +165,7 @@
             >
               <el-avatar 
                 :size="36" 
-                :src="comment.userAvatar"
+                :src="comment.userAvatar || undefined"
                 class="comment-avatar"
               ></el-avatar>
               <div class="comment-content-large">
@@ -312,7 +316,7 @@ export default {
       loading: false, // 视频加载状态
       
       // 用户信息
-      userAvatar: 'https://picsum.photos/40/40?random=50',
+      userAvatar: localStorage.getItem('userAvatar') || '', // 从localStorage获取用户头像，如果没有则为空
       
       // 用户行为数据
       userBehavior: {
@@ -456,14 +460,55 @@ export default {
       return true;
     },
     
+    // 处理头像加载错误（静默处理，不显示错误）
+    handleAvatarError() {
+      // 头像加载失败时，el-avatar会自动显示默认图标，这里不需要处理
+      // 只是为了避免控制台报错
+      return false
+    },
+    
     // 初始化视频播放器
     initializeVideoPlayer() {
+      this.$nextTick(() => {
       const videoElement = this.$refs.videoPlayer
       if (videoElement) {
         videoElement.addEventListener('loadeddata', () => {
           console.log('视频加载完成')
         })
-      }
+          
+          // 处理视频加载错误（只处理真正的视频错误，不包括图片）
+          videoElement.addEventListener('error', (e) => {
+            // 延迟检查，确保错误对象已经设置
+            setTimeout(() => {
+              const error = videoElement.error
+              // 只有当是真正的媒体错误时才处理（error.code 有值且不为null/undefined）
+              if (error && typeof error.code === 'number' && error.code > 0) {
+                let errorMsg = '视频加载失败'
+                switch (error.code) {
+                  case error.MEDIA_ERR_ABORTED:
+                    errorMsg = '视频加载被中止'
+                    break
+                  case error.MEDIA_ERR_NETWORK:
+                    errorMsg = '网络错误，请检查网络连接'
+                    break
+                  case error.MEDIA_ERR_DECODE:
+                    errorMsg = '视频解码失败，请检查视频格式'
+                    break
+                  case error.MEDIA_ERR_SRC_NOT_SUPPORTED:
+                    errorMsg = '视频格式不支持或视频地址无效'
+                    break
+                  default:
+                    // 未知错误码，静默忽略
+                    return
+                }
+                this.$message.error(errorMsg)
+                this.isPlaying = false
+              }
+              // 如果不是视频错误或错误码无效，则不处理（静默忽略）
+            }, 100)
+          })
+        }
+      })
     },
     
     // 切换视频播放/暂停
@@ -482,44 +527,113 @@ export default {
     
     // 切换视频
     async switchVideo(video) {
+      // 先暂停并重置当前视频
+      const videoElement = this.$refs.videoPlayer
+      if (videoElement) {
+        videoElement.pause()
+        videoElement.currentTime = 0
+      }
+      this.isPlaying = false
+      
+      // 停止当前视频的行为跟踪
       this.stopBehaviorTracking()
       
       // 保存当前视频行为数据
       this.sendUserBehavior()
       
-      // 如果传入的是简单的视频对象（推荐列表中的），需要加载完整信息
-      if (!video.url && video.id) {
-        try {
-          const res = await userVideoApi.getVideoById(video.id)
-          if (res && res.data) {
-            video = this.convertVideoData(res.data, true)
+      // 如果传入的视频对象缺少url字段（如从排行榜切换），需要加载完整信息
+      if (!video.url || !video.videoUrl) {
+        if (video.id) {
+          try {
+            const res = await userVideoApi.getVideoById(video.id)
+            if (res && res.data) {
+              video = this.convertVideoData(res.data, true)
+            } else {
+              this.$message.error('获取视频详情失败')
+              return
+            }
+          } catch (error) {
+            console.error('加载视频详情失败:', error)
+            this.$message.error('加载视频失败，请稍后重试')
+            return
           }
-        } catch (error) {
-          console.error('加载视频详情失败:', error)
-          this.$message.error('加载视频失败')
+        } else {
+          this.$message.error('视频ID不存在')
           return
         }
       }
       
+      // 确保视频URL存在
+      const videoUrl = video.url || video.videoUrl
+      if (!videoUrl) {
+        this.$message.error('视频地址不存在')
+        return
+      }
+      
       // 切换到新视频
       this.currentVideo = {
-        ...video,
+        id: video.id,
+        title: video.title || '无标题',
+        url: videoUrl,
+        thumbnail: video.thumbnail || video.coverUrl || '',
+        duration: video.duration || '0:00',
+        description: video.description || '',
+        views: video.views || video.playCount || 0,
+        likes: video.likes || video.likeCount || 0,
         isLiked: video.isLiked || false,
+        uploadTime: video.uploadTime || this.formatTime(video.createTime) || '',
+        author: video.author || {
+          id: video.authorId || null,
+          name: video.authorId ? `用户${video.authorId}` : '未知作者',
+          avatar: ''
+        },
         isFollowing: video.isFollowing || false,
-        comments: video.comments || [] // 清空评论
+        comments: video.comments || []
       }
       
       // 开始跟踪新视频行为
       this.startBehaviorTracking()
       
-      // 播放新视频
-      this.$nextTick(() => {
-        const videoElement = this.$refs.videoPlayer
-        if (videoElement) {
-          videoElement.play()
-          this.isPlaying = true
+      // 等待DOM更新后加载并播放新视频
+      await this.$nextTick()
+      
+      // 重新获取video元素，因为DOM可能已更新（v-if条件）
+      const newVideoElement = this.$refs.videoPlayer
+      if (newVideoElement && videoUrl) {
+        // 确保视频源已设置
+        if (newVideoElement.src !== videoUrl) {
+          newVideoElement.src = videoUrl
         }
-      })
+        
+        // 强制重新加载视频
+        try {
+          newVideoElement.load()
+          
+          // 监听视频加载完成后再播放
+          const playHandler = () => {
+            newVideoElement.play().then(() => {
+          this.isPlaying = true
+            }).catch(err => {
+              console.error('播放视频失败:', err)
+              // 不显示错误提示，可能是用户操作导致的
+            })
+            newVideoElement.removeEventListener('loadeddata', playHandler)
+          }
+          
+          newVideoElement.addEventListener('loadeddata', playHandler)
+          
+          // 如果视频已经加载完成，直接播放
+          if (newVideoElement.readyState >= 2) {
+            newVideoElement.play().then(() => {
+              this.isPlaying = true
+            }).catch(err => {
+              console.error('播放视频失败:', err)
+            })
+          }
+        } catch (err) {
+          console.error('加载视频失败:', err)
+        }
+      }
     },
     
     // 点赞处理
@@ -574,7 +688,7 @@ export default {
       const newComment = {
         id: Date.now(),
         userName: localStorage.getItem('username') || '用户',
-        userAvatar: 'https://picsum.photos/32/32?random=' + Date.now(),
+        userAvatar: localStorage.getItem('userAvatar') || '', // 使用用户头像，如果没有则为空（el-avatar会显示默认图标）
         content: this.newComment,
         time: '刚刚'
       }
@@ -618,7 +732,7 @@ export default {
         )
         if (res && res.data && res.data.length > 0) {
           this.recommendedVideos = res.data.map(v => this.convertVideoData(v))
-          this.$message.success('推荐内容已更新')
+        this.$message.success('推荐内容已更新')
         } else {
           this.$message.warning('暂无新的推荐内容')
         }
@@ -669,9 +783,14 @@ export default {
       this.sendUserBehavior()
       
       // 自动播放下一个推荐视频
+      if (this.recommendedVideos && this.recommendedVideos.length > 0) {
       setTimeout(() => {
-        this.switchVideo(this.recommendedVideos[0])
+          const nextVideo = this.recommendedVideos[0]
+          if (nextVideo && nextVideo.id !== this.currentVideo.id) {
+            this.switchVideo(nextVideo)
+          }
       }, 3000)
+      }
     },
     
     handleVideoPlay() {
