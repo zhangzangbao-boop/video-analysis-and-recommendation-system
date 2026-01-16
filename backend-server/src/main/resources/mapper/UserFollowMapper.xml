@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.video.server.mapper.UserFollowMapper">
+
+    <resultMap id="BaseResultMap" type="com.video.server.entity.UserFollow">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="follow_user_id" property="followUserId"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+
+    <sql id="Base_Column_List">
+        id, user_id, follow_user_id, create_time
+    </sql>
+
+    <select id="selectById" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM sys_user_follow
+        WHERE id = #{id}
+    </select>
+
+    <select id="selectByUserIdAndFollowUserId" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM sys_user_follow
+        WHERE user_id = #{userId} AND follow_user_id = #{followUserId}
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO sys_user_follow (user_id, follow_user_id, create_time)
+        VALUES (#{userId}, #{followUserId}, #{createTime})
+    </insert>
+
+    <update id="updateById">
+        UPDATE sys_user_follow
+        SET user_id = #{userId},
+            follow_user_id = #{followUserId},
+            create_time = #{createTime}
+        WHERE id = #{id}
+    </update>
+
+    <delete id="deleteById">
+        DELETE FROM sys_user_follow WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteByUserIdAndFollowUserId">
+        DELETE FROM sys_user_follow
+        WHERE user_id = #{userId} AND follow_user_id = #{followUserId}
+    </delete>
+
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM sys_user_follow
+    </select>
+
+</mapper>

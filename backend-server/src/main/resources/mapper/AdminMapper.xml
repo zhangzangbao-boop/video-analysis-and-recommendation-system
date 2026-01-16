@@ -17,37 +17,54 @@
     </resultMap>
 
     <sql id="Base_Column_List">
+        u.id, u.username, u.password, u.salt, u.real_name, u.phone, u.email, u.status, u.is_deleted, u.create_time, u.update_time
+    </sql>
+    
+    <sql id="Base_Column_List_Simple">
         id, username, password, salt, real_name, phone, email, status, is_deleted, create_time, update_time
     </sql>
 
     <select id="selectById" resultMap="BaseResultMap">
         SELECT
         <include refid="Base_Column_List"/>
-        FROM sys_user
-        WHERE id = #{id} AND is_deleted = 0
+        FROM sys_user u
+        INNER JOIN sys_user_role ur ON u.id = ur.user_id
+        INNER JOIN sys_role r ON ur.role_id = r.id
+        WHERE u.id = #{id} 
+          AND u.is_deleted = 0
+          AND r.role_code = 'ROLE_ADMIN'
+        LIMIT 1
     </select>
 
     <select id="selectByUsername" resultMap="BaseResultMap">
         SELECT
         <include refid="Base_Column_List"/>
-        FROM sys_user
-        WHERE username = #{username} AND is_deleted = 0
+        FROM sys_user u
+        INNER JOIN sys_user_role ur ON u.id = ur.user_id
+        INNER JOIN sys_role r ON ur.role_id = r.id
+        WHERE u.username = #{username} 
+          AND u.is_deleted = 0
+          AND r.role_code = 'ROLE_ADMIN'
+        LIMIT 1
     </select>
 
     <select id="selectByCondition" resultMap="BaseResultMap">
-        SELECT
+        SELECT DISTINCT
         <include refid="Base_Column_List"/>
-        FROM sys_user
-        WHERE is_deleted = 0
+        FROM sys_user u
+        INNER JOIN sys_user_role ur ON u.id = ur.user_id
+        INNER JOIN sys_role r ON ur.role_id = r.id
+        WHERE u.is_deleted = 0
+          AND r.role_code = 'ROLE_ADMIN'
         <if test="keyword != null and keyword != ''">
-            AND (username LIKE CONCAT('%', #{keyword}, '%') 
-                 OR phone LIKE CONCAT('%', #{keyword}, '%')
-                 OR id = #{keyword})
+            AND (u.username LIKE CONCAT('%', #{keyword}, '%') 
+                 OR u.phone LIKE CONCAT('%', #{keyword}, '%')
+                 OR u.id = #{keyword})
         </if>
         <if test="status != null">
-            AND status = #{status}
+            AND u.status = #{status}
         </if>
-        ORDER BY create_time DESC
+        ORDER BY u.create_time DESC
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
@@ -78,8 +95,11 @@
     <select id="selectAll" resultMap="BaseResultMap">
         SELECT
         <include refid="Base_Column_List"/>
-        FROM sys_user
-        WHERE is_deleted = 0
+        FROM sys_user u
+        INNER JOIN sys_user_role ur ON u.id = ur.user_id
+        INNER JOIN sys_role r ON ur.role_id = r.id
+        WHERE u.is_deleted = 0
+          AND r.role_code = 'ROLE_ADMIN'
     </select>
 
     <update id="updateStatusById">

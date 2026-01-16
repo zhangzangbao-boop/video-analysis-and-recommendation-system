@@ -60,23 +60,41 @@ export default {
             // 调用登录API
             const response = await authApi.login(username, password);
             
+            // 调试信息
+            console.log('登录响应:', response);
+            
             if (response && response.data) {
               const { token, userId, username: responseUsername, userType } = response.data;
+              
+              // 调试信息
+              console.log('解析后的数据:', { token, userId, username: responseUsername, userType });
               
               // 根据角色存储token
               if (userType === 'admin') {
                 localStorage.setItem('adminToken', token);
                 localStorage.setItem('adminId', userId);
                 localStorage.setItem('username', responseUsername);
+                // 清除普通用户token（如果存在）
+                localStorage.removeItem('userToken');
+                localStorage.removeItem('userId');
                 this.$message.success('管理员登录成功，正在进入后台...');
                 this.$router.push('/admin');
-              } else {
+              } else if (userType === 'user') {
                 localStorage.setItem('userToken', token);
                 localStorage.setItem('userId', userId);
                 localStorage.setItem('username', responseUsername);
+                // 清除管理员token（如果存在）
+                localStorage.removeItem('adminToken');
+                localStorage.removeItem('adminId');
                 this.$message.success('用户登录成功，欢迎回来！');
                 this.$router.push('/main');
+              } else {
+                console.error('未知的用户类型:', userType);
+                this.$message.error('登录失败：未知的用户类型');
               }
+            } else {
+              console.error('登录响应格式错误:', response);
+              this.$message.error('登录失败：响应格式错误');
             }
           } catch (error) {
             // 错误信息已经在request.js中显示，这里只记录详细日志

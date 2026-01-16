@@ -45,4 +45,12 @@
         FROM user_behavior
     </select>
 
+    <select id="selectByUserIdAndActionType" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM user_behavior
+        WHERE user_id = #{userId} AND action_type = #{actionType}
+        ORDER BY create_time DESC
+    </select>
+
 </mapper>

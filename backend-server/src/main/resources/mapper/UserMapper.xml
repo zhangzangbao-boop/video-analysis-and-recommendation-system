@@ -83,6 +83,10 @@
             phone = #{phone},
             nickname = #{nickname},
             avatar_url = #{avatarUrl},
+            real_name = #{realName},
+            email = #{email},
+            gender = #{gender},
+            bio = #{bio},
             status = #{status},
             update_time = #{updateTime}
         WHERE id = #{id}
