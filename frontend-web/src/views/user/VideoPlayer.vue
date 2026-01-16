@@ -477,36 +477,41 @@ export default {
         })
           
           // 处理视频加载错误（只处理真正的视频错误，不包括图片）
-          videoElement.addEventListener('error', (e) => {
+          // eslint-disable-next-line no-unused-vars
+          videoElement.addEventListener('error', () => {
             // 延迟检查，确保错误对象已经设置
             setTimeout(() => {
-              const error = videoElement.error
-              // 只有当是真正的媒体错误时才处理（error.code 有值且不为null/undefined）
-              if (error && typeof error.code === 'number' && error.code > 0) {
-                let errorMsg = '视频加载失败'
-                switch (error.code) {
-                  case error.MEDIA_ERR_ABORTED:
-                    errorMsg = '视频加载被中止'
-                    break
-                  case error.MEDIA_ERR_NETWORK:
-                    errorMsg = '网络错误，请检查网络连接'
-                    break
-                  case error.MEDIA_ERR_DECODE:
-                    errorMsg = '视频解码失败，请检查视频格式'
-                    break
-                  case error.MEDIA_ERR_SRC_NOT_SUPPORTED:
-                    errorMsg = '视频格式不支持或视频地址无效'
-                    break
-                  default:
-                    // 未知错误码，静默忽略
-                    return
+              try {
+                const error = videoElement.error
+                // 只有当是真正的媒体错误时才处理（error.code 有值且不为null/undefined）
+                if (error && typeof error.code === 'number' && error.code > 0) {
+                  let errorMsg = '视频加载失败'
+                  switch (error.code) {
+                    case error.MEDIA_ERR_ABORTED:
+                      // 用户主动中止，不显示错误
+                      return
+                    case error.MEDIA_ERR_NETWORK:
+                      errorMsg = '网络错误，请检查网络连接'
+                      break
+                    case error.MEDIA_ERR_DECODE:
+                      errorMsg = '视频解码失败，请检查视频格式'
+                      break
+                    case error.MEDIA_ERR_SRC_NOT_SUPPORTED:
+                      errorMsg = '视频格式不支持或视频地址无效'
+                      break
+                    default:
+                      // 未知错误码，静默忽略
+                      return
+                  }
+                  this.$message.error(errorMsg)
+                  this.isPlaying = false
                 }
-                this.$message.error(errorMsg)
-                this.isPlaying = false
+                // 如果不是视频错误或错误码无效，则不处理（静默忽略）
+              } catch (err) {
+                // 静默忽略错误处理中的异常
               }
-              // 如果不是视频错误或错误码无效，则不处理（静默忽略）
             }, 100)
-          })
+          }, { once: true })
         }
       })
     },
