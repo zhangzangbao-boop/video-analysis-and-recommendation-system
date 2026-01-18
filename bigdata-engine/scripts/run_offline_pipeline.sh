@@ -83,6 +83,8 @@ run_spark_job "com.shortvideo.recommendation.offline.job.OfflineJob" "4. 离线�
 # 第五步：算法训练 - ALS 模型 (依赖 DWS)
 run_spark_job "com.shortvideo.recommendation.als.ALSTrainer" "5. ALS 模型训练 (生成推荐)"
 
+
+
 # ========================================================
 # 5. 结束
 # ========================================================
