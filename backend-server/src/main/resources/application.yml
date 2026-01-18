@@ -9,8 +9,8 @@ spring:
       - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
   servlet:
     multipart:
-      max-file-size: 10MB
-      max-request-size: 10MB
+      max-file-size: 100MB
+      max-request-size: 100MB
   datasource:
     url: jdbc:mysql://localhost:3306/short_video_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true&useSSL=false&allowLoadLocalInfile=true
     username: root
@@ -56,10 +56,10 @@ tencent:
     region: ap-guangzhou
     # 存储桶名称（必填）- 如：my-video-bucket
     # 注意：存储桶名称必须与腾讯云控制台中的实际存储桶名称完全一致
-    bucket-name: shortvideosystem-1396185685
+    bucket-name: shortvideo-1396185685
     # 存储桶访问域名（必填）- 如：https://my-video-bucket.cos.ap-guangzhou.myqcloud.com
     # 格式：https://{bucket-name}.cos.{region}.myqcloud.com
-    domain: https://shortvideosystem-1396185685.cos.ap-guangzhou.myqcloud.com
+    domain: https://shortvideo-1396185685.cos.ap-guangzhou.myqcloud.com
     # 文件访问权限（可选，默认PublicRead）- PublicRead: 公有读私有写
     access-control: PublicRead
     # 视频文件存储文件夹（可选，默认video/）
