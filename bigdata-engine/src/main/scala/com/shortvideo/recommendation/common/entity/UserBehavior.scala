@@ -6,17 +6,25 @@ import java.sql.Timestamp
  * 用户行为实体类
  * @param userId 用户ID
  * @param videoId 视频ID
- * @param actionType 行为类型
- * @param createTime 创建时间
+ * @param behaviorType 行为类型
+ * @param behaviorTime 行为时间
  * @param duration 观看时长（秒）
+ * @param deviceInfo 设备信息
+ * @param networkType 网络类型
+ * @param ipAddress IP地址
+ * @param location 地理位置
  * @param extraInfo 扩展信息
  */
 case class UserBehavior(
                          userId: Long,
                          videoId: Long,
-                         actionType: String,
-                         createTime: Timestamp,
+                         behaviorType: String,
+                         behaviorTime: Timestamp,
                          duration: Int = 0,
+                         deviceInfo: String = "",
+                         networkType: String = "",
+                         ipAddress: String = "",
+                         location: String = "",
                          extraInfo: String = ""
                        )
 
