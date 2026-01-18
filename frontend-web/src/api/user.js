@@ -30,5 +30,26 @@ export const userVideoApi = {
       url: `/api/v1/video/${id}`,
       method: 'get'
     })
+  },
+  
+  // 上传视频
+  uploadVideo(formData) {
+    return request({
+      url: '/api/v1/video/upload',
+      method: 'post',
+      data: formData,
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      },
+      timeout: 300000 // 5分钟超时（视频上传可能需要较长时间）
+    })
+  },
+  
+  // 获取视频分类列表
+  getCategories() {
+    return request({
+      url: '/api/v1/video/categories',
+      method: 'get'
+    })
   }
 }

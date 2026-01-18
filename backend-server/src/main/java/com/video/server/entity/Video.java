@@ -87,6 +87,16 @@ public class Video {
     private Integer isHot;
     
     /**
+     * 标签
+     */
+    private String tags;
+    
+    /**
+     * 逻辑删除：0-否，1-是
+     */
+    private Integer isDeleted;
+    
+    /**
      * 创建时间
      */
     private LocalDateTime createTime;

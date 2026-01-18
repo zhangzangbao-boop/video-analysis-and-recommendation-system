@@ -1,5 +1,7 @@
 package com.video.server.utils;
 import com.qcloud.cos.COSClient;
+import com.qcloud.cos.exception.CosClientException;
+import com.qcloud.cos.exception.CosServiceException;
 import com.qcloud.cos.model.CannedAccessControlList;
 import com.qcloud.cos.model.PutObjectRequest;
 import com.qcloud.cos.model.PutObjectResult;
@@ -93,9 +95,32 @@ public class TencentCosVideoUtil {
 
             // 返回完整的访问URL（前端直接用这个URL播放视频/展示封面）
             return domain + "/" + cosFilePath;
+        } catch (CosServiceException e) {
+            // COS服务异常（如存储桶不存在、权限不足等）
+            log.error("COS服务异常，错误码：{}，错误信息：{}，请求ID：{}", 
+                e.getErrorCode(), e.getErrorMessage(), e.getRequestId());
+            
+            String errorMsg = "文件上传失败：";
+            if ("NoSuchBucket".equals(e.getErrorCode())) {
+                errorMsg += "存储桶不存在，请检查 application.yml 中的 bucket-name 配置是否正确。";
+                errorMsg += "当前配置的存储桶名称：" + bucketName;
+            } else if ("AccessDenied".equals(e.getErrorCode())) {
+                errorMsg += "访问被拒绝，请检查API密钥权限或存储桶访问权限。";
+            } else {
+                errorMsg += e.getErrorMessage() + "（错误码：" + e.getErrorCode() + "）";
+            }
+            
+            throw new RuntimeException(errorMsg);
+        } catch (CosClientException e) {
+            // COS客户端异常（如网络错误、配置错误等）
+            log.error("COS客户端异常", e);
+            throw new RuntimeException("文件上传失败：网络或配置错误，请检查COS配置和网络连接");
         } catch (IOException e) {
-            log.error("COS文件上传失败", e);
-            throw new RuntimeException("文件上传至腾讯云失败，请稍后重试");
+            log.error("COS文件上传IO异常", e);
+            throw new RuntimeException("文件上传失败：读取文件时出错，请稍后重试");
+        } catch (Exception e) {
+            log.error("COS文件上传未知异常", e);
+            throw new RuntimeException("文件上传失败：系统异常，请稍后重试");
         }
     }
 
