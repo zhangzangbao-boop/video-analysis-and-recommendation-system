@@ -331,3 +331,52 @@ SELECT u.id, r.id FROM sys_user u, sys_role r
 WHERE u.username = 'admin' AND r.role_code = 'ROLE_ADMIN';
 
 SET FOREIGN_KEY_CHECKS = 1;
+
+
+
+
+
+
+
+
+
+
+
+USE `short_video_platform`;
+
+-- ----------------------------
+-- 1. 推荐结果表 (用于存储 ALS 离线推荐和实时推荐结果)
+-- ----------------------------
+DROP TABLE IF EXISTS `recommendation_result`;
+CREATE TABLE `recommendation_result` (
+                                         `id` bigint NOT NULL AUTO_INCREMENT,
+                                         `user_id` bigint NOT NULL COMMENT '用户ID',
+                                         `movie_id` bigint NOT NULL COMMENT '视频ID',
+                                         `score` double NOT NULL COMMENT '推荐评分',
+                                         `rank` int NOT NULL COMMENT '排名',
+                                         `type` varchar(20) NOT NULL COMMENT '类型: OFFLINE(离线)/REALTIME(实时)',
+                                         `model_id` varchar(50) DEFAULT NULL COMMENT '模型版本ID',
+                                         `create_time` datetime DEFAULT CURRENT_TIMESTAMP,
+                                         `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                                         PRIMARY KEY (`id`),
+                                         UNIQUE KEY `uk_user_movie_type` (`user_id`,`movie_id`,`type`),
+                                         KEY `idx_user_type` (`user_id`, `type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='推荐系统结果表';
+
+-- ----------------------------
+-- 2. 模型参数表 (用于记录每次训练的效果)
+-- ----------------------------
+DROP TABLE IF EXISTS `model_params`;
+CREATE TABLE `model_params` (
+                                `id` bigint NOT NULL AUTO_INCREMENT,
+                                `model_id` varchar(50) NOT NULL COMMENT '模型唯一标识',
+                                `rank` int NOT NULL,
+                                `reg_param` double NOT NULL,
+                                `max_iter` int NOT NULL,
+                                `rmse` double COMMENT '均方根误差',
+                                `training_time` datetime DEFAULT NULL,
+                                `model_path` varchar(200) DEFAULT NULL,
+                                `status` varchar(20) DEFAULT 'ACTIVE',
+                                PRIMARY KEY (`id`),
+                                UNIQUE KEY `uk_model_id` (`model_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='ALS模型训练记录表';
