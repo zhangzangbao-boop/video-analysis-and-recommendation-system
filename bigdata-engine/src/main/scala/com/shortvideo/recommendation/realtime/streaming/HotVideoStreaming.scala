@@ -43,7 +43,7 @@ class HotVideoStreaming {
     val kafkaStream: InputDStream[ConsumerRecord[String, String]] = KafkaUtils.createDirectStream[String, String](
       ssc,
       LocationStrategies.PreferConsistent,
-      ConsumerStrategies.Subscribe[String, String](topics, kafkaParams)
+      ConsumerStrategies.Subscribe(topics, kafkaParams)
     )
 
     // 解析用户行为数据

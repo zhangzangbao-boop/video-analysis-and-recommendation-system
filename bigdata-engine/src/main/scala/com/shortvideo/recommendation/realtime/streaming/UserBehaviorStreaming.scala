@@ -40,6 +40,8 @@ class UserBehaviorStreaming {
 
     val topics = Array(ConfigUtils.getString("kafka.topics.user-behavior", "shortvideo_user_behavior"))
 
+    val offsets = KafkaUtil.getOffsets(kafkaParams, topics)
+
     val kafkaStream: InputDStream[ConsumerRecord[String, String]] = KafkaUtils.createDirectStream[String, String](
       ssc,
       LocationStrategies.PreferConsistent,
@@ -116,6 +118,9 @@ class UserBehaviorStreaming {
 
   /**
    * 更新用户行为统计数据到Redis
+   * 记录用户的各种行为类型及其计数，并设置相应的过期时间
+   *
+   * @param behavior 实时用户行为对象，包含用户ID、视频ID、行为类型等信息
    */
   private def updateUserBehaviorStats(behavior: RealtimeBehavior): Unit = {
     // 统计用户行为类型

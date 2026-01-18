@@ -1,18 +1,17 @@
 package com.shortvideo.recommendation.common.utils
 
-import redis.clients.jedis.{Jedis, JedisPool, JedisPoolConfig}
-import com.shortvideo.recommendation.common.Constants
 import com.shortvideo.recommendation.common.config.RedisConfig
 import com.shortvideo.recommendation.common.entity.Recommendation
+import redis.clients.jedis.{Jedis, JedisPool, JedisPoolConfig}
+import redis.clients.jedis.Tuple
 
 import scala.collection.JavaConverters._
 import scala.util.{Failure, Success, Try}
-import java.util.{Map => JMap}
 
 /**
  * Redis工具类
  */
-object RedisUtils {
+object RedisUtil {
 
   private var jedisPool: JedisPool = _
 
@@ -186,6 +185,44 @@ object RedisUtils {
   }
 
   /**
+   * 对Hash字段增加值
+   */
+  def hincrBy(key: String, field: String, increment: Long): Long = {
+    getConnection match {
+      case Some(jedis) =>
+        try {
+          jedis.hincrBy(key, field, increment)
+        } catch {
+          case e: Exception =>
+            println(s"Redis HINCRBY失败: key=$key, field=$field, error=${e.getMessage}")
+            0L
+        } finally {
+          closeConnection(jedis)
+        }
+      case None => 0L
+    }
+  }
+
+  /**
+   * 对字符串值增加值
+   */
+  def incrBy(key: String, increment: Long): Long = {
+    getConnection match {
+      case Some(jedis) =>
+        try {
+          jedis.incrBy(key, increment)
+        } catch {
+          case e: Exception =>
+            println(s"Redis INCRBY失败: key=$key, error=${e.getMessage}")
+            0L
+        } finally {
+          closeConnection(jedis)
+        }
+      case None => 0L
+    }
+  }
+
+  /**
    * 获取所有Hash字段
    */
   def hgetAll(key: String): Map[String, String] = {
@@ -271,6 +308,26 @@ object RedisUtils {
   }
 
   /**
+   * 获取ZSet排名及分数
+   */
+  def zrevrangeWithScores(key: String, start: Long, end: Long): List[(String, Double)] = {
+    getConnection match {
+      case Some(jedis) =>
+        try {
+          val tuples: Array[Tuple] = jedis.zrevrangeWithScores(key, start, end).asScala.toArray
+          tuples.map(tuple => (tuple.getElement, tuple.getScore)).toList
+        } catch {
+          case e: Exception =>
+            println(s"Redis ZREVRANGEWITHSCORES失败: key=$key, error=${e.getMessage}")
+            List.empty
+        } finally {
+          closeConnection(jedis)
+        }
+      case None => List.empty
+    }
+  }
+
+  /**
    * 获取ZSet成员分数
    */
   def zscore(key: String, member: String): Option[Double] = {
@@ -286,6 +343,63 @@ object RedisUtils {
           closeConnection(jedis)
         }
       case None => None
+    }
+  }
+
+  /**
+   * 获取ZSet元素数量
+   */
+  def zcard(key: String): Long = {
+    getConnection match {
+      case Some(jedis) =>
+        try {
+          jedis.zcard(key)
+        } catch {
+          case e: Exception =>
+            println(s"Redis ZCARD失败: key=$key, error=${e.getMessage}")
+            0L
+        } finally {
+          closeConnection(jedis)
+        }
+      case None => 0L
+    }
+  }
+
+  /**
+   * 删除Key
+   */
+  def deleteKey(key: String): Long = {
+    getConnection match {
+      case Some(jedis) =>
+        try {
+          jedis.del(key)
+        } catch {
+          case e: Exception =>
+            println(s"Redis DEL失败: key=$key, error=${e.getMessage}")
+            0L
+        } finally {
+          closeConnection(jedis)
+        }
+      case None => 0L
+    }
+  }
+
+  /**
+   * 获取Hash的所有键
+   */
+  def hkeys(key: String): java.util.Set[String] = {
+    getConnection match {
+      case Some(jedis) =>
+        try {
+          jedis.hkeys(key)
+        } catch {
+          case e: Exception =>
+            println(s"Redis HKEYS失败: key=$key, error=${e.getMessage}")
+            new java.util.HashSet[String]()
+        } finally {
+          closeConnection(jedis)
+        }
+      case None => new java.util.HashSet[String]()
     }
   }
 

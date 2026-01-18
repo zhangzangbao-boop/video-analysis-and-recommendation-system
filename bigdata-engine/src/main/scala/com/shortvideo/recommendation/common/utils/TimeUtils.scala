@@ -8,7 +8,7 @@ import com.shortvideo.recommendation.common.Constants
 /**
  * 时间工具类
  */
-object TimeUtils {
+object TimeUtil {
 
   /**
    * 获取当前时间戳

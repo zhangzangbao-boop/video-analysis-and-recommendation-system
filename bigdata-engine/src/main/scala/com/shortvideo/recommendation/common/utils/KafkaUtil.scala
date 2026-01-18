@@ -5,14 +5,19 @@ import java.util.Properties
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 import org.apache.kafka.common.serialization.{StringDeserializer, StringSerializer}
+
 import scala.collection.JavaConverters._
 import com.shortvideo.recommendation.common.Constants
 import com.shortvideo.recommendation.common.config.KafkaConfig
+import org.apache.kafka.common.TopicPartition
+
+import java.{lang, util}
+import scala.sys.props
 
 /**
  * Kafka工具类
  */
-object KafkaUtils {
+object KafkaUtil {
 
   /**
    * 创建Kafka生产者配置
@@ -63,6 +68,16 @@ object KafkaUtils {
     }
 
     props
+  }
+
+  def getOffsets(kafkaParams: Properties, topics: Array[String]): Map[TopicPartition, Long] = {
+
+    val consumer =KafkaUtil.createConsumer(KafkaConfig.apply(), topics.toList)
+    val offsets = consumer.assignment().asScala.map { partition =>
+      val offset = consumer.position(partition)
+      (partition, offset)
+    }.toMap
+    return offsets
   }
 
   /**
