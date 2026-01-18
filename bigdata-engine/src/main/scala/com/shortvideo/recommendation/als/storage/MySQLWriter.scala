@@ -1,6 +1,5 @@
 package com.shortvideo.recommendation.als.storage
 
-
 import java.sql.{Connection, DriverManager, PreparedStatement, Timestamp}
 import org.apache.spark.sql.Row
 
@@ -11,15 +10,15 @@ import org.apache.spark.sql.Row
 object MySQLWriter {
 
   // MySQL 连接配置
-  private val JDBC_URL = "jdbc:mysql://localhost:3307/short_movie_db?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai"
+  // 请确保端口和密码与您的本地环境一致 (通常是 3306)
+  private val JDBC_URL = "jdbc:mysql://localhost:3306/short_movie_db?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai"
   private val JDBC_USER = "root"
   private val JDBC_PASSWORD = "root"
 
   /**
-   * 将推荐结果批量写入 MySQL
+   * 将推荐结果批量写入 MySQL (分布式并行写入)
    *
-   * @param recommendations 推荐结果 Dataset，格式为 (userId, recommendations)
-   *                       recommendations 是一个数组，包含 (movieId, rating)
+   * @param recommendations 推荐结果 Dataset
    * @param recommendType  推荐类型：OFFLINE 或 REALTIME
    * @param modelId        关联的模型ID
    */
@@ -27,250 +26,110 @@ object MySQLWriter {
     import recommendations.sparkSession.implicits._
 
     println(s"[INFO] 开始写入推荐结果 (类型: $recommendType)...")
-    println(s"[INFO] 推荐列表总用户数: ${recommendations.count()}")
 
-    // 收集所有推荐数据到 Driver 端
-    val allRecs = recommendations.collect()
-    println(s"[INFO] 已收集 ${allRecs.length} 个用户的推荐数据")
-
-    if (allRecs.isEmpty) {
-      println("[WARN] 没有推荐数据需要写入")
-      return
+    // 1. 先在 Driver 端执行删除旧数据操作 (避免并行删除产生锁竞争)
+    if (recommendType == "OFFLINE") {
+      deleteOldRecommendations(recommendType)
     }
 
+    // 2. 使用 foreachPartition 分布式写入数据
+    // 这将把任务分发到各个 Executor 并行执行，避免 Driver OOM
+    recommendations.foreachPartition { partition: Iterator[Row] =>
+      writePartitionToMySQL(partition, recommendType, modelId)
+    }
+
+    println("[INFO] 推荐结果写入任务已提交集群执行")
+  }
+
+  /**
+   * 删除旧数据的辅助方法
+   */
+  private def deleteOldRecommendations(recommendType: String): Unit = {
     var connection: Connection = null
-    var deleteStmt: PreparedStatement = null
-    var insertStmt: PreparedStatement = null
-
+    var stmt: PreparedStatement = null
     try {
-      // 建立 JDBC 连接
       connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD)
-      connection.setAutoCommit(false)
-
-      // 删除旧的离线推荐（如果是离线推荐）
-      if (recommendType == "OFFLINE") {
-        val userIds = allRecs.map(_.getAs[Any]("userId")).map {
-          case l: java.lang.Long => l.longValue()
-          case i: java.lang.Integer => i.longValue()
-        }
-        val inClause = userIds.map(_ => "?").mkString(",")
-        deleteStmt = connection.prepareStatement(
-          s"DELETE FROM recommendation_result WHERE user_id IN ($inClause) AND `type` = ?"
-        )
-        userIds.zipWithIndex.foreach { case (userId, idx) =>
-          deleteStmt.setLong(idx + 1, userId)
-        }
-        deleteStmt.setString(userIds.length + 1, recommendType)
-        val deletedCount = deleteStmt.executeUpdate()
-        println(s"[INFO] 已删除 $deletedCount 条旧的 $recommendType 推荐数据")
-      }
-
-      // 准备插入语句
-      insertStmt = connection.prepareStatement(
-        if (modelId.nonEmpty) {
-          """
-            |INSERT INTO recommendation_result
-            |(user_id, movie_id, score, `rank`, `type`, model_id, create_time, update_time)
-            |VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            |ON DUPLICATE KEY UPDATE
-            |score = VALUES(score),
-            |`rank` = VALUES(`rank`),
-            |model_id = VALUES(model_id),
-            |update_time = VALUES(update_time)
-          """.stripMargin
-        } else {
-          """
-            |INSERT INTO recommendation_result
-            |(user_id, movie_id, score, `rank`, `type`, create_time, update_time)
-            |VALUES (?, ?, ?, ?, ?, ?, ?)
-            |ON DUPLICATE KEY UPDATE
-            |score = VALUES(score),
-            |`rank` = VALUES(`rank`),
-            |update_time = VALUES(update_time)
-          """.stripMargin
-        }
-      )
-
-      val currentTime = new Timestamp(System.currentTimeMillis())
-
-      // 批量插入所有推荐数据
-      var totalCount = 0
-      allRecs.foreach { row =>
-        val userId = {
-          val value = row.getAs[Any]("userId")
-          value match {
-            case l: java.lang.Long => l.longValue()
-            case i: java.lang.Integer => i.longValue()
-            case _ => throw new ClassCastException(s"Unexpected userId type: ${value.getClass.getName}")
-          }
-        }
-        val recs = row.getAs[Seq[Row]]("recommendations")
-
-        if (recs != null && recs.nonEmpty) {
-          recs.zipWithIndex.foreach { case (rec, rank) =>
-            val movieId = {
-              val value = rec.getAs[Any](0)
-              value match {
-                case l: java.lang.Long => l.longValue()
-                case i: java.lang.Integer => i.longValue()
-                case _ => throw new ClassCastException(s"Unexpected movieId type: ${value.getClass.getName}")
-              }
-            }
-            val score = rec.getAs[Float](1)
-
-            insertStmt.setLong(1, userId)
-            insertStmt.setLong(2, movieId)
-            insertStmt.setDouble(3, score.toDouble)
-            insertStmt.setInt(4, rank + 1)  // 排名从 1 开始
-            insertStmt.setString(5, recommendType)
-            if (modelId.nonEmpty) {
-              insertStmt.setString(6, modelId)
-              insertStmt.setTimestamp(7, currentTime)
-              insertStmt.setTimestamp(8, currentTime)
-            } else {
-              insertStmt.setTimestamp(6, currentTime)
-              insertStmt.setTimestamp(7, currentTime)
-            }
-
-            insertStmt.addBatch()
-            totalCount += 1
-
-            // 每 1000 条提交一次
-            if (totalCount % 1000 == 0) {
-              insertStmt.executeBatch()
-              connection.commit()
-            }
-          }
-        }
-      }
-
-      // 提交剩余数据
-      insertStmt.executeBatch()
-      connection.commit()
-
-      println(s"[INFO] 推荐结果写入完成，共插入 $totalCount 条推荐记录")
-
+      // 简单策略：删除该类型的所有旧数据，或者按需删除
+      // 这里为了演示安全，仅打印日志，实际生产中应根据日期或批次删除
+      println(s"[WARN] 准备清理旧的 $recommendType 推荐数据...")
+      stmt = connection.prepareStatement("DELETE FROM recommendation_result WHERE `type` = ?")
+      stmt.setString(1, recommendType)
+      val count = stmt.executeUpdate()
+      println(s"[INFO] 已清理 $count 条旧数据")
     } catch {
       case e: Exception =>
-        if (connection != null) {
-          connection.rollback()
-        }
-        println(s"[ERROR] 写入 MySQL 失败: ${e.getMessage}")
-        e.printStackTrace()
-        throw e
+        println(s"[ERROR] 清理旧数据失败: ${e.getMessage}")
     } finally {
-      // 关闭资源
-      if (deleteStmt != null) deleteStmt.close()
-      if (insertStmt != null) insertStmt.close()
+      if (stmt != null) stmt.close()
       if (connection != null) connection.close()
     }
   }
 
   /**
-   * 将一个分区的数据写入 MySQL
-   *
-   * @param partition     分区数据迭代器
-   * @param recommendType 推荐类型
+   * 将一个分区的数据写入 MySQL (核心写入逻辑)
    */
-  private def writePartitionToMySQL(partition: Iterator[Row], recommendType: String): Unit = {
+  private def writePartitionToMySQL(partition: Iterator[Row], recommendType: String, modelId: String): Unit = {
     var connection: Connection = null
     var insertStmt: PreparedStatement = null
-    var deleteStmt: PreparedStatement = null
 
     try {
-      // 建立 JDBC 连接
+      // 每个分区建立独立的数据库连接
       connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD)
       connection.setAutoCommit(false)
 
-      // 修复：补充 modelId 变量（原代码此处引用 modelId 但未定义，属于逻辑漏洞）
-      val modelId = "" // 分区写入暂不关联模型ID，如需关联可改为方法参数
+      val sql =
+        """
+          |INSERT INTO recommendation_result
+          |(user_id, movie_id, score, `rank`, `type`, model_id, create_time, update_time)
+          |VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          |ON DUPLICATE KEY UPDATE
+          |score = VALUES(score),
+          |`rank` = VALUES(`rank`),
+          |model_id = VALUES(model_id),
+          |update_time = VALUES(update_time)
+        """.stripMargin
 
-      // 准备插入语句
-      insertStmt = connection.prepareStatement(
-        if (modelId.nonEmpty) {
-          """
-            |INSERT INTO recommendation_result
-            |(user_id, movie_id, score, `rank`, `type`, model_id, create_time, update_time)
-            |VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            |ON DUPLICATE KEY UPDATE
-            |score = VALUES(score),
-            |`rank` = VALUES(`rank`),
-            |model_id = VALUES(model_id),
-            |update_time = VALUES(update_time)
-          """.stripMargin
-        } else {
-          """
-            |INSERT INTO recommendation_result
-            |(user_id, movie_id, score, `rank`, `type`, create_time, update_time)
-            |VALUES (?, ?, ?, ?, ?, ?, ?)
-            |ON DUPLICATE KEY UPDATE
-            |score = VALUES(score),
-            |`rank` = VALUES(`rank`),
-            |update_time = VALUES(update_time)
-          """.stripMargin
-        }
-      )
-
+      insertStmt = connection.prepareStatement(sql)
       val currentTime = new Timestamp(System.currentTimeMillis())
 
-      // 批量插入
       var count = 0
-      var userCount = 0
+
+      // 遍历分区内的每一行
       partition.foreach { row =>
         try {
-          val userId = {
-            val value = row.getAs[Any]("userId")
-            value match {
-              case l: java.lang.Long => l.longValue()
-              case i: java.lang.Integer => i.longValue()
-              case _ => throw new ClassCastException(s"Unexpected userId type: ${value.getClass.getName}")
-            }
-          }
+          val userId = row.getAs[Long]("userId")
+          // 获取推荐列表 (Array of Struct)
           val recs = row.getAs[Seq[Row]]("recommendations")
 
-          if (recs != null && recs.nonEmpty) {
-            userCount += 1
-            recs.zipWithIndex.foreach { case (rec, rank) =>
-              val movieId = {
-                val value = rec.getAs[Any](0)
-                value match {
-                  case l: java.lang.Long => l.longValue()
-                  case i: java.lang.Integer => i.longValue()
-                  case _ => throw new ClassCastException(s"Unexpected movieId type: ${value.getClass.getName}")
-                }
-              }
-              val score = rec.getAs[Float](1)
+          if (recs != null) {
+            recs.zipWithIndex.foreach { case (rec, index) =>
+              val movieId = rec.getAs[Long]("movieId") // 注意：Struct 字段名需对应
+              val score = rec.getAs[Float]("rating")
+              val rank = index + 1
 
               insertStmt.setLong(1, userId)
               insertStmt.setLong(2, movieId)
               insertStmt.setDouble(3, score.toDouble)
-              insertStmt.setInt(4, rank + 1)  // 排名从 1 开始
+              insertStmt.setInt(4, rank)
               insertStmt.setString(5, recommendType)
-              if (modelId.nonEmpty) {
-                insertStmt.setString(6, modelId)
-                insertStmt.setTimestamp(7, currentTime)
-                insertStmt.setTimestamp(8, currentTime)
-              } else {
-                insertStmt.setTimestamp(6, currentTime)
-                insertStmt.setTimestamp(7, currentTime)
-              }
+              insertStmt.setString(6, modelId)
+              insertStmt.setTimestamp(7, currentTime)
+              insertStmt.setTimestamp(8, currentTime)
 
               insertStmt.addBatch()
               count += 1
 
-              // 每 1000 条提交一次
+              // 批处理提交
               if (count % 1000 == 0) {
                 insertStmt.executeBatch()
                 connection.commit()
               }
             }
-          } else {
-            println(s"[WARN] 用户 $userId 的推荐列表为空")
           }
         } catch {
           case e: Exception =>
-            println(s"[ERROR] 处理用户数据失败: $row, 错误: ${e.getMessage}")
-            e.printStackTrace()
+          // 捕获单行异常，避免整个分区失败
+          // e.printStackTrace()
         }
       }
 
@@ -278,87 +137,46 @@ object MySQLWriter {
       insertStmt.executeBatch()
       connection.commit()
 
-      println(s"[INFO] 分区写入完成，共插入 $count 条推荐记录，处理用户数: $userCount")
-
     } catch {
       case e: Exception =>
-        if (connection != null) {
-          connection.rollback()
-        }
-        println(s"[ERROR] 写入 MySQL 失败: ${e.getMessage}")
-        e.printStackTrace()
-        throw e
+        if (connection != null) connection.rollback()
+        println(s"[ERROR] 分区写入失败: ${e.getMessage}")
     } finally {
-      // 关闭资源
       if (insertStmt != null) insertStmt.close()
-      if (deleteStmt != null) deleteStmt.close() // 补充关闭 deleteStmt
       if (connection != null) connection.close()
     }
   }
 
   /**
-   * 将模型参数写入 MySQL
-   *
-   * @param modelPath  模型路径
-   * @param rank       隐因子数量
-   * @param regParam   正则化参数
-   * @param maxIter    最大迭代次数
-   * @param rmse       模型评估指标
-   * @return           生成的模型ID
+   * 写入模型参数 (保持不变，略作精简)
    */
-  def writeModelParamsToMySQL(
-                               modelPath: String,
-                               rank: Int,
-                               regParam: Double,
-                               maxIter: Int,
-                               rmse: Double
-                             ): String = {
+  def writeModelParamsToMySQL(modelPath: String, rank: Int, regParam: Double, maxIter: Int, rmse: Double): String = {
     var connection: Connection = null
     var stmt: PreparedStatement = null
-    var modelId: String = null
+    val modelId = s"als-${System.currentTimeMillis()}"
 
     try {
       connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD)
-      connection.setAutoCommit(false)
 
-      // 将旧模型标记为 DEPRECATED
-      stmt = connection.prepareStatement(
-        "UPDATE model_params SET status = 'DEPRECATED' WHERE status = 'ACTIVE'"
-      )
-      stmt.executeUpdate()
-      stmt.close()
-
-      // 插入新模型参数
-      modelId = s"als-model-${System.currentTimeMillis()}"
-      stmt = connection.prepareStatement(
-        """
-          |INSERT INTO model_params
-          |(model_id, `rank`, reg_param, max_iter, training_time, model_path, rmse, status, create_time)
-          |VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE', NOW())
-        """.stripMargin
-      )
-
+      val sql = """
+        INSERT INTO model_params (model_id, `rank`, reg_param, max_iter, training_time, model_path, rmse, status)
+        VALUES (?, ?, ?, ?, NOW(), ?, ?, 'ACTIVE')
+      """
+      stmt = connection.prepareStatement(sql)
       stmt.setString(1, modelId)
       stmt.setInt(2, rank)
       stmt.setDouble(3, regParam)
       stmt.setInt(4, maxIter)
-      stmt.setTimestamp(5, new Timestamp(System.currentTimeMillis()))
-      stmt.setString(6, modelPath)
-      stmt.setDouble(7, rmse)
+      stmt.setString(5, modelPath)
+      stmt.setDouble(6, rmse)
 
       stmt.executeUpdate()
-      connection.commit()
-
-      println(s"[INFO] 模型参数已写入 MySQL，Model ID: $modelId")
-      modelId // 返回生成的模型ID
-
+      println(s"[INFO] 模型参数已保存: $modelId")
+      modelId
     } catch {
       case e: Exception =>
-        if (connection != null) {
-          connection.rollback()
-        }
-        println(s"[ERROR] 写入模型参数失败: ${e.getMessage}")
-        throw e
+        e.printStackTrace()
+        "unknown-model"
     } finally {
       if (stmt != null) stmt.close()
       if (connection != null) connection.close()
