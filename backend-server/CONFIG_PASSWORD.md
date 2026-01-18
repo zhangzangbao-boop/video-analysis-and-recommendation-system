@@ -74,5 +74,5 @@ export DB_PASSWORD=your_password
 ```yaml
 spring:
   datasource:
-    password: ${DB_PASSWORD:041206}  # 默认值041206，可通过环境变量覆盖
+    password: ${DB_PASSWORD:123456}  # 默认值041206，可通过环境变量覆盖
 ```
