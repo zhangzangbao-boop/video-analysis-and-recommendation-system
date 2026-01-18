@@ -4,13 +4,18 @@ import com.video.server.constant.VideoStatus;
 import com.video.server.dto.PageResponse;
 import com.video.server.dto.VideoListRequest;
 import com.video.server.entity.Video;
+import com.video.server.entity.VideoCategory;
+import com.video.server.mapper.CategoryMapper;
 import com.video.server.mapper.VideoMapper;
 import com.video.server.service.VideoService;
+import com.video.server.utils.TencentCosVideoUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -22,6 +27,8 @@ import java.util.concurrent.TimeUnit;
 public class VideoServiceImpl implements VideoService {
     
     private final VideoMapper videoMapper;
+    private final CategoryMapper categoryMapper;
+    private final TencentCosVideoUtil tencentCosVideoUtil;
     
     // RedisTemplate 设为可选依赖，如果Redis不可用则直接查询数据库
     @Autowired(required = false)
@@ -140,6 +147,55 @@ public class VideoServiceImpl implements VideoService {
         if (isHot && redisTemplate != null) {
             redisTemplate.delete(HOT_VIDEO_LIST_KEY);
         }
+    }
+    
+    @Override
+    public void uploadAndPublish(MultipartFile file, MultipartFile coverFile, String title, String description, Integer categoryId, String tags, Long userId) {
+        // 1. 校验文件
+        if (file.isEmpty()) {
+            throw new RuntimeException("视频文件不能为空");
+        }
+
+        // 2. 上传视频到腾讯云 COS
+        String videoUrl = tencentCosVideoUtil.uploadVideo(file);
+        
+        // 3. 上传封面到腾讯云 COS（如果提供了封面文件）
+        String coverUrl = "";
+        if (coverFile != null && !coverFile.isEmpty()) {
+            coverUrl = tencentCosVideoUtil.uploadCover(coverFile);
+        }
+
+        // 4. 构建 Video 实体对象
+        Video video = new Video();
+        // 生成视频ID（使用雪花算法）
+        video.setId(com.video.server.utils.IdGenerator.nextId());
+        video.setAuthorId(userId);
+        video.setTitle(title);
+        video.setDescription(description);
+        video.setVideoUrl(videoUrl);
+        video.setCoverUrl(coverUrl);
+        video.setCategoryId(categoryId);
+        video.setTags(tags);
+        video.setDuration(0); // 如果无法获取时长，先置为0，或者使用 FFmpeg 获取
+
+        // 设置初始状态
+        video.setStatus(VideoStatus.PENDING); // 默认为待审核状态
+        video.setIsHot(0);
+        video.setPlayCount(0L);
+        video.setLikeCount(0L);
+        video.setCommentCount(0L);
+        video.setShareCount(0L);
+        video.setIsDeleted(0);
+        video.setCreateTime(LocalDateTime.now());
+        video.setUpdateTime(LocalDateTime.now());
+
+        // 5. 保存到数据库
+        videoMapper.insert(video);
+    }
+    
+    @Override
+    public List<VideoCategory> getCategories() {
+        return categoryMapper.selectAll();
     }
     
     /**

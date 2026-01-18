@@ -21,6 +21,14 @@ service.interceptors.request.use(
       config.headers['Authorization'] = 'Bearer ' + userToken
     }
     
+    // 如果是文件上传，添加用户ID到header（临时方案，实际应该从JWT token中解析）
+    if (config.headers['Content-Type'] && config.headers['Content-Type'].includes('multipart/form-data')) {
+      const userId = localStorage.getItem('userId')
+      if (userId) {
+        config.headers['X-User-Id'] = userId
+      }
+    }
+    
     return config
   },
   error => {

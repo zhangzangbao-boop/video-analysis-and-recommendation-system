@@ -219,6 +219,40 @@
                   ></el-input>
                 </el-form-item>
                 
+                <!-- 视频分类 -->
+                <el-form-item label="视频分类" prop="categoryId">
+                  <el-select 
+                    v-model="uploadForm.categoryId" 
+                    placeholder="请选择视频分类（选填）"
+                    clearable
+                    style="width: 100%"
+                  >
+                    <el-option
+                      v-for="category in categories"
+                      :key="category.id"
+                      :label="category.name"
+                      :value="category.id"
+                    ></el-option>
+                  </el-select>
+                </el-form-item>
+                
+                <!-- 视频标签 -->
+                <el-form-item label="视频标签" prop="tags">
+                  <el-input 
+                    v-model="uploadForm.tags" 
+                    placeholder="输入标签，多个标签用逗号分隔（选填）"
+                    maxlength="255"
+                    show-word-limit
+                  >
+                    <template slot="prepend">
+                      <i class="el-icon-price-tag"></i>
+                    </template>
+                  </el-input>
+                  <div style="font-size: 12px; color: #909399; margin-top: 5px;">
+                    例如：搞笑,美食,旅行
+                  </div>
+                </el-form-item>
+                
                 <!-- 视频上传 -->
                 <el-form-item label="上传视频" prop="videoFile" class="upload-item">
                   <div class="upload-area" @click="triggerFileInput">
@@ -243,6 +277,33 @@
                     ref="fileInput"
                     accept="video/mp4,video/avi,video/mov,video/quicktime"
                     @change="handleFileSelect"
+                    style="display: none;"
+                  >
+                </el-form-item>
+                
+                <!-- 封面上传 -->
+                <el-form-item label="上传封面" prop="coverFile" class="upload-item">
+                  <div class="upload-area" @click="triggerCoverInput">
+                    <div v-if="!uploadForm.coverFile && !uploadForm.coverPreview" class="upload-placeholder">
+                      <i class="el-icon-picture"></i>
+                      <p class="upload-text">点击上传封面图片（选填）</p>
+                      <p class="upload-hint">支持 JPG, PNG 格式，建议尺寸 16:9</p>
+                    </div>
+                    <div v-else class="cover-preview">
+                      <img 
+                        v-if="uploadForm.coverPreview" 
+                        :src="uploadForm.coverPreview" 
+                        alt="封面预览"
+                        class="cover-image"
+                      >
+                      <i class="el-icon-close remove-btn" @click.stop="removeCoverFile"></i>
+                    </div>
+                  </div>
+                  <input 
+                    type="file" 
+                    ref="coverInput"
+                    accept="image/jpeg,image/jpg,image/png"
+                    @change="handleCoverSelect"
                     style="display: none;"
                   >
                 </el-form-item>
@@ -383,6 +444,8 @@
 </template>
 
 <script>
+import { userVideoApi } from '@/api/user'
+
 export default {
   name: 'UserProfile',
   data() {
@@ -415,9 +478,15 @@ export default {
       uploadForm: {
         title: '',
         description: '',
+        categoryId: null,
+        tags: '',
         videoFile: null,
-        videoPreview: null
+        videoPreview: null,
+        coverFile: null,
+        coverPreview: null
       },
+      // 分类列表
+      categories: [],
       // 表单验证规则
       uploadRules: {
         title: [
@@ -433,6 +502,11 @@ export default {
       },
       uploading: false
     }
+  },
+  
+  mounted() {
+    // 加载分类列表
+    this.loadCategories();
   },
   
   computed: {
@@ -496,20 +570,56 @@ export default {
     },
     
     // 提交上传
-    submitUpload() {
-      this.$refs.uploadForm.validate((valid) => {
+    async submitUpload() {
+      this.$refs.uploadForm.validate(async (valid) => {
         if (valid) {
+          // 检查是否已选择视频文件
+          if (!this.uploadForm.videoFile) {
+            this.$message.warning('请选择视频文件');
+            return false;
+          }
+          
           this.uploading = true;
           
-          // 模拟上传过程
-          setTimeout(() => {
-            this.$message.success('视频上传成功！');
+          try {
+            // 创建 FormData 对象
+            const formData = new FormData();
+            formData.append('file', this.uploadForm.videoFile);
+            formData.append('title', this.uploadForm.title);
+            
+            if (this.uploadForm.description) {
+              formData.append('description', this.uploadForm.description);
+            }
+            
+            // 添加封面上传（如果选择了封面）
+            if (this.uploadForm.coverFile) {
+              formData.append('coverFile', this.uploadForm.coverFile);
+            }
+            
+            // 添加分类ID（如果选择了分类）
+            if (this.uploadForm.categoryId) {
+              formData.append('categoryId', this.uploadForm.categoryId);
+            }
+            
+            // 添加标签（如果输入了标签）
+            if (this.uploadForm.tags && this.uploadForm.tags.trim()) {
+              formData.append('tags', this.uploadForm.tags.trim());
+            }
+            
+            // 调用上传API（用户ID会通过 request.js 拦截器自动添加到 header）
+            await userVideoApi.uploadVideo(formData);
+            
+            this.$message.success('视频上传成功！请等待审核通过后即可在平台展示');
             
             // 重置表单
             this.resetUploadForm();
-            
+          } catch (error) {
+            console.error('上传失败:', error);
+            const errorMsg = error.message || '视频上传失败，请稍后重试';
+            this.$message.error(errorMsg);
+          } finally {
             this.uploading = false;
-          }, 2000);
+          }
         } else {
           this.$message.warning('请完善表单信息');
           return false;
@@ -523,8 +633,73 @@ export default {
       if (this.uploadForm.videoPreview) {
         URL.revokeObjectURL(this.uploadForm.videoPreview);
       }
+      if (this.uploadForm.coverPreview) {
+        URL.revokeObjectURL(this.uploadForm.coverPreview);
+      }
       this.uploadForm.videoFile = null;
       this.uploadForm.videoPreview = null;
+      this.uploadForm.coverFile = null;
+      this.uploadForm.coverPreview = null;
+      this.uploadForm.categoryId = null;
+      this.uploadForm.tags = '';
+    },
+    
+    // 触发封面文件选择
+    triggerCoverInput() {
+      this.$refs.coverInput.click();
+    },
+    
+    // 处理封面文件选择
+    handleCoverSelect(event) {
+      const file = event.target.files[0];
+      if (file) {
+        // 验证文件类型
+        if (!file.type.startsWith('image/')) {
+          this.$message.error('请选择图片文件');
+          return;
+        }
+        // 验证文件大小（最大5MB）
+        if (file.size > 5 * 1024 * 1024) {
+          this.$message.error('封面图片大小不能超过5MB');
+          return;
+        }
+        this.uploadForm.coverFile = file;
+        // 创建预览URL
+        this.uploadForm.coverPreview = URL.createObjectURL(file);
+      }
+    },
+    
+    // 移除封面文件
+    removeCoverFile() {
+      if (this.uploadForm.coverPreview) {
+        URL.revokeObjectURL(this.uploadForm.coverPreview);
+      }
+      this.uploadForm.coverFile = null;
+      this.uploadForm.coverPreview = null;
+      if (this.$refs.coverInput) {
+        this.$refs.coverInput.value = '';
+      }
+    },
+    
+    // 加载分类列表
+    async loadCategories() {
+      try {
+        const response = await userVideoApi.getCategories();
+        if (response && response.data) {
+          this.categories = response.data;
+        }
+      } catch (error) {
+        console.error('加载分类列表失败:', error);
+        // 如果加载失败，使用默认分类列表
+        this.categories = [
+          { id: 1, name: '搞笑' },
+          { id: 2, name: '美食' },
+          { id: 3, name: '旅行' },
+          { id: 4, name: '科技' },
+          { id: 5, name: '音乐' },
+          { id: 6, name: '体育' }
+        ];
+      }
     }
   },
   
@@ -1069,6 +1244,40 @@ export default {
 /* 视频预览播放器 */
 .video-preview-player {
   margin-top: 10px;
+}
+
+/* 封面预览样式 */
+.cover-preview {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #ebeef5;
+}
+
+.cover-image {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+  max-height: 225px; /* 16:9 比例，宽度400px时高度225px */
+}
+
+.cover-preview .remove-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  padding: 8px;
+  border-radius: 50%;
+  z-index: 10;
+}
+
+.cover-preview .remove-btn:hover {
+  background: rgba(245, 108, 108, 0.8);
 }
 
 .preview-video {

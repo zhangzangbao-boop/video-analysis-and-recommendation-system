@@ -3,6 +3,8 @@ package com.video.server.service;
 import com.video.server.dto.PageResponse;
 import com.video.server.dto.VideoListRequest;
 import com.video.server.entity.Video;
+import com.video.server.entity.VideoCategory;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -64,4 +66,22 @@ public interface VideoService {
      * @param isHot 是否热门
      */
     void setHot(Long videoId, Boolean isHot);
+    
+    /**
+     * 上传并发布视频
+     * @param file 视频文件
+     * @param coverFile 封面文件（可选）
+     * @param title 标题
+     * @param description 简介
+     * @param categoryId 分类ID
+     * @param tags 标签
+     * @param userId 发布者ID
+     */
+    void uploadAndPublish(MultipartFile file, MultipartFile coverFile, String title, String description, Integer categoryId, String tags, Long userId);
+    
+    /**
+     * 获取视频分类列表
+     * @return 分类列表
+     */
+    List<VideoCategory> getCategories();
 }
