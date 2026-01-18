@@ -27,26 +27,7 @@ public class VideoAuditServiceImpl implements VideoAuditService {
     private RedisTemplate<String, Object> redisTemplate;
     
     private static final String HOT_VIDEO_LIST_KEY = "hot:video:list";
-    
-    @Override
-    public void auditVideo(VideoAuditRequest request) {
-        String status;
-        if ("pass".equalsIgnoreCase(request.getAction())) {
-            status = VideoStatus.PASSED.name();
-            // 如果Redis可用，删除热门视频缓存
-            if (redisTemplate != null) {
-                redisTemplate.delete(HOT_VIDEO_LIST_KEY);
-            }
-        } else if ("reject".equalsIgnoreCase(request.getAction())) {
-            status = VideoStatus.REJECTED.name();
-        } else {
-            throw new IllegalArgumentException("无效的审核操作: " + request.getAction());
-        }
-        
-        // 更新视频状态
-        videoService.updateStatus(request.getVideoId(), status);
-    }
-    
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void batchOperateVideos(BatchVideoRequest request) {
@@ -74,5 +55,27 @@ public class VideoAuditServiceImpl implements VideoAuditService {
         } else {
             throw new IllegalArgumentException("无效的批量操作类型: " + action);
         }
+    }
+
+    @Override
+    public void auditVideo(VideoAuditRequest request) {
+        String status;
+        // 获取审核原因
+        String reason = request.getReason();
+
+        if ("pass".equalsIgnoreCase(request.getAction())) {
+            status = VideoStatus.PASSED.name();
+            // 审核通过时，如果Redis可用，删除热门视频缓存
+            if (redisTemplate != null) {
+                redisTemplate.delete(HOT_VIDEO_LIST_KEY);
+            }
+        } else if ("reject".equalsIgnoreCase(request.getAction())) {
+            status = VideoStatus.REJECTED.name();
+        } else {
+            throw new IllegalArgumentException("无效的审核操作: " + request.getAction());
+        }
+
+        // 修改处：调用带 reason 的新方法，而不是原来的 updateStatus
+        videoService.auditVideoResult(request.getVideoId(), status, reason);
     }
 }
