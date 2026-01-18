@@ -67,63 +67,6 @@ export const userApi = {
 }
 
 /**
- * 视频管理API
- */
-export const videoApi = {
-  // 获取视频列表
-  getVideoList(params) {
-    return request({
-      url: '/api/admin/video/list',
-      method: 'get',
-      params
-    })
-  },
-  
-  // 获取视频详情
-  getVideoById(id) {
-    return request({
-      url: `/api/admin/video/${id}`,
-      method: 'get'
-    })
-  },
-  
-  // 审核视频
-  auditVideo(data) {
-    return request({
-      url: '/api/admin/video/audit',
-      method: 'post',
-      data
-    })
-  },
-  
-  // 批量操作视频
-  batchOperateVideos(data) {
-    return request({
-      url: '/api/admin/video/batch',
-      method: 'post',
-      data
-    })
-  },
-  
-  // 删除/下架视频
-  deleteVideo(id) {
-    return request({
-      url: `/api/admin/video/${id}`,
-      method: 'delete'
-    })
-  },
-  
-  // 设置/取消热门
-  setHot(id, isHot) {
-    return request({
-      url: `/api/admin/video/${id}/hot`,
-      method: 'put',
-      params: { isHot }
-    })
-  }
-}
-
-/**
  * 统计API
  */
 export const statsApi = {
@@ -147,6 +90,64 @@ export const logsApi = {
       url: '/api/admin/logs/list',
       method: 'get',
       params
+    })
+  }
+}
+
+/**
+ * 视频管理API
+ */
+export const videoApi = {
+  // 获取视频列表
+  getVideoList(params) {
+    return request({
+      url: '/api/admin/video/list',
+      method: 'get',
+      params
+    })
+  },
+
+  // 获取视频详情
+  getVideoById(id) {
+    return request({
+      url: `/api/admin/video/${id}`,
+      method: 'get'
+    })
+  },
+
+  // 审核视频
+  // data结构: { videoId: Long, action: 'pass'|'reject', reason: String }
+  auditVideo(data) {
+    return request({
+      url: '/api/admin/video/audit',
+      method: 'post',
+      data
+    })
+  },
+
+  // 批量操作视频
+  batchOperateVideos(data) {
+    return request({
+      url: '/api/admin/video/batch',
+      method: 'post',
+      data
+    })
+  },
+
+  // 删除/下架视频
+  deleteVideo(id) {
+    return request({
+      url: `/api/admin/video/${id}`,
+      method: 'delete'
+    })
+  },
+
+  // 设置/取消热门
+  setHot(id, isHot) {
+    return request({
+      url: `/api/admin/video/${id}/hot`,
+      method: 'put',
+      params: { isHot }
     })
   }
 }

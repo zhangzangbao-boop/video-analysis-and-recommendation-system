@@ -1,444 +1,202 @@
 <template>
   <div class="profile-container">
-    <!-- 未登录状态提示 -->
     <div v-if="!isLogin" class="not-logged-card">
       <el-card class="not-logged-card-inner">
         <div class="not-logged-content">
-          <div class="not-logged-icon">
-            <i class="el-icon-user"></i>
-          </div>
+          <div class="not-logged-icon"><i class="el-icon-user"></i></div>
           <h3 class="not-logged-title">您尚未登录</h3>
           <p class="not-logged-desc">登录后可查看个人资料、播放历史和账号设置</p>
           <div class="not-logged-actions">
-            <el-button 
-              type="primary" 
-              size="large" 
-              icon="el-icon-user" 
-              @click="$router.push('/login')"
-              class="login-btn"
-            >
-              立即登录
-            </el-button>
-            <el-button 
-              type="text" 
-              size="large"
-              @click="$router.push('/main/video')"
-            >
-              返回首页
-            </el-button>
+            <el-button type="primary" size="large" icon="el-icon-user" @click="$router.push('/login')" class="login-btn">立即登录</el-button>
+            <el-button type="text" size="large" @click="$router.push('/main/video')">返回首页</el-button>
           </div>
         </div>
       </el-card>
     </div>
 
-    <!-- 已登录状态显示个人资料 -->
     <div v-else>
-    <!-- 用户信息卡片 - 视觉强化 -->
-    <el-card class="profile-main-card">
-      <!-- 上半部分：用户信息和统计 -->
-      <div class="profile-header-enhanced">
-        <!-- 左侧：大尺寸头像 -->
-        <div class="avatar-section-enhanced">
-          <div class="avatar-wrapper">
-            <el-avatar 
-              :size="120" 
-              :src="userInfo.avatar"
-              class="user-avatar-enhanced"
-            >
-              {{ userInfo.username.charAt(0) }}
-            </el-avatar>
-            <div class="avatar-badge">
-              <i class="el-icon-star-on"></i>
-              <span>活跃用户</span>
+      <el-card class="profile-main-card">
+        <div class="profile-header-enhanced">
+          <div class="avatar-section-enhanced">
+            <div class="avatar-wrapper">
+              <el-avatar :size="120" :src="userInfo.avatar" class="user-avatar-enhanced">{{ userInfo.username.charAt(0) }}</el-avatar>
+              <div class="avatar-badge"><i class="el-icon-star-on"></i><span>活跃用户</span></div>
             </div>
+          </div>
+          <div class="user-info-enhanced">
+            <div class="user-title-section">
+              <h1 class="username-enhanced">{{ userInfo.username }}</h1>
+              <el-tag type="success" size="small">在线</el-tag>
+            </div>
+            <div class="user-bio-enhanced">{{ userInfo.bio || '这个人很懒，还没有写简介哦~' }}</div>
+            <div class="stats-cards">
+              <div class="stat-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                <div class="stat-icon"><i class="el-icon-video-camera"></i></div>
+                <div class="stat-content">
+                  <div class="stat-number">{{ worksTotal }}</div>
+                  <div class="stat-label">我的作品</div>
+                </div>
+              </div>
+              <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                <div class="stat-icon"><i class="el-icon-star-on"></i></div>
+                <div class="stat-content">
+                  <div class="stat-number">{{ userStats.following || 0 }}</div>
+                  <div class="stat-label">关注</div>
+                </div>
+              </div>
+              <div class="stat-card" style="background: linear-gradient(135deg, #5ee7df 0%, #b490ca 100%);">
+                <div class="stat-icon"><i class="el-icon-user"></i></div>
+                <div class="stat-content">
+                  <div class="stat-number">{{ userStats.followers || 0 }}</div>
+                  <div class="stat-label">粉丝</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="quick-actions">
+            <el-button type="primary" icon="el-icon-edit" class="action-btn">编辑资料</el-button>
+            <el-button icon="el-icon-setting" class="action-btn">账号设置</el-button>
           </div>
         </div>
-        
-        <!-- 中间：用户基本信息 -->
-        <div class="user-info-enhanced">
-          <div class="user-title-section">
-            <h1 class="username-enhanced">{{ userInfo.username }}</h1>
-            <el-tag type="success" size="small">在线</el-tag>
-          </div>
-          <div class="user-bio-enhanced">
-            {{ userInfo.bio || '这个人很懒，还没有写简介哦~' }}
-          </div>
-          
-          <!-- 用户统计数据 -->
-          <div class="stats-cards">
-            <div class="stat-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-              <div class="stat-icon">
-                <i class="el-icon-view"></i>
-              </div>
-              <div class="stat-content">
-                <div class="stat-number">1.2万</div>
-                <div class="stat-label">累计播放</div>
-              </div>
-            </div>
-            
-            <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
-              <div class="stat-icon">
-                <i class="el-icon-star-on"></i>
-              </div>
-              <div class="stat-content">
-                <div class="stat-number">{{ userStats.following || 128 }}</div>
-                <div class="stat-label">关注</div>
-              </div>
-            </div>
-            
-            <div class="stat-card" style="background: linear-gradient(135deg, #5ee7df 0%, #b490ca 100%);">
-              <div class="stat-icon">
-                <i class="el-icon-user"></i>
-              </div>
-              <div class="stat-content">
-                <div class="stat-number">{{ userStats.followers || 256 }}</div>
-                <div class="stat-label">粉丝</div>
-              </div>
-            </div>
-          </div>
-        </div>
-        
-        <!-- 右侧：快速操作 -->
-        <div class="quick-actions">
-          <el-button type="primary" icon="el-icon-edit" class="action-btn">编辑资料</el-button>
-          <el-button icon="el-icon-setting" class="action-btn">账号设置</el-button>
-          <el-button icon="el-icon-share" class="action-btn">分享主页</el-button>
-        </div>
-      </div>
-    </el-card>
-    
-    <!-- 标签页区域 -->
-    <div class="tabs-section">
-      <!-- 标签页卡片 -->
+      </el-card>
+
       <el-card class="tabs-card">
-        <!-- 自定义标签页样式 -->
         <div class="custom-tabs">
-          <div 
-            v-for="tab in tabs" 
-            :key="tab.name"
-            class="custom-tab-item"
-            :class="{ active: activeTab === tab.name }"
-            @click="activeTab = tab.name"
+          <div
+              v-for="tab in tabs"
+              :key="tab.name"
+              class="custom-tab-item"
+              :class="{ active: activeTab === tab.name }"
+              @click="handleTabClick(tab.name)"
           >
             <i :class="tab.icon"></i>
             <span>{{ tab.label }}</span>
             <div class="tab-indicator" v-if="activeTab === tab.name"></div>
           </div>
         </div>
-        
-        <!-- 标签内容区域 -->
+
         <div class="tab-content">
-          <!-- 播放历史 -->
-          <div v-show="activeTab === 'history'" class="tab-pane enhanced">
+          <div v-show="activeTab === 'works'" class="tab-pane enhanced">
             <div class="content-header">
-              <h3><i class="el-icon-time"></i> 播放历史</h3>
-              <p>记录您最近观看的视频内容</p>
+              <h3><i class="el-icon-video-camera"></i> 我的作品</h3>
+              <p>管理您上传的视频，查看审核状态</p>
             </div>
-            <div class="history-grid">
-              <div class="empty-state">
-                <div class="empty-icon">
-                  <i class="el-icon-video-play"></i>
-                </div>
-                <h4>暂无观看历史</h4>
-                <p>快去发现精彩的短视频吧</p>
-                <el-button type="primary" @click="$router.push('/main/video')">
-                  去首页看看
-                </el-button>
+
+            <div v-loading="loadingWorks">
+              <el-table :data="myWorksList" style="width: 100%" v-if="myWorksList.length > 0" border stripe>
+                <el-table-column label="封面" width="140" align="center">
+                  <template slot-scope="scope">
+                    <img :src="scope.row.coverUrl" style="width: 100px; height: 56px; object-fit: cover; border-radius: 4px;">
+                  </template>
+                </el-table-column>
+
+                <el-table-column prop="title" label="标题" min-width="200">
+                  <template slot-scope="scope">
+                    <span style="font-weight: bold;">{{ scope.row.title }}</span>
+                  </template>
+                </el-table-column>
+
+                <el-table-column label="状态" width="150" align="center">
+                  <template slot-scope="scope">
+                    <el-tag v-if="scope.row.status === 'PASSED'" type="success" size="small">已发布</el-tag>
+                    <el-tag v-else-if="scope.row.status === 'PENDING'" type="warning" size="small">审核中</el-tag>
+
+                    <el-tooltip
+                        v-else-if="scope.row.status === 'REJECTED'"
+                        class="item"
+                        effect="dark"
+                        :content="scope.row.auditMsg || '管理员未填写驳回原因'"
+                        placement="top">
+                      <el-tag type="danger" size="small" style="cursor: pointer;">
+                        已驳回 <i class="el-icon-question"></i>
+                      </el-tag>
+                    </el-tooltip>
+                  </template>
+                </el-table-column>
+
+                <el-table-column prop="createTime" label="上传时间" width="180" align="center" :formatter="formatDate"></el-table-column>
+
+                <el-table-column label="操作" width="120" align="center">
+                  <template slot-scope="scope">
+                    <el-button type="text" style="color: #F56C6C" icon="el-icon-delete" @click="handleDeleteWork(scope.row)">删除</el-button>
+                  </template>
+                </el-table-column>
+              </el-table>
+
+              <div v-else class="empty-state">
+                <div class="empty-icon"><i class="el-icon-folder-opened"></i></div>
+                <h4>暂无作品</h4>
+                <p>快去上传你的第一个视频吧</p>
+                <el-button type="primary" size="medium" @click="goToUpload">去上传</el-button>
               </div>
             </div>
           </div>
-          
-          <!-- 点赞记录 -->
-          <div v-show="activeTab === 'likes'" class="tab-pane enhanced">
-            <div class="content-header">
-              <h3><i class="el-icon-star-on"></i> 点赞记录</h3>
-              <p>您点赞过的精彩内容</p>
-            </div>
-            <div class="likes-grid">
-              <div class="empty-state">
-                <div class="empty-icon">
-                  <i class="el-icon-star-off"></i>
-                </div>
-                <h4>暂无点赞记录</h4>
-                <p>看到喜欢的视频，点个赞吧</p>
-              </div>
-            </div>
-          </div>
-          
-          <!-- 评论记录 -->
-          <div v-show="activeTab === 'comments'" class="tab-pane enhanced">
-            <div class="content-header">
-              <h3><i class="el-icon-chat-dot-round"></i> 评论记录</h3>
-              <p>您发表的评论和互动</p>
-            </div>
-            <div class="comments-list">
-              <div class="empty-state">
-                <div class="empty-icon">
-                  <i class="el-icon-chat-dot-square"></i>
-                </div>
-                <h4>暂无评论记录</h4>
-                <p>发表你的第一条评论</p>
-              </div>
-            </div>
-          </div>
-          
-          <!-- 上传视频 -->
+
           <div v-show="activeTab === 'upload'" class="tab-pane enhanced">
             <div class="content-header">
               <h3><i class="el-icon-upload"></i> 上传视频</h3>
               <p>分享你的精彩瞬间</p>
             </div>
-            
             <div class="upload-video-section">
-              <el-form 
-                ref="uploadForm" 
-                :model="uploadForm" 
-                :rules="uploadRules" 
-                label-width="100px" 
-                class="upload-form"
-              >
-                <!-- 视频标题 -->
+              <el-form ref="uploadForm" :model="uploadForm" :rules="uploadRules" label-width="100px" class="upload-form">
                 <el-form-item label="视频标题" prop="title">
-                  <el-input 
-                    v-model="uploadForm.title" 
-                    placeholder="请输入视频标题（必填）"
-                    maxlength="50"
-                    show-word-limit
-                  ></el-input>
+                  <el-input v-model="uploadForm.title" placeholder="请输入视频标题" maxlength="50" show-word-limit></el-input>
                 </el-form-item>
-                
-                <!-- 视频介绍 -->
                 <el-form-item label="视频介绍" prop="description">
-                  <el-input 
-                    v-model="uploadForm.description" 
-                    type="textarea" 
-                    :rows="4"
-                    placeholder="简单介绍一下你的视频吧（选填）"
-                    maxlength="500"
-                    show-word-limit
-                  ></el-input>
+                  <el-input v-model="uploadForm.description" type="textarea" :rows="4" placeholder="简单介绍一下你的视频吧" maxlength="500" show-word-limit></el-input>
                 </el-form-item>
-                
-                <!-- 视频分类 -->
                 <el-form-item label="视频分类" prop="categoryId">
-                  <el-select 
-                    v-model="uploadForm.categoryId" 
-                    placeholder="请选择视频分类（选填）"
-                    clearable
-                    style="width: 100%"
-                  >
-                    <el-option
-                      v-for="category in categories"
-                      :key="category.id"
-                      :label="category.name"
-                      :value="category.id"
-                    ></el-option>
+                  <el-select v-model="uploadForm.categoryId" placeholder="请选择分类" style="width: 100%">
+                    <el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.id"></el-option>
                   </el-select>
                 </el-form-item>
-                
-                <!-- 视频标签 -->
-                <el-form-item label="视频标签" prop="tags">
-                  <el-input 
-                    v-model="uploadForm.tags" 
-                    placeholder="输入标签，多个标签用逗号分隔（选填）"
-                    maxlength="255"
-                    show-word-limit
-                  >
-                    <template slot="prepend">
-                      <i class="el-icon-price-tag"></i>
-                    </template>
-                  </el-input>
-                  <div style="font-size: 12px; color: #909399; margin-top: 5px;">
-                    例如：搞笑,美食,旅行
-                  </div>
-                </el-form-item>
-                
-                <!-- 视频上传 -->
-                <el-form-item label="上传视频" prop="videoFile" class="upload-item">
+                <el-form-item label="上传视频" prop="videoFile">
                   <div class="upload-area" @click="triggerFileInput">
                     <div v-if="!uploadForm.videoFile" class="upload-placeholder">
                       <i class="el-icon-upload"></i>
-                      <p class="upload-text">点击或拖拽视频文件到此区域</p>
-                      <p class="upload-hint">支持 MP4, AVI, MOV 格式，最大 500MB</p>
+                      <p>点击上传视频 (MP4)</p>
                     </div>
                     <div v-else class="upload-preview">
-                      <div class="video-preview">
-                        <i class="el-icon-video-play"></i>
-                        <div class="video-info">
-                          <p class="video-name">{{ uploadForm.videoFile.name }}</p>
-                          <p class="video-size">{{ formatFileSize(uploadForm.videoFile.size) }}</p>
-                        </div>
-                        <i class="el-icon-close remove-btn" @click.stop="removeVideoFile"></i>
-                      </div>
+                      <i class="el-icon-video-play" style="font-size: 24px; margin-right: 10px; color: #409EFF;"></i>
+                      <span>{{ uploadForm.videoFile.name }}</span>
                     </div>
                   </div>
-                  <input 
-                    type="file" 
-                    ref="fileInput"
-                    accept="video/mp4,video/avi,video/mov,video/quicktime"
-                    @change="handleFileSelect"
-                    style="display: none;"
-                  >
+                  <input type="file" ref="fileInput" accept="video/mp4,video/quicktime" @change="handleFileSelect" style="display: none;">
                 </el-form-item>
-                
-                <!-- 封面上传 -->
-                <el-form-item label="上传封面" prop="coverFile" class="upload-item">
-                  <div class="upload-area" @click="triggerCoverInput">
+                <el-form-item label="上传封面" prop="coverFile">
+                  <div class="upload-area" @click="triggerCoverInput" style="min-height: 120px;">
                     <div v-if="!uploadForm.coverFile && !uploadForm.coverPreview" class="upload-placeholder">
                       <i class="el-icon-picture"></i>
-                      <p class="upload-text">点击上传封面图片（选填）</p>
-                      <p class="upload-hint">支持 JPG, PNG 格式，建议尺寸 16:9</p>
+                      <p>点击上传封面 (JPG/PNG)</p>
                     </div>
                     <div v-else class="cover-preview">
-                      <img 
-                        v-if="uploadForm.coverPreview" 
-                        :src="uploadForm.coverPreview" 
-                        alt="封面预览"
-                        class="cover-image"
-                      >
-                      <i class="el-icon-close remove-btn" @click.stop="removeCoverFile"></i>
+                      <img :src="uploadForm.coverPreview" style="max-height: 120px; object-fit: contain;">
                     </div>
                   </div>
-                  <input 
-                    type="file" 
-                    ref="coverInput"
-                    accept="image/jpeg,image/jpg,image/png"
-                    @change="handleCoverSelect"
-                    style="display: none;"
-                  >
+                  <input type="file" ref="coverInput" accept="image/jpeg,image/png" @change="handleCoverSelect" style="display: none;">
                 </el-form-item>
-                
-                <!-- 视频预览 -->
-                <el-form-item v-if="uploadForm.videoPreview" label="视频预览">
-                  <div class="video-preview-player">
-                    <video 
-                      ref="videoPreview" 
-                      :src="uploadForm.videoPreview"
-                      controls
-                      class="preview-video"
-                    >
-                      您的浏览器不支持 video 标签。
-                    </video>
-                  </div>
-                </el-form-item>
-                
-                <!-- 操作按钮 -->
-                <el-form-item class="upload-actions">
-                  <el-button 
-                    type="primary" 
-                    :loading="uploading"
-                    :disabled="!uploadForm.videoFile"
-                    @click="submitUpload"
-                    class="submit-btn"
-                  >
-                    {{ uploading ? '上传中...' : '发布视频' }}
-                  </el-button>
+                <el-form-item>
+                  <el-button type="primary" :loading="uploading" @click="submitUpload" class="submit-btn">发布视频</el-button>
                   <el-button @click="resetUploadForm">重置</el-button>
                 </el-form-item>
               </el-form>
             </div>
           </div>
-          
-          <!-- 设置 -->
+
+          <div v-show="['history', 'likes', 'comments'].includes(activeTab)" class="tab-pane enhanced">
+            <div class="empty-state">
+              <div class="empty-icon"><i class="el-icon-coffee"></i></div>
+              <h4>功能开发中</h4>
+              <p>该模块即将上线，敬请期待</p>
+            </div>
+          </div>
+
           <div v-show="activeTab === 'settings'" class="tab-pane enhanced">
-            <div class="content-header">
-              <h3><i class="el-icon-setting"></i> 账号设置</h3>
-              <p>管理您的账号和隐私</p>
-            </div>
-            
-            <div class="settings-enhanced">
-              <div class="settings-grid">
-                <!-- 基础设置 -->
-                <div class="setting-card">
-                  <div class="setting-card-header">
-                    <i class="el-icon-user"></i>
-                    <h4>基础信息</h4>
-                  </div>
-                  <div class="setting-form">
-                    <el-form label-width="100px">
-                      <el-form-item label="用户名">
-                        <el-input v-model="userInfo.username"></el-input>
-                      </el-form-item>
-                      <el-form-item label="个人简介">
-                        <el-input 
-                          type="textarea" 
-                          v-model="userInfo.bio"
-                          placeholder="介绍一下自己吧~"
-                        ></el-input>
-                      </el-form-item>
-                    </el-form>
-                  </div>
-                </div>
-                
-                <!-- 隐私设置 -->
-                <div class="setting-card">
-                  <div class="setting-card-header">
-                    <i class="el-icon-lock"></i>
-                    <h4>隐私设置</h4>
-                  </div>
-                  <div class="setting-form">
-                    <div class="setting-item">
-                      <div class="setting-label">消息通知</div>
-                      <el-switch v-model="settings.notifications"></el-switch>
-                    </div>
-                    <div class="setting-item">
-                      <div class="setting-label">隐私模式</div>
-                      <el-switch v-model="settings.privacy"></el-switch>
-                    </div>
-                    <div class="setting-item">
-                      <div class="setting-label">允许评论</div>
-                      <el-switch v-model="settings.allowComments" active-value="true" inactive-value="false"></el-switch>
-                    </div>
-                  </div>
-                </div>
-                
-                <!-- 主题设置 -->
-                <div class="setting-card">
-                  <div class="setting-card-header">
-                    <i class="el-icon-picture-outline"></i>
-                    <h4>主题设置</h4>
-                  </div>
-                  <div class="setting-form">
-                    <div class="setting-item">
-                      <div class="setting-label">主题颜色</div>
-                      <el-color-picker v-model="settings.themeColor"></el-color-picker>
-                    </div>
-                    <div class="setting-item">
-                      <div class="setting-label">字体大小</div>
-                      <el-select v-model="settings.fontSize" size="small">
-                        <el-option label="小" value="small"></el-option>
-                        <el-option label="中" value="medium"></el-option>
-                        <el-option label="大" value="large"></el-option>
-                      </el-select>
-                    </div>
-                  </div>
-                </div>
-                
-                <!-- 其他设置 -->
-                <div class="setting-card">
-                  <div class="setting-card-header">
-                    <i class="el-icon-more"></i>
-                    <h4>其他设置</h4>
-                  </div>
-                  <div class="setting-actions">
-                    <el-button type="text" icon="el-icon-info">查看帮助中心</el-button>
-                    <el-button type="text" icon="el-icon-question">意见反馈</el-button>
-                    <el-button type="text" icon="el-icon-refresh">清除缓存</el-button>
-                    <el-button type="text" icon="el-icon-download">数据导出</el-button>
-                  </div>
-                </div>
-              </div>
-              
-              <!-- 保存按钮 -->
-              <div class="settings-actions">
-                <el-button type="primary" size="large" icon="el-icon-check">保存设置</el-button>
-                <el-button type="default" size="large">恢复默认</el-button>
-              </div>
-            </div>
+            <div class="content-header"><h3>账号设置</h3></div>
+            <div class="empty-state"><p>暂无设置选项</p></div>
           </div>
         </div>
       </el-card>
-    </div>
     </div>
   </div>
 </template>
@@ -450,969 +208,203 @@ export default {
   name: 'UserProfile',
   data() {
     return {
-      activeTab: 'history',
+      activeTab: 'works', // 默认进入"我的作品"
       tabs: [
+        { name: 'works', label: '我的作品', icon: 'el-icon-video-camera' },
+        { name: 'upload', label: '上传视频', icon: 'el-icon-upload' },
         { name: 'history', label: '播放历史', icon: 'el-icon-time' },
         { name: 'likes', label: '点赞记录', icon: 'el-icon-star-on' },
         { name: 'comments', label: '评论记录', icon: 'el-icon-chat-dot-round' },
-        { name: 'upload', label: '上传视频', icon: 'el-icon-upload' },
         { name: 'settings', label: '账号设置', icon: 'el-icon-setting' }
       ],
       userInfo: {
-        username: localStorage.getItem('username') || '短视频爱好者',
-        avatar: 'https://picsum.photos/120/120?random=1',
-        bio: '热爱生活，喜欢分享短视频，记录美好时光。每天都会发现有趣的内容！'
+        username: localStorage.getItem('username') || '用户',
+        avatar: '',
+        bio: '暂无简介'
       },
-      userStats: {
-        following: 128,
-        followers: 256
-      },
-      settings: {
-        notifications: true,
-        privacy: false,
-        themeColor: '#409EFF',
-        allowComments: true,
-        fontSize: 'medium'
-      },
-      // 上传表单数据
+      userStats: { following: 0, followers: 0 },
+
+      // --- 我的作品数据 ---
+      myWorksList: [],
+      worksTotal: 0,
+      loadingWorks: false,
+
+      // --- 上传表单数据 ---
       uploadForm: {
         title: '',
         description: '',
         categoryId: null,
-        tags: '',
         videoFile: null,
-        videoPreview: null,
         coverFile: null,
         coverPreview: null
       },
-      // 分类列表
       categories: [],
-      // 表单验证规则
+      uploading: false,
       uploadRules: {
-        title: [
-          { required: true, message: '请输入视频标题', trigger: 'blur' },
-          { min: 2, max: 50, message: '标题长度在 2 到 50 个字符', trigger: 'blur' }
-        ],
-        description: [
-          { max: 500, message: '介绍不能超过 500 个字符', trigger: 'blur' }
-        ],
-        videoFile: [
-          { required: true, message: '请选择视频文件', trigger: 'change' }
-        ]
-      },
-      uploading: false
+        title: [{ required: true, message: '请输入标题', trigger: 'blur' }],
+        videoFile: [{ required: true, message: '请选择视频', trigger: 'change' }]
+      }
     }
   },
-  
-  mounted() {
-    // 加载分类列表
-    this.loadCategories();
-  },
-  
   computed: {
-    // 检查用户是否已登录
     isLogin() {
-      return !!localStorage.getItem('userToken');
+      // 简单判断是否有token
+      return !!localStorage.getItem('token') || !!localStorage.getItem('userToken');
     }
   },
-  
+  mounted() {
+    if (this.isLogin) {
+      this.loadCategories();
+      this.fetchMyWorks(); // 初始加载作品
+    }
+  },
   methods: {
-    // 触发文件选择
-    triggerFileInput() {
-      this.$refs.fileInput.click();
-    },
-    
-    // 处理文件选择
-    handleFileSelect(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-      
-      // 验证文件类型
-      const validTypes = ['video/mp4', 'video/avi', 'video/mov', 'video/quicktime'];
-      if (!validTypes.includes(file.type)) {
-        this.$message.error('请选择有效的视频文件格式（MP4、AVI、MOV）');
-        return;
+    handleTabClick(tabName) {
+      this.activeTab = tabName;
+      if (tabName === 'works') {
+        this.fetchMyWorks();
       }
-      
-      // 验证文件大小（500MB）
-      const maxSize = 500 * 1024 * 1024; // 500MB
-      if (file.size > maxSize) {
-        this.$message.error('视频文件大小不能超过500MB');
-        return;
+    },
+
+    goToUpload() {
+      this.activeTab = 'upload';
+    },
+
+  // --- 获取我的作品 ---
+    async fetchMyWorks() {
+      this.loadingWorks = true;
+      try {
+        const res = await userVideoApi.getMyVideos({ page: 1, limit: 20 });
+        if (res.code === 200) {
+          // 【核心修复】增加对 .list 的判断
+          // 后端 PageResponse 通常使用 list 或 content 字段，而不是 records
+          this.myWorksList = res.data.list || res.data.records || res.data.content || [];
+          this.worksTotal = res.data.total || 0;
+
+          // 调试日志：如果还是不显示，按 F12 看控制台打印了什么
+          console.log('我的作品列表数据:', this.myWorksList);
+        }
+      } catch (error) {
+        console.error('获取作品失败', error);
+      } finally {
+        this.loadingWorks = false;
       }
-      
-      this.uploadForm.videoFile = file;
-      
-      // 生成预览URL
-      const fileURL = URL.createObjectURL(file);
-      this.uploadForm.videoPreview = fileURL;
-      
-      // 清除文件输入，以便可以选择同一个文件
-      event.target.value = '';
     },
-    
-    // 移除视频文件
-    removeVideoFile() {
-      if (this.uploadForm.videoPreview) {
-        URL.revokeObjectURL(this.uploadForm.videoPreview);
-      }
-      this.uploadForm.videoFile = null;
-      this.uploadForm.videoPreview = null;
-    },
-    
-    // 格式化文件大小
-    formatFileSize(bytes) {
-      if (bytes === 0) return '0 B';
-      const k = 1024;
-      const sizes = ['B', 'KB', 'MB', 'GB'];
-      const i = Math.floor(Math.log(bytes) / Math.log(k));
-      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    },
-    
-    // 提交上传
-    async submitUpload() {
-      this.$refs.uploadForm.validate(async (valid) => {
-        if (valid) {
-          // 检查是否已选择视频文件
-          if (!this.uploadForm.videoFile) {
-            this.$message.warning('请选择视频文件');
-            return false;
-          }
-          
-          this.uploading = true;
-          
-          try {
-            // 创建 FormData 对象
-            const formData = new FormData();
-            formData.append('file', this.uploadForm.videoFile);
-            formData.append('title', this.uploadForm.title);
-            
-            if (this.uploadForm.description) {
-              formData.append('description', this.uploadForm.description);
-            }
-            
-            // 添加封面上传（如果选择了封面）
-            if (this.uploadForm.coverFile) {
-              formData.append('coverFile', this.uploadForm.coverFile);
-            }
-            
-            // 添加分类ID（如果选择了分类）
-            if (this.uploadForm.categoryId) {
-              formData.append('categoryId', this.uploadForm.categoryId);
-            }
-            
-            // 添加标签（如果输入了标签）
-            if (this.uploadForm.tags && this.uploadForm.tags.trim()) {
-              formData.append('tags', this.uploadForm.tags.trim());
-            }
-            
-            // 调用上传API（用户ID会通过 request.js 拦截器自动添加到 header）
-            await userVideoApi.uploadVideo(formData);
-            
-            this.$message.success('视频上传成功！请等待审核通过后即可在平台展示');
-            
-            // 重置表单
-            this.resetUploadForm();
-          } catch (error) {
-            console.error('上传失败:', error);
-            const errorMsg = error.message || '视频上传失败，请稍后重试';
-            this.$message.error(errorMsg);
-          } finally {
-            this.uploading = false;
-          }
-        } else {
-          this.$message.warning('请完善表单信息');
-          return false;
+    // --- 删除我的作品 ---
+    handleDeleteWork(row) {
+      this.$confirm('确定删除该作品吗？此操作不可恢复。', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }).then(async () => {
+        try {
+          await userVideoApi.deleteMyVideo(row.id);
+          this.$message.success('删除成功');
+          this.fetchMyWorks(); // 刷新列表
+        } catch (e) {
+          this.$message.error('删除失败');
         }
       });
     },
-    
-    // 重置上传表单
-    resetUploadForm() {
-      this.$refs.uploadForm.resetFields();
-      if (this.uploadForm.videoPreview) {
-        URL.revokeObjectURL(this.uploadForm.videoPreview);
-      }
-      if (this.uploadForm.coverPreview) {
-        URL.revokeObjectURL(this.uploadForm.coverPreview);
-      }
-      this.uploadForm.videoFile = null;
-      this.uploadForm.videoPreview = null;
-      this.uploadForm.coverFile = null;
-      this.uploadForm.coverPreview = null;
-      this.uploadForm.categoryId = null;
-      this.uploadForm.tags = '';
+
+    // --- 上传相关逻辑 ---
+    triggerFileInput() { this.$refs.fileInput.click(); },
+    triggerCoverInput() { this.$refs.coverInput.click(); },
+
+    handleFileSelect(e) {
+      const file = e.target.files[0];
+      if (file) this.uploadForm.videoFile = file;
     },
-    
-    // 触发封面文件选择
-    triggerCoverInput() {
-      this.$refs.coverInput.click();
-    },
-    
-    // 处理封面文件选择
-    handleCoverSelect(event) {
-      const file = event.target.files[0];
+
+    handleCoverSelect(e) {
+      const file = e.target.files[0];
       if (file) {
-        // 验证文件类型
-        if (!file.type.startsWith('image/')) {
-          this.$message.error('请选择图片文件');
-          return;
-        }
-        // 验证文件大小（最大5MB）
-        if (file.size > 5 * 1024 * 1024) {
-          this.$message.error('封面图片大小不能超过5MB');
-          return;
-        }
         this.uploadForm.coverFile = file;
-        // 创建预览URL
         this.uploadForm.coverPreview = URL.createObjectURL(file);
       }
     },
-    
-    // 移除封面文件
-    removeCoverFile() {
-      if (this.uploadForm.coverPreview) {
-        URL.revokeObjectURL(this.uploadForm.coverPreview);
-      }
-      this.uploadForm.coverFile = null;
-      this.uploadForm.coverPreview = null;
-      if (this.$refs.coverInput) {
-        this.$refs.coverInput.value = '';
-      }
-    },
-    
-    // 加载分类列表
+
     async loadCategories() {
       try {
-        const response = await userVideoApi.getCategories();
-        if (response && response.data) {
-          this.categories = response.data;
-        }
-      } catch (error) {
-        console.error('加载分类列表失败:', error);
-        // 如果加载失败，使用默认分类列表
-        this.categories = [
-          { id: 1, name: '搞笑' },
-          { id: 2, name: '美食' },
-          { id: 3, name: '旅行' },
-          { id: 4, name: '科技' },
-          { id: 5, name: '音乐' },
-          { id: 6, name: '体育' }
-        ];
+        const res = await userVideoApi.getCategories();
+        this.categories = res.data || [];
+      } catch (e) {
+        console.error('分类加载失败');
       }
-    }
-  },
-  
-  // 组件销毁前释放URL
-  beforeDestroy() {
-    if (this.uploadForm.videoPreview) {
-      URL.revokeObjectURL(this.uploadForm.videoPreview);
+    },
+
+    resetUploadForm() {
+      this.$refs.uploadForm.resetFields();
+      this.uploadForm.coverPreview = null;
+      this.uploadForm.videoFile = null;
+      this.uploadForm.coverFile = null;
+    },
+
+    async submitUpload() {
+      this.$refs.uploadForm.validate(async valid => {
+        if (!valid) return;
+        this.uploading = true;
+        try {
+          const fd = new FormData();
+          fd.append('file', this.uploadForm.videoFile);
+          fd.append('title', this.uploadForm.title);
+          if (this.uploadForm.description) fd.append('description', this.uploadForm.description);
+          if (this.uploadForm.categoryId) fd.append('categoryId', this.uploadForm.categoryId);
+          if (this.uploadForm.coverFile) fd.append('coverFile', this.uploadForm.coverFile);
+
+          await userVideoApi.uploadVideo(fd);
+          this.$message.success('发布成功，请等待审核');
+          this.resetUploadForm();
+          this.activeTab = 'works'; // 自动跳转到作品页
+          this.fetchMyWorks();      // 刷新列表可以看到新视频（状态为 Pending）
+        } catch (e) {
+          this.$message.error('上传失败: ' + (e.response?.data?.msg || e.message || '未知错误'));
+        } finally {
+          this.uploading = false;
+        }
+      });
+    },
+
+    formatDate(row, column, cellValue) {
+      if (!cellValue) return '';
+      return cellValue.replace('T', ' ').substring(0, 16);
     }
   }
 }
 </script>
 
 <style scoped>
-/* 整体容器 */
-.profile-container {
-  padding: 20px;
-  max-width: 1400px;
-  margin: 0 auto;
-  background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
-  min-height: 100vh;
-}
-
-/* 主要用户信息卡片 */
-.profile-main-card {
-  border-radius: 16px;
-  margin-bottom: 30px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
-  border: none;
-}
-
-/* 增强版用户信息头部 */
-.profile-header-enhanced {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 40px;
-  align-items: center;
-  padding: 30px;
-}
-
-/* 左侧头像区域 */
-.avatar-section-enhanced {
-  position: relative;
-}
-
-.avatar-wrapper {
-  position: relative;
-  text-align: center;
-}
-
-.user-avatar-enhanced {
-  width: 140px !important;
-  height: 140px !important;
-  font-size: 48px;
-  border: 6px solid white;
-  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-  margin-bottom: 10px;
-}
-
-.avatar-badge {
-  background: linear-gradient(135deg, #ffd700 0%, #ffa500 100%);
-  color: white;
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: bold;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  box-shadow: 0 4px 10px rgba(255, 165, 0, 0.2);
-}
-
-/* 中间用户信息 */
-.user-info-enhanced {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.user-title-section {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-}
-
-.username-enhanced {
-  font-size: 32px;
-  font-weight: bold;
-  color: #333;
-  margin: 0;
-}
-
-.user-bio-enhanced {
-  font-size: 16px;
-  color: #666;
-  line-height: 1.6;
-  margin: 0;
-}
-
-/* 统计卡片 */
-.stats-cards {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-  margin-top: 10px;
-}
-
-.stat-card {
-  border-radius: 12px;
-  padding: 20px;
-  color: white;
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
-  transition: transform 0.3s;
-}
-
-.stat-card:hover {
-  transform: translateY(-5px);
-}
-
-.stat-icon {
-  font-size: 28px;
-  opacity: 0.9;
-}
-
-.stat-content {
-  flex: 1;
-}
-
-.stat-number {
-  font-size: 28px;
-  font-weight: bold;
-  margin-bottom: 5px;
-}
-
-.stat-label {
-  font-size: 14px;
-  opacity: 0.9;
-}
-
-/* 右侧快速操作 */
-.quick-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
-
-.action-btn {
-  width: 150px;
-  padding: 12px 20px;
-  border-radius: 10px;
-  font-weight: 500;
-  transition: all 0.3s;
-}
-
-.action-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-}
-
-/* 标签页区域 */
-.tabs-section {
-  margin-bottom: 30px;
-}
-
-.tabs-card {
-  border-radius: 16px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
-  border: none;
-}
-
-/* 自定义标签页样式 */
-.custom-tabs {
-  display: flex;
-  border-bottom: 2px solid #f0f2f5;
-  padding: 0 30px;
-  margin-bottom: 30px;
-}
-
-.custom-tab-item {
-  padding: 20px 25px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 16px;
-  font-weight: 500;
-  color: #666;
-  position: relative;
-  transition: all 0.3s;
-  border-bottom: 3px solid transparent;
-}
-
-.custom-tab-item:hover {
-  color: #409EFF;
-}
-
-.custom-tab-item.active {
-  color: #409EFF;
-  font-weight: bold;
-}
-
-.tab-indicator {
-  position: absolute;
-  bottom: -2px;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: #409EFF;
-  border-radius: 3px;
-}
-
-/* 标签内容区域 */
-.tab-content {
-  padding: 0 30px 30px;
-}
-
-.tab-pane.enhanced {
-  animation: fadeIn 0.5s;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-/* 内容头部 */
-.content-header {
-  margin-bottom: 30px;
-}
-
-.content-header h3 {
-  font-size: 24px;
-  color: #333;
-  margin: 0 0 10px 0;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.content-header p {
-  color: #666;
-  margin: 0;
-  font-size: 14px;
-}
-
-/* 空状态样式 */
-.empty-state {
-  text-align: center;
-  padding: 60px 20px;
-}
-
-.empty-icon {
-  width: 80px;
-  height: 80px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto 20px;
-  font-size: 36px;
-  color: white;
-}
-
-.empty-state h4 {
-  font-size: 20px;
-  color: #333;
-  margin: 0 0 10px 0;
-}
-
-.empty-state p {
-  color: #666;
-  margin: 0 0 20px 0;
-  font-size: 14px;
-}
-
-/* 设置页面增强版 */
-.settings-enhanced {
-  margin-top: 20px;
-}
-
-.settings-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 25px;
-  margin-bottom: 30px;
-}
-
-.setting-card {
-  background: #f8f9fa;
-  border-radius: 12px;
-  padding: 25px;
-  transition: transform 0.3s;
-}
-
-.setting-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
-}
-
-.setting-card-header {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  margin-bottom: 20px;
-  padding-bottom: 15px;
-  border-bottom: 2px solid #e9ecef;
-}
-
-.setting-card-header i {
-  font-size: 24px;
-  color: #409EFF;
-}
-
-.setting-card-header h4 {
-  margin: 0;
-  color: #333;
-  font-size: 18px;
-}
-
-/* 设置项 */
-.setting-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 15px 0;
-  border-bottom: 1px solid #eee;
-}
-
-.setting-item:last-child {
-  border-bottom: none;
-}
-
-.setting-label {
-  font-weight: 500;
-  color: #333;
-}
-
-/* 设置操作按钮 */
-.setting-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.setting-actions .el-button {
-  justify-content: flex-start;
-  padding: 10px 0;
-}
-
-/* 保存设置按钮 */
-.settings-actions {
-  display: flex;
-  justify-content: center;
-  gap: 20px;
-  margin-top: 40px;
-  padding-top: 30px;
-  border-top: 2px solid #f0f2f5;
-}
-
-.settings-actions .el-button {
-  min-width: 150px;
-  padding: 12px 30px;
-  border-radius: 10px;
-}
-
-/* 未登录卡片样式 */
-.not-logged-card {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 60vh;
-}
-
-.not-logged-card-inner {
-  width: 100%;
-  max-width: 500px;
-  text-align: center;
-  border-radius: 16px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-  border: none;
-}
-
-.not-logged-content {
-  padding: 60px 40px;
-}
-
-.not-logged-icon {
-  width: 80px;
-  height: 80px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto 25px;
-  font-size: 36px;
-  color: white;
-  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
-}
-
-.not-logged-title {
-  font-size: 24px;
-  color: #333;
-  margin: 0 0 15px 0;
-  font-weight: bold;
-}
-
-.not-logged-desc {
-  font-size: 16px;
-  color: #666;
-  line-height: 1.6;
-  margin: 0 0 35px 0;
-}
-
-.not-logged-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-  align-items: center;
-}
-
-.login-btn {
-  width: 200px;
-  padding: 12px 0;
-  font-size: 16px;
-  border-radius: 10px;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-  border: none;
-}
-
-/* 上传视频区域 */
-.upload-video-section {
-  padding: 20px 0;
-}
-
-.upload-form {
-  max-width: 800px;
-  margin: 0 auto;
-}
-
-.upload-item {
-  margin-bottom: 30px;
-}
+/* 保持原有样式，增加少量新样式 */
+.profile-container { padding: 20px; max-width: 1200px; margin: 0 auto; background: #f5f7fa; min-height: 100vh; }
+.profile-header-enhanced { display: flex; gap: 30px; padding: 30px; align-items: center; }
+.avatar-section-enhanced { position: relative; }
+.user-info-enhanced { flex: 1; }
+.username-enhanced { margin: 0 0 10px 0; font-size: 28px; color: #333; }
+.stats-cards { display: flex; gap: 20px; margin-top: 20px; }
+.stat-card { flex: 1; padding: 15px; border-radius: 10px; color: white; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+.stat-number { font-size: 24px; font-weight: bold; }
+.custom-tabs { display: flex; border-bottom: 2px solid #eee; margin-bottom: 20px; padding: 0 20px; }
+.custom-tab-item { padding: 15px 25px; cursor: pointer; position: relative; color: #666; display: flex; align-items: center; gap: 8px; transition: all 0.3s; }
+.custom-tab-item:hover { color: #409EFF; }
+.custom-tab-item.active { color: #409EFF; font-weight: bold; }
+.tab-indicator { position: absolute; bottom: -2px; left: 0; width: 100%; height: 3px; background: #409EFF; }
 
 /* 上传区域样式 */
-.upload-area {
-  border: 2px dashed #dcdfe6;
-  border-radius: 8px;
-  background-color: #fafafa;
-  padding: 40px 20px;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.3s;
-  min-height: 150px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+.upload-form { max-width: 800px; margin: 0 auto; }
+.upload-area { border: 2px dashed #dcdfe6; padding: 20px; text-align: center; cursor: pointer; border-radius: 8px; background: #fafafa; transition: border-color 0.3s; display: flex; align-items: center; justify-content: center; min-height: 100px; }
+.upload-area:hover { border-color: #409EFF; background: #f0f7ff; }
+.upload-placeholder { color: #909399; }
+.upload-placeholder i { font-size: 32px; margin-bottom: 10px; }
+.submit-btn { width: 200px; }
 
-.upload-area:hover {
-  border-color: #409EFF;
-  background-color: #f0f7ff;
-}
+/* 空状态 */
+.empty-state { text-align: center; padding: 60px 0; color: #999; }
+.empty-icon { font-size: 64px; margin-bottom: 20px; color: #e0e0e0; }
 
-.upload-placeholder {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 15px;
-}
-
-.upload-placeholder i {
-  font-size: 48px;
-  color: #909399;
-}
-
-.upload-text {
-  font-size: 16px;
-  color: #333;
-  margin: 0;
-}
-
-.upload-hint {
-  font-size: 14px;
-  color: #909399;
-  margin: 0;
-}
-
-/* 上传预览 */
-.upload-preview {
-  width: 100%;
-}
-
-.video-preview {
-  display: flex;
-  align-items: center;
-  background: #f5f7fa;
-  border-radius: 8px;
-  padding: 15px;
-  border: 1px solid #ebeef5;
-}
-
-.video-preview .el-icon-video-play {
-  font-size: 36px;
-  color: #409EFF;
-  margin-right: 15px;
-}
-
-.video-info {
-  flex: 1;
-}
-
-.video-name {
-  font-weight: 500;
-  color: #333;
-  margin: 0 0 5px 0;
-  word-break: break-all;
-}
-
-.video-size {
-  color: #909399;
-  font-size: 14px;
-  margin: 0;
-}
-
-.remove-btn {
-  font-size: 18px;
-  color: #f56c6c;
-  cursor: pointer;
-  padding: 5px;
-  border-radius: 50%;
-  transition: background-color 0.3s;
-}
-
-.remove-btn:hover {
-  background-color: #ffeded;
-}
-
-/* 视频预览播放器 */
-.video-preview-player {
-  margin-top: 10px;
-}
-
-/* 封面预览样式 */
-.cover-preview {
-  position: relative;
-  width: 100%;
-  max-width: 400px;
-  margin: 0 auto;
-  border-radius: 8px;
-  overflow: hidden;
-  border: 1px solid #ebeef5;
-}
-
-.cover-image {
-  width: 100%;
-  height: auto;
-  display: block;
-  object-fit: cover;
-  max-height: 225px; /* 16:9 比例，宽度400px时高度225px */
-}
-
-.cover-preview .remove-btn {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  background: rgba(0, 0, 0, 0.5);
-  color: #fff;
-  padding: 8px;
-  border-radius: 50%;
-  z-index: 10;
-}
-
-.cover-preview .remove-btn:hover {
-  background: rgba(245, 108, 108, 0.8);
-}
-
-.preview-video {
-  width: 100%;
-  max-height: 400px;
-  border-radius: 8px;
-  background: #000;
-}
-
-/* 上传操作按钮 */
-.upload-actions {
-  margin-top: 30px;
-  display: flex;
-  justify-content: center;
-}
-
-.submit-btn {
-  padding: 12px 40px;
-  font-size: 16px;
-  border-radius: 8px;
-}
-
-/* 响应式设计 */
-@media (max-width: 1200px) {
-  .profile-header-enhanced {
-    grid-template-columns: 1fr;
-    gap: 30px;
-  }
-  
-  .quick-actions {
-    flex-direction: row;
-    justify-content: center;
-  }
-  
-  .settings-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
+/* 响应式适配 */
 @media (max-width: 768px) {
-  .profile-container {
-    padding: 15px;
-  }
-  
-  .profile-header-enhanced {
-    padding: 20px;
-  }
-  
-  .stats-cards {
-    grid-template-columns: 1fr;
-  }
-  
-  .custom-tabs {
-    flex-direction: column;
-    padding: 0;
-  }
-  
-  .custom-tab-item {
-    padding: 15px;
-    justify-content: center;
-  }
-  
-  .tab-content {
-    padding: 0 15px 20px;
-  }
-  
-  .username-enhanced {
-    font-size: 24px;
-  }
-  
-  .settings-actions {
-    flex-direction: column;
-  }
-  
-  .settings-actions .el-button {
-    width: 100%;
-  }
-  
-  .not-logged-content {
-    padding: 40px 20px;
-  }
-  
-  .not-logged-icon {
-    width: 70px;
-    height: 70px;
-    font-size: 32px;
-  }
-  
-  .not-logged-title {
-    font-size: 20px;
-  }
-  
-  .not-logged-desc {
-    font-size: 14px;
-  }
-  
-  .login-btn {
-    width: 100%;
-  }
-  
-  .upload-area {
-    padding: 30px 15px;
-    min-height: 120px;
-  }
-  
-  .upload-placeholder i {
-    font-size: 36px;
-  }
-  
-  .upload-text {
-    font-size: 14px;
-  }
-  
-  .upload-hint {
-    font-size: 12px;
-  }
-  
-  .submit-btn {
-    width: 100%;
-    margin-bottom: 10px;
-  }
-}
-
-@media (max-width: 480px) {
-  .user-avatar-enhanced {
-    width: 100px !important;
-    height: 100px !important;
-  }
-  
-  .content-header h3 {
-    font-size: 20px;
-  }
-  
-  .setting-card {
-    padding: 20px;
-  }
+  .profile-header-enhanced { flex-direction: column; text-align: center; }
+  .stats-cards { flex-direction: column; }
+  .custom-tabs { overflow-x: auto; }
 }
 </style>
