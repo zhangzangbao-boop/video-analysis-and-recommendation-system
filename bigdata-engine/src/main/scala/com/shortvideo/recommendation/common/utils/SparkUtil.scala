@@ -9,7 +9,7 @@ import com.shortvideo.recommendation.common.config.SparkConfig
 /**
  * Spark工具类
  */
-object SparkUtils {
+object SparkUtil {
 
   /**
    * 创建SparkSession（批处理）

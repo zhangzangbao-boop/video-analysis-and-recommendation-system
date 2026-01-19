@@ -1,7 +1,7 @@
 package com.shortvideo.recommendation.realtime.job
 
-import com.shortvideo.recommendation.common.config.{KafkaConfig, SparkConfig}
-import com.shortvideo.recommendation.common.utils.{ConfigUtils,RedisUtil}
+import com.shortvideo.recommendation.common.config.{KafkaConfig, RedisConfig, SparkConfig}
+import com.shortvideo.recommendation.common.utils.{ConfigUtils, RedisUtil}
 import com.shortvideo.recommendation.realtime.streaming.{HotVideoStreaming, RealtimeRecommendationStreaming, UserBehaviorStreaming}
 import org.apache.spark.SparkConf
 import org.apache.spark.streaming.{Seconds, StreamingContext}
@@ -11,7 +11,7 @@ import org.apache.spark.streaming.{Seconds, StreamingContext}
  * 统筹管理实时用户行为分析、热门视频计算和实时推荐
  */
 object StreamingJob {
-
+  
   def main(args: Array[String]): Unit = {
     println("=" * 80)
     println("短视频推荐系统 - 实时分析主任务")
@@ -19,7 +19,7 @@ object StreamingJob {
 
     // 初始化Redis连接
     try {
-      RedisUtil.initPool()
+      RedisUtil.initPool(RedisConfig.apply())
       println("[INFO] Redis连接池初始化成功")
     } catch {
       case e: Exception =>
@@ -67,7 +67,7 @@ object StreamingJob {
       case e: Exception =>
         println(s"[ERROR] 实时分析任务执行失败: ${e.getMessage}")
         e.printStackTrace()
-      finally {
+    }finally {
         // 停止StreamingContext
         if (ssc != null) {
           ssc.stop(stopSparkContext = true, stopGracefully = true)
@@ -81,7 +81,7 @@ object StreamingJob {
           case e: Exception =>
             println(s"[ERROR] 关闭Redis连接池失败: ${e.getMessage}")
         }
-      }
+
     }
   }
 

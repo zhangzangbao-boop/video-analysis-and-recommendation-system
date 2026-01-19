@@ -10,6 +10,7 @@ import java.sql.Timestamp
  * @param timestamp 时间戳
  * @param properties 额外属性
  */
+
 case class RealtimeBehavior(
                              userId: Long,
                              videoId: Long,

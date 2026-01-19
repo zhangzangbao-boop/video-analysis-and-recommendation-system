@@ -5,7 +5,6 @@ import com.shortvideo.recommendation.common.utils.RedisUtil
 import com.shortvideo.recommendation.realtime.entity.HotVideo
 
 import scala.collection.JavaConverters._
-import com.shortvideo.recommendation.common.utils.RedisUtils
 
 /**
  * 实时推荐服务类
@@ -112,7 +111,7 @@ object RealtimeRecommendationService {
    */
   def getUserBehaviorStats(userId: Long): Map[String, Long] = {
     val key = s"user_behavior:$userId"
-    RedisUtil.hgetAll(key).asScala.mapValues(_.toLong).toMap
+    RedisUtil.hgetAll(key).mapValues(_.toLong).toMap
   }
 
   /**
@@ -146,7 +145,7 @@ object RealtimeRecommendationService {
     val fields = RedisUtil.hkeys(key).asScala.toList
     if (fields.nonEmpty) {
       val timestampField = fields.find(_.endsWith(":timestamp"))
-      timestampField.map(field => RedisUtil.hget(key, field).toLong)
+      timestampField.map(field => RedisUtil.hget(key, field).map(_.toLong).getOrElse(0L))
     } else {
       None
     }
