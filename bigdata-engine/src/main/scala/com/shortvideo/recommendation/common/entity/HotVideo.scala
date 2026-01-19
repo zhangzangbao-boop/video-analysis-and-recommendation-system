@@ -1,4 +1,4 @@
-package com.shortvideo.recommendation.realtime.entity
+package com.shortvideo.recommendation.common.entity
 
 /**
  * 实时热门视频实体
