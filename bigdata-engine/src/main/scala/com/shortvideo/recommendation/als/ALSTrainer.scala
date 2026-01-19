@@ -1,76 +1,76 @@
 package com.shortvideo.recommendation.als
 
 import com.shortvideo.recommendation.als.storage.{HDFSStorage, MySQLWriter}
-import org.apache.spark.ml.evaluation.RegressionEvaluator
 import org.apache.spark.ml.recommendation.ALS
 import org.apache.spark.sql.SparkSession
-
 import java.time.LocalDate
 
 /**
  * Spark ALS 离线推荐训练主程序
- * 修改说明：已升级为读取 DWS 层 Hive 表数据，不再直接读取 JSON
+ * 修正说明：严格按照《技术交接文档》2.4 节流程实现
+ * 流程：读取HDFS日志 -> 解析 -> 聚合 -> 过滤 -> 训练 -> 评估 -> 存储
  */
 object ALSTrainer {
 
   def main(args: Array[String]): Unit = {
     println("=" * 80)
-    println("Spark ALS 离线推荐训练 (基于 DWS 数仓层)")
+    println("Spark ALS 离线推荐训练 (文档标准版)")
     println("=" * 80)
 
-    // 1. 初始化 Spark (开启 Hive 支持)
+    // 1. 初始化 Spark
     val spark = SparkSession.builder()
       .appName("ShortVideoALSRecommendation")
+      // 生产环境通常由 spark-submit 指定 master，这里保留 local[*] 方便调试
       .master("local[*]")
-      .enableHiveSupport() // 关键：开启 Hive
       .config("spark.sql.shuffle.partitions", "100")
       .getOrCreate()
 
-    // 引入隐式转换，用于 DataFrame 操作
     import spark.implicits._
 
-    // 2. 配置参数
+    // 2. 配置参数 (严格对应文档 2.4)
     val today = LocalDate.now().toString
+    // 文档指定读取路径：/short-video/behavior/*/*.log
+    // 这里为了演示方便，读取所有历史数据，实际生产中可能限制日期
+    val inputPath = "/short-video/behavior/*/*.log"
     val modelPath = s"hdfs://localhost:9000/short-video/als-model/model-$today"
 
-    // ALS 超参数
-    val rank = 10
-    val maxIter = 10
-    val regParam = 0.1
-    val topN = 20
+    // ALS 超参数 (文档指定)
+    val rank = 20          // 文档要求: 20
+    val maxIter = 10       // 文档要求: 10
+    val regParam = 0.1     // 文档要求: 0.1
+    val topN = 20          // 文档要求: 20
 
     try {
-      spark.sql("USE short_video_dw")
-
       // ============================================
-      // 3. 读取训练数据 (从 DWS 宽表读取)
+      // 3. 数据处理流程 (对应流程图 Step 2-6)
       // ============================================
-      println(s"[INFO] 正在从 DWS 表加载数据 (dt=$today)...")
 
-      // 直接使用 SQL 读取 DWS 层计算好的 final_score 作为 rating
-      // 注意：如果今天的数据还没生成，可以尝试读取最近可用的分区，这里演示读取“今天”
-      val ratings = spark.sql(
-        s"""
-           |SELECT
-           |  user_id as userId,
-           |  video_id as movieId,
-           |  final_score as rating
-           |FROM dws_user_video_interaction
-           |WHERE dt = '$today'
-        """.stripMargin).cache() // Cache 住，因为后面要用两次 (fit 和 count)
+      // Step 2 & 3 & 4: 读取 HDFS -> 解析 -> 转换评分
+      val rawRatings = DataProcessor.readAndParseBehaviorLogs(spark, inputPath)
 
-      val count = ratings.count()
-      if (count == 0) {
-        throw new RuntimeException(s"DWS 表分区 dt=$today 无数据！请先运行数仓调度任务。")
+      if (rawRatings.isEmpty) {
+        throw new RuntimeException(s"路径 $inputPath 下未找到有效行为数据！")
       }
-      println(s"[INFO] 加载完成，训练样本数: $count")
+
+      // Step 5: 聚合评分 (同一用户对同一视频取最高分)
+      val aggregatedRatings = DataProcessor.aggregateRatings(rawRatings)
+
+      // Step 6: 数据质量过滤 (用户行为>=5, 视频互动>=5)
+      val trainingDataFull = DataProcessor.filterByQuality(aggregatedRatings, 5, 5)
+
+      val count = trainingDataFull.count()
+      if (count == 0) {
+        throw new RuntimeException("经过去重和过滤后，训练数据集为空！")
+      }
+      println(s"[INFO] 最终训练样本数: $count")
 
       // ============================================
-      // 4. 划分数据集与训练
+      // 4. 划分数据集与训练 (对应流程图 Step 7-8)
       // ============================================
-      val Array(training, test) = ratings.randomSplit(Array(0.8, 0.2), seed = 1234L)
+      // Step 7: 划分训练集和测试集 (80% 训练, 20% 测试)
+      val Array(training, test) = trainingDataFull.randomSplit(Array(0.8, 0.2), seed = 1234L)
 
-      println("[INFO] 开始训练 ALS 模型...")
+      println(s"[INFO] 开始训练 ALS 模型 (rank=$rank, maxIter=$maxIter, regParam=$regParam)...")
       val als = new ALS()
         .setMaxIter(maxIter)
         .setRegParam(regParam)
@@ -84,24 +84,27 @@ object ALSTrainer {
       println("[INFO] 模型训练完成")
 
       // ============================================
-      // 5. 评估与保存 (保持原有逻辑)
+      // 5. 评估与保存 (对应流程图 Step 9-13)
       // ============================================
+      // Step 9: 模型评估
       val predictions = model.transform(test)
-      val rmse = ModelEvaluator.evaluateRMSE(predictions) // 使用封装好的 Evaluator
+      val rmse = ModelEvaluator.evaluateRMSE(predictions)
       println(s"[INFO] 模型 RMSE: $rmse")
 
-      // 保存模型
-      model.write.overwrite().save(modelPath)
-
-      // 生成并写入推荐结果
-      println("[INFO] 生成 Top-N 推荐列表...")
+      // Step 10: 生成推荐列表 (Top-20)
+      println(s"[INFO] 为所有用户生成 Top-$topN 推荐列表...")
       val userRecs = model.recommendForAllUsers(topN)
 
-      // 写入 MySQL
+      // Step 11: 保存模型到 HDFS
+      println(s"[INFO] 保存模型到: $modelPath")
+      model.write.overwrite().save(modelPath)
+
+      // Step 12 & 13: 写入 MySQL (推荐结果 + 模型参数)
+      // 写入推荐结果 type=OFFLINE
       val modelId = MySQLWriter.writeModelParamsToMySQL(modelPath, rank, regParam, maxIter, rmse)
       MySQLWriter.writeRecommendationsToMySQL(userRecs, "OFFLINE", modelId)
 
-      println("[SUCCESS] 离线推荐任务全部完成！")
+      println("[SUCCESS] 离线推荐流程执行完毕！")
 
     } catch {
       case e: Exception =>

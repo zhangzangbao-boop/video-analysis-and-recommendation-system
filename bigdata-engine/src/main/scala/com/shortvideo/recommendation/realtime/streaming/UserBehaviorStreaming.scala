@@ -38,12 +38,19 @@ class UserBehaviorStreaming {
     kafkaParams.put("auto.offset.reset", "latest")
     kafkaParams.put("enable.auto.commit", "false")
 
+    val scalaKafkaParams =  kafkaParams.asScala.toMap.asInstanceOf[Map[String, Object]]
+
     val topics = Array(ConfigUtils.getString("kafka.topics.user-behavior", "shortvideo_user_behavior"))
 
-    val kafkaStream: InputDStream[ConsumerRecord[String, String]] = KafkaUtils.createDirectStream[String, String](
+    val offsets = KafkaUtil.getOffsets(kafkaParams, topics)
+    //打印一下 offsets 的大小
+    println(s"offsets size: ${offsets.size}")
+
+
+    val kafkaStream: InputDStream[ConsumerRecord[String, String]] = KafkaUtils.createDirectStream(
       ssc,
       LocationStrategies.PreferConsistent,
-      ConsumerStrategies.Subscribe[String, String](topics, kafkaParams)
+      ConsumerStrategies.Subscribe[String, String](topics.toIterable, scalaKafkaParams,offsets)
     )
 
     // 解析用户行为数据
@@ -116,6 +123,9 @@ class UserBehaviorStreaming {
 
   /**
    * 更新用户行为统计数据到Redis
+   * 记录用户的各种行为类型及其计数，并设置相应的过期时间
+   *
+   * @param behavior 实时用户行为对象，包含用户ID、视频ID、行为类型等信息
    */
   private def updateUserBehaviorStats(behavior: RealtimeBehavior): Unit = {
     // 统计用户行为类型

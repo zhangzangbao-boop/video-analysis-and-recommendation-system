@@ -2,7 +2,7 @@ package com.shortvideo.recommendation.datagenerator
 
 import java.util.concurrent.{Executors, TimeUnit}
 import com.shortvideo.recommendation.common.config.{KafkaConfig, SparkConfig}
-import com.shortvideo.recommendation.common.utils.{ConfigUtils, KafkaUtils}
+import com.shortvideo.recommendation.common.utils.{ConfigUtils, KafkaUtil}
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 import org.apache.spark.sql.SparkSession
 
@@ -10,7 +10,7 @@ import org.apache.spark.sql.SparkSession
  * 日志生产者 - 将模拟数据发送到Kafka
  */
 class LogProducer(kafkaConfig: KafkaConfig, topic: String) {
-  private val producer: KafkaProducer[String, String] = KafkaUtils.createProducer(kafkaConfig)
+  private val producer: KafkaProducer[String, String] = KafkaUtil.createProducer(kafkaConfig)
   
   /**
    * 发送单条日志消息到Kafka
