@@ -1,6 +1,5 @@
 package com.shortvideo.recommendation.common.entity
 
-import com.shortvideo.recommendation.als.model
 import org.apache.spark.mllib.recommendation.Rating
 
 /**
@@ -27,11 +26,11 @@ case class MLRating(
                      videoId: Long,
                      rating: Double
                    ) {
-  def toSparkRating: model.Rating = model.Rating(userId.toInt, videoId.toInt, rating)
+  def toSparkRating: Rating = Rating(userId.toInt, videoId.toInt, rating)
 }
 
 object MLRating {
-  def fromSparkRating(rating: model.Rating): MLRating =
+  def fromSparkRating(rating:Rating): MLRating =
     MLRating(rating.user.toLong, rating.product.toLong, rating.rating)
 }
 
