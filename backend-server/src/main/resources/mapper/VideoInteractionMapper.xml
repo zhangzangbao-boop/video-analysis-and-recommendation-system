@@ -46,4 +46,33 @@
         </if>
     </select>
 
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO video_interaction (user_id, video_id, type, create_time)
+        VALUES (#{userId}, #{videoId}, #{type}, #{createTime})
+    </insert>
+
+    <delete id="delete">
+        DELETE FROM video_interaction
+        WHERE user_id = #{userId} AND video_id = #{videoId} AND type = #{type}
+    </delete>
+
+    <select id="selectByUserIdAndVideoIdAndType" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM video_interaction
+        WHERE user_id = #{userId} AND video_id = #{videoId} AND type = #{type}
+        LIMIT 1
+    </select>
+
+    <select id="selectLikesByUserId" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM video_interaction
+        WHERE user_id = #{userId} AND type = 1
+        ORDER BY create_time DESC
+        <if test="limit != null">
+            LIMIT #{limit}
+        </if>
+    </select>
+
 </mapper>

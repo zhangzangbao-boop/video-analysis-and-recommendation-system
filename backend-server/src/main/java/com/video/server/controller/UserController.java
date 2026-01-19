@@ -4,15 +4,16 @@ import com.video.server.dto.ApiResponse;
 import com.video.server.dto.PasswordChangeRequest;
 import com.video.server.dto.UserUpdateRequest;
 import com.video.server.entity.User;
-import com.video.server.entity.UserBehavior;
 import com.video.server.entity.UserFollow;
 import com.video.server.entity.Video;
+import com.video.server.entity.VideoComment;
 import com.video.server.exception.BusinessException;
-import com.video.server.mapper.UserBehaviorMapper;
 import com.video.server.mapper.UserFollowMapper;
 import com.video.server.mapper.UserMapper;
-import com.video.server.mapper.VideoMapper;
 import com.video.server.service.UserService;
+import com.video.server.service.VideoPlayRecordService;
+import com.video.server.service.VideoInteractionService;
+import com.video.server.service.VideoCommentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.DigestUtils;
@@ -23,7 +24,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 /**
  * 用户端控制器
@@ -36,9 +36,10 @@ public class UserController {
     
     private final UserService userService;
     private final UserMapper userMapper;
-    private final UserBehaviorMapper userBehaviorMapper;
     private final UserFollowMapper userFollowMapper;
-    private final VideoMapper videoMapper;
+    private final VideoPlayRecordService playRecordService;
+    private final VideoInteractionService interactionService;
+    private final VideoCommentService commentService;
     
     /**
      * 获取当前用户信息
@@ -119,7 +120,7 @@ public class UserController {
     }
     
     /**
-     * 获取播放历史
+     * 获取播放历史（使用真实的video_play_record表）
      */
     @GetMapping("/history")
     public ResponseEntity<ApiResponse<List<Video>>> getPlayHistory(
@@ -128,26 +129,13 @@ public class UserController {
             HttpServletRequest request) {
         Long userId = getUserIdFromRequest(request);
         
-        // 从user_behavior表查询观看记录（actionType='view'）
-        List<UserBehavior> behaviors = userBehaviorMapper.selectByUserIdAndActionType(userId, "view");
-        
-        // 获取视频ID列表
-        List<Long> videoIds = behaviors.stream()
-                .map(UserBehavior::getVideoId)
-                .distinct()
-                .collect(Collectors.toList());
-        
-        // 查询视频信息
-        List<Video> videos = videoIds.stream()
-                .map(videoMapper::selectById)
-                .filter(video -> video != null)
-                .collect(Collectors.toList());
-        
+        // 使用真实的播放记录服务
+        List<Video> videos = playRecordService.getPlayHistory(userId, pageSize);
         return ResponseEntity.ok(ApiResponse.success(videos));
     }
     
     /**
-     * 获取点赞记录
+     * 获取点赞记录（使用真实的video_interaction表）
      */
     @GetMapping("/likes")
     public ResponseEntity<ApiResponse<List<Video>>> getLikes(
@@ -156,50 +144,24 @@ public class UserController {
             HttpServletRequest request) {
         Long userId = getUserIdFromRequest(request);
         
-        // 从user_behavior表查询点赞记录（actionType='like'）
-        List<UserBehavior> behaviors = userBehaviorMapper.selectByUserIdAndActionType(userId, "like");
-        
-        // 获取视频ID列表
-        List<Long> videoIds = behaviors.stream()
-                .map(UserBehavior::getVideoId)
-                .distinct()
-                .collect(Collectors.toList());
-        
-        // 查询视频信息
-        List<Video> videos = videoIds.stream()
-                .map(videoMapper::selectById)
-                .filter(video -> video != null)
-                .collect(Collectors.toList());
-        
+        // 使用真实的互动服务
+        List<Video> videos = interactionService.getLikedVideos(userId, pageSize);
         return ResponseEntity.ok(ApiResponse.success(videos));
     }
     
     /**
-     * 获取评论记录（简化版，返回评论的视频列表）
+     * 获取评论记录（使用真实的video_comment表）
      */
     @GetMapping("/comments")
-    public ResponseEntity<ApiResponse<List<Video>>> getComments(
+    public ResponseEntity<ApiResponse<List<VideoComment>>> getComments(
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "20") Integer pageSize,
             HttpServletRequest request) {
         Long userId = getUserIdFromRequest(request);
         
-        // 从user_behavior表查询评论记录（actionType='comment'）
-        List<UserBehavior> behaviors = userBehaviorMapper.selectByUserIdAndActionType(userId, "comment");
-        
-        // 获取视频ID列表
-        List<Long> videoIds = behaviors.stream()
-                .map(UserBehavior::getVideoId)
-                .distinct()
-                .collect(Collectors.toList());
-        
-        // 查询视频信息
-        List<Video> videos = videoIds.stream()
-                .map(videoMapper::selectById)
-                .filter(video -> video != null)
-                .collect(Collectors.toList());
-        
-        return ResponseEntity.ok(ApiResponse.success(videos));
+        // 使用真实的评论服务
+        List<VideoComment> comments = commentService.getCommentsByUserId(userId, pageSize);
+        return ResponseEntity.ok(ApiResponse.success(comments));
     }
     
     /**
@@ -265,6 +227,26 @@ public class UserController {
         Long userId = getUserIdFromRequest(request);
         UserFollow follow = userFollowMapper.selectByUserIdAndFollowUserId(userId, followUserId);
         return ResponseEntity.ok(ApiResponse.success(follow != null));
+    }
+    
+    /**
+     * 获取关注列表（我关注的人）
+     */
+    @GetMapping("/following")
+    public ResponseEntity<ApiResponse<List<User>>> getFollowingList(HttpServletRequest request) {
+        Long userId = getUserIdFromRequest(request);
+        List<User> followingList = userFollowMapper.selectFollowingList(userId);
+        return ResponseEntity.ok(ApiResponse.success(followingList));
+    }
+    
+    /**
+     * 获取粉丝列表（关注我的人）
+     */
+    @GetMapping("/fans")
+    public ResponseEntity<ApiResponse<List<User>>> getFansList(HttpServletRequest request) {
+        Long userId = getUserIdFromRequest(request);
+        List<User> fansList = userFollowMapper.selectFansList(userId);
+        return ResponseEntity.ok(ApiResponse.success(fansList));
     }
     
     /**

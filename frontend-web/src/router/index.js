@@ -9,6 +9,7 @@ import UserMain from '../views/user/UserMain.vue'
 import VideoPlayer from '../views/user/VideoPlayer.vue'
 import NavigationSystem from '../views/user/NavigationSystem.vue'
 import UserProfile from '../views/user/UserProfile.vue'
+import VideoHome from '../views/user/VideoHome.vue' // 新增视频首页
 
 // --- 3. 引入你的后台页面 (Admin) ---
 import AdminLayout from '../views/admin/AdminLayout.vue'
@@ -34,7 +35,8 @@ const routes = [
     component: UserMain, // 队友的主布局
     children: [
       { path: '', redirect: 'video' }, // 默认跳到视频页
-      { path: 'video', name: 'UserVideo', component: VideoPlayer },
+      { path: 'video', name: 'VideoHome', component: VideoHome },
+      { path: 'video/:id', name: 'VideoDetail', component: VideoPlayer }, // 视频详情页
       { path: 'navigation', name: 'UserNav', component: NavigationSystem },
       { path: 'profile', name: 'UserProfile', component: UserProfile }
     ]
