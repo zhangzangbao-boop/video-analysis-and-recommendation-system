@@ -15,79 +15,56 @@
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
   </properties>
 
-
   <dependencies>
-    <!-- 已有的 spark-core 依赖 -->
     <dependency>
       <groupId>org.apache.spark</groupId>
       <artifactId>spark-core_2.12</artifactId>
       <version>3.1.1</version>
     </dependency>
-    <!-- 新增 spark-sql 依赖 -->
     <dependency>
       <groupId>org.apache.spark</groupId>
       <artifactId>spark-sql_2.12</artifactId>
       <version>3.1.1</version>
     </dependency>
-
-    <!-- 新增 spark-mllib 依赖 -->
     <dependency>
       <groupId>org.apache.spark</groupId>
       <artifactId>spark-mllib_2.12</artifactId>
       <version>3.1.1</version>
     </dependency>
-
-    <!-- 新增 spark-streaming 依赖 -->
-    <dependency>
-            <groupId>org.apache.spark</groupId>
-            <artifactId>spark-streaming_2.12</artifactId>
-            <version>3.1.1</version>
-    </dependency>
-
-    <!-- 新增 spark-hive 依赖 -->
     <dependency>
       <groupId>org.apache.spark</groupId>
-      <artifactId>spark-hive_2.12</artifactId>
+      <artifactId>spark-streaming_2.12</artifactId>
+      <version>3.1.1</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.spark</groupId>
+      <artifactId>spark-streaming-kafka-0-10_2.12</artifactId>
       <version>3.1.1</version>
     </dependency>
 
-    <!-- 新增 spark-streaming-kafka-0-10 依赖 -->
-    <dependency>
-            <groupId>org.apache.spark</groupId>
-            <artifactId>spark-streaming-kafka-0-10_2.12</artifactId>
-            <version>3.1.1</version>
-    </dependency>
-
-    <!-- Redis -->
     <dependency>
       <groupId>redis.clients</groupId>
       <artifactId>jedis</artifactId>
       <version>3.7.0</version>
     </dependency>
 
-    <!-- Kafka -->
     <dependency>
       <groupId>org.apache.kafka</groupId>
       <artifactId>kafka-clients</artifactId>
       <version>2.8.0</version>
     </dependency>
 
-    <!-- config -->
     <dependency>
       <groupId>com.typesafe</groupId>
       <artifactId>config</artifactId>
       <version>1.4.1</version>
     </dependency>
 
-    <!-- 日志 -->
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
       <version>1.7.32</version>
     </dependency>
-
-
-
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-log4j12</artifactId>
@@ -100,42 +77,34 @@
       <version>8.0.33</version>
     </dependency>
 
-    <!-- Jackson Core -->
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-core</artifactId>
       <version>2.12.3</version>
     </dependency>
-
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
       <version>2.12.3</version>
     </dependency>
-
-    <!-- Jackson Scala Module -->
     <dependency>
       <groupId>com.fasterxml.jackson.module</groupId>
       <artifactId>jackson-module-scala_2.12</artifactId>
       <version>2.12.3</version>
     </dependency>
 
-    <!-- ScalaTest for unit testing -->
     <dependency>
       <groupId>org.scalatest</groupId>
       <artifactId>scalatest_2.12</artifactId>
       <version>3.2.9</version>
       <scope>test</scope>
     </dependency>
-
-    <!-- JUnit for compatibility -->
     <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-engine</artifactId>
       <version>5.7.2</version>
       <scope>test</scope>
     </dependency>
-
   </dependencies>
 
   <build>
@@ -145,13 +114,11 @@
         <filtering>true</filtering>
       </resource>
     </resources>
-
     <testResources>
       <testResource>
         <directory>src/test/resources</directory>
         <filtering>true</filtering>
       </testResource>
-
     </testResources>
     <plugins>
       <plugin>
@@ -184,11 +151,6 @@
           <descriptorRefs>
             <descriptorRef>jar-with-dependencies</descriptorRef>
           </descriptorRefs>
-          <archive>
-            <manifestEntries>
-              <Main-Class>com.shortvideo.recommendation.datagenerator.MockDataGenerator</Main-Class>
-            </manifestEntries>
-          </archive>
         </configuration>
         <executions>
           <execution>
@@ -202,6 +164,4 @@
       </plugin>
     </plugins>
   </build>
-
 </project>
-
