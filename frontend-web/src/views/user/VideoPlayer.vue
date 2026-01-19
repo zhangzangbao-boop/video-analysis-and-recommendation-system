@@ -33,12 +33,12 @@
               ref="videoPlayer"
               :src="currentVideo.url || undefined"
               class="video-element-large"
-              controls
               :autoplay="!!currentVideo.url"
               @timeupdate="handleTimeUpdate"
               @ended="handleVideoEnded"
               @play="handleVideoPlay"
               @pause="handleVideoPause"
+              @loadedmetadata="handleVideoLoaded"
               v-if="currentVideo.url"
             >
               您的浏览器不支持 video 标签。
@@ -51,6 +51,47 @@
             <div class="video-overlay-controls">
               <div class="play-pause-btn" @click="togglePlayPause">
                 <i :class="isPlaying ? 'el-icon-video-pause' : 'el-icon-video-play'"></i>
+              </div>
+            </div>
+            
+            <!-- 自定义视频控制栏 -->
+            <div class="custom-video-controls">
+              <div class="controls-left">
+                <!-- 播放/暂停按钮 -->
+                <button class="control-btn" @click="togglePlayPause">
+                  <i :class="isPlaying ? 'el-icon-video-pause' : 'el-icon-video-play'"></i>
+                </button>
+                
+                <!-- 音量控制 -->
+                <div class="volume-control" @mouseenter="showVolumeSlider = true" @mouseleave="showVolumeSlider = false">
+                  <button class="control-btn" @click="toggleMute">
+                    <i :class="isMuted || volume === 0 ? 'el-icon-turn-off-microphone' : 'el-icon-microphone'"></i>
+                  </button>
+                  <div v-show="showVolumeSlider" class="volume-slider-wrapper">
+                    <el-slider
+                      v-model="volume"
+                      :min="0"
+                      :max="100"
+                      :step="1"
+                      vertical
+                      height="100px"
+                      @change="handleVolumeChange"
+                      class="volume-slider"
+                    ></el-slider>
+                  </div>
+                </div>
+                
+                <!-- 时间显示 -->
+                <span class="time-display">
+                  {{ currentTime }} / {{ totalTime }}
+                </span>
+              </div>
+              
+              <div class="controls-right">
+                <!-- 全屏按钮 -->
+                <button class="control-btn" @click="toggleFullscreen">
+                  <i :class="isFullscreen ? 'el-icon-copy-document' : 'el-icon-full-screen'"></i>
+                </button>
               </div>
             </div>
           </div>
@@ -315,6 +356,14 @@ export default {
       newComment: '',
       loading: false, // 视频加载状态
       
+      // 视频控制相关
+      volume: 100, // 音量 0-100
+      isMuted: false, // 是否静音
+      showVolumeSlider: false, // 显示音量滑块
+      isFullscreen: false, // 是否全屏
+      currentTime: '0:00', // 当前播放时间
+      totalTime: '0:00', // 总时长
+      
       // 用户信息
       userAvatar: localStorage.getItem('userAvatar') || '', // 从localStorage获取用户头像，如果没有则为空
       
@@ -323,7 +372,10 @@ export default {
         videoId: null,
         playDuration: 0,
         isCompleted: false
-      }
+      },
+      
+      // 播放记录相关
+      lastRecordTime: null // 上次记录播放历史的时间戳
     }
   },
   
@@ -335,15 +387,82 @@ export default {
   },
   
   mounted() {
-    this.loadInitialVideo()
+    // 检查是否有路由参数（从VideoHome跳转过来）
+    const videoId = this.$route.params.id
+    if (videoId) {
+      this.loadVideoById(parseInt(videoId))
+    } else {
+      this.loadInitialVideo()
+    }
     this.initializeVideoPlayer()
+  },
+  
+  watch: {
+    // 监听路由变化，支持从VideoHome跳转到视频详情
+    '$route'(to, from) {
+      const videoId = to.params.id
+      if (videoId && videoId !== from.params.id) {
+        this.loadVideoById(parseInt(videoId))
+      }
+    }
   },
   
   beforeDestroy() {
     this.stopBehaviorTracking()
+    // 移除全屏监听器
+    document.removeEventListener('fullscreenchange', this.handleFullscreenChange)
+    document.removeEventListener('webkitfullscreenchange', this.handleFullscreenChange)
+    document.removeEventListener('mozfullscreenchange', this.handleFullscreenChange)
+    document.removeEventListener('MSFullscreenChange', this.handleFullscreenChange)
   },
   
   methods: {
+    // 根据ID加载视频
+    async loadVideoById(videoId) {
+      this.loading = true
+      try {
+        // 加载指定视频详情
+        const videoRes = await userVideoApi.getVideoById(videoId)
+        if (videoRes && videoRes.data) {
+          this.currentVideo = this.convertVideoData(videoRes.data, true)
+          this.startBehaviorTracking()
+          
+          // 检查是否已点赞
+          if (this.isLogin && this.currentVideo.id) {
+            await this.checkLikeStatus()
+            // 加载评论列表
+            await this.loadComments()
+          }
+          
+          // 加载推荐视频列表（作为侧边栏推荐）
+          const recommendRes = await userVideoApi.getRecommendVideos(
+            localStorage.getItem('userId') ? parseInt(localStorage.getItem('userId')) : null,
+            10
+          )
+          if (recommendRes && recommendRes.data && recommendRes.data.length > 0) {
+            // 过滤掉当前视频
+            this.recommendedVideos = recommendRes.data
+              .filter(v => v.id !== videoId)
+              .map(v => this.convertVideoData(v))
+          }
+          
+          // 加载热门排行榜
+          await this.loadHotRanking()
+        } else {
+          this.$message.error('视频不存在')
+          // 如果视频不存在，回退到加载推荐视频
+          this.loadInitialVideo()
+        }
+      } catch (error) {
+        console.error('加载视频失败:', error)
+        this.$message.error('加载视频失败，请稍后重试')
+        // 出错时回退到加载推荐视频
+        this.loadInitialVideo()
+      } finally {
+        this.loading = false
+      }
+    },
+    
     // 加载初始视频数据
     async loadInitialVideo() {
       this.loading = true
@@ -361,6 +480,13 @@ export default {
           // 设置第一个推荐视频为当前播放视频
           this.currentVideo = this.convertVideoData(recommendRes.data[0], true)
           this.startBehaviorTracking()
+          
+          // 检查是否已点赞
+          if (this.isLogin && this.currentVideo.id) {
+            await this.checkLikeStatus()
+            // 加载评论列表
+            await this.loadComments()
+          }
           
           // 加载热门排行榜
           await this.loadHotRanking()
@@ -405,7 +531,7 @@ export default {
         description: backendVideo.description || '',
         views: backendVideo.playCount || 0,
         likes: backendVideo.likeCount || 0,
-        isLiked: false, // 需要单独查询用户是否点赞
+        isLiked: false, // 需要单独查询用户是否点赞（在loadInitialVideo中调用checkLikeStatus）
         uploadTime: this.formatTime(backendVideo.createTime),
         author: {
           id: backendVideo.authorId || null,
@@ -472,9 +598,27 @@ export default {
       this.$nextTick(() => {
       const videoElement = this.$refs.videoPlayer
       if (videoElement) {
+        // 初始化音量
+        const savedVolume = localStorage.getItem('videoVolume')
+        if (savedVolume !== null) {
+          this.volume = parseInt(savedVolume)
+        }
+        videoElement.volume = this.volume / 100
+        videoElement.muted = this.isMuted
+        
         videoElement.addEventListener('loadeddata', () => {
           console.log('视频加载完成')
+          // 更新总时长
+          if (videoElement.duration) {
+            this.totalTime = this.formatDuration(Math.floor(videoElement.duration))
+          }
         })
+        
+        // 监听全屏状态变化
+        document.addEventListener('fullscreenchange', this.handleFullscreenChange)
+        document.addEventListener('webkitfullscreenchange', this.handleFullscreenChange)
+        document.addEventListener('mozfullscreenchange', this.handleFullscreenChange)
+        document.addEventListener('MSFullscreenChange', this.handleFullscreenChange)
           
           // 处理视频加载错误（只处理真正的视频错误，不包括图片）
           // eslint-disable-next-line no-unused-vars
@@ -599,6 +743,13 @@ export default {
       // 开始跟踪新视频行为
       this.startBehaviorTracking()
       
+      // 检查是否已点赞
+      if (this.isLogin && this.currentVideo.id) {
+        await this.checkLikeStatus()
+        // 加载评论列表
+        await this.loadComments()
+      }
+      
       // 等待DOM更新后加载并播放新视频
       await this.$nextTick()
       
@@ -641,23 +792,82 @@ export default {
       }
     },
     
-    // 点赞处理
-    handleLike() {
+    // 点赞处理（真实API调用）
+    async handleLike() {
       // 检查登录状态
       if (!this.checkLogin('like')) return;
       
+      if (!this.currentVideo.id) {
+        this.$message.warning('视频信息不完整')
+        return
+      }
+      
       this.likeLoading = true
       
-      // 模拟API调用延迟
-      setTimeout(() => {
-        this.currentVideo.isLiked = !this.currentVideo.isLiked
-        this.currentVideo.likes += this.currentVideo.isLiked ? 1 : -1
-        
-        // 记录点赞行为
-        this.recordInteraction('like')
-        
+      try {
+        if (this.currentVideo.isLiked) {
+          // 取消点赞
+          const res = await userVideoApi.unlikeVideo(this.currentVideo.id)
+          if (res && res.code === 200) {
+            this.currentVideo.isLiked = false
+            this.currentVideo.likes = Math.max(0, this.currentVideo.likes - 1)
+            this.$message.success('已取消点赞')
+          }
+        } else {
+          // 点赞
+          const res = await userVideoApi.likeVideo(this.currentVideo.id)
+          if (res && res.code === 200 && res.data) {
+            this.currentVideo.isLiked = true
+            this.currentVideo.likes += 1
+            this.$message.success('点赞成功')
+          } else if (res && res.code === 200 && !res.data) {
+            this.$message.info('您已经点赞过了')
+          }
+        }
+      } catch (error) {
+        console.error('点赞操作失败:', error)
+        this.$message.error('操作失败，请稍后重试')
+      } finally {
         this.likeLoading = false
-      }, 300)
+      }
+    },
+    
+    // 检查是否已点赞
+    async checkLikeStatus() {
+      if (!this.isLogin || !this.currentVideo.id) return
+      
+      try {
+        const res = await userVideoApi.checkIsLiked(this.currentVideo.id)
+        if (res && res.code === 200) {
+          this.currentVideo.isLiked = res.data || false
+        }
+      } catch (error) {
+        console.error('检查点赞状态失败:', error)
+        // 失败不影响主流程，静默处理
+      }
+    },
+    
+    // 加载评论列表
+    async loadComments() {
+      if (!this.isLogin || !this.currentVideo.id) return
+      
+      try {
+        const res = await userVideoApi.getComments(this.currentVideo.id, 20)
+        if (res && res.code === 200 && res.data) {
+          // 转换评论数据格式
+          this.currentVideo.comments = (res.data || []).map(comment => ({
+            id: comment.id,
+            userName: comment.userId ? `用户${comment.userId}` : '未知用户',
+            userAvatar: '',
+            content: comment.content || '',
+            time: this.formatTime(comment.createTime),
+            likeCount: comment.likeCount || 0
+          }))
+        }
+      } catch (error) {
+        console.error('加载评论失败:', error)
+        // 失败不影响主流程，静默处理
+      }
     },
     
     // 关注作者
@@ -683,26 +893,51 @@ export default {
       this.recordInteraction('share')
     },
     
-    // 提交评论
-    submitComment() {
+    // 提交评论（真实API调用）
+    async submitComment() {
       // 检查登录状态
       if (!this.checkLogin('comment')) return;
       
-      if (!this.newComment.trim()) return
-      
-      const newComment = {
-        id: Date.now(),
-        userName: localStorage.getItem('username') || '用户',
-        userAvatar: localStorage.getItem('userAvatar') || '', // 使用用户头像，如果没有则为空（el-avatar会显示默认图标）
-        content: this.newComment,
-        time: '刚刚'
+      if (!this.newComment.trim()) {
+        this.$message.warning('请输入评论内容')
+        return
       }
       
-      this.currentVideo.comments.unshift(newComment)
-      this.newComment = ''
+      if (!this.currentVideo.id) {
+        this.$message.warning('视频信息不完整')
+        return
+      }
       
-      // 记录评论行为
-      this.recordInteraction('comment')
+      try {
+        const res = await userVideoApi.addComment(
+          this.currentVideo.id,
+          this.newComment.trim()
+        )
+        
+        if (res && res.code === 200) {
+          // 添加评论到列表
+          const newComment = {
+            id: res.data?.id || Date.now(),
+            userName: localStorage.getItem('username') || '用户',
+            userAvatar: localStorage.getItem('userAvatar') || '',
+            content: this.newComment.trim(),
+            time: '刚刚',
+            likeCount: 0
+          }
+          
+          this.currentVideo.comments.unshift(newComment)
+          this.newComment = ''
+          this.$message.success('评论成功')
+          
+          // 更新视频评论数
+          this.currentVideo.commentCount = (this.currentVideo.commentCount || 0) + 1
+        } else {
+          this.$message.error(res?.msg || '评论失败')
+        }
+      } catch (error) {
+        console.error('提交评论失败:', error)
+        this.$message.error('评论失败，请稍后重试')
+      }
     },
     
     // 处理不喜欢
@@ -766,18 +1001,35 @@ export default {
       return ''
     },
     
-    // 视频播放事件处理
+    // 视频播放事件处理（记录播放历史）
     handleTimeUpdate(event) {
       const video = event.target
       const currentTime = video.currentTime
       const duration = video.duration
       
-      // 更新播放时长
-      this.userBehavior.playDuration = currentTime
+      // 更新显示的时间
+      this.currentTime = this.formatDuration(Math.floor(currentTime))
+      this.totalTime = this.formatDuration(Math.floor(duration))
       
-      // 检查是否完播
-      if (currentTime >= duration * 0.9) { // 90%视为完播
+      // 更新播放时长
+      this.userBehavior.playDuration = Math.floor(currentTime)
+      
+      // 计算播放进度
+      const progress = duration > 0 ? Math.floor((currentTime / duration) * 100) : 0
+      
+      // 检查是否完播（90%视为完播）
+      const isFinish = currentTime >= duration * 0.9
+      if (isFinish && !this.userBehavior.isCompleted) {
         this.userBehavior.isCompleted = true
+        // 立即记录完播
+        this.recordPlayHistory(this.userBehavior.playDuration, progress, true)
+      } else {
+        // 每5秒记录一次播放进度（避免频繁请求）
+        const now = Date.now()
+        if (!this.lastRecordTime || now - this.lastRecordTime > 5000) {
+          this.lastRecordTime = now
+          this.recordPlayHistory(this.userBehavior.playDuration, progress, false)
+        }
       }
     },
     
@@ -785,7 +1037,13 @@ export default {
       console.log('视频播放结束')
       this.userBehavior.isCompleted = true
       this.isPlaying = false
-      this.sendUserBehavior()
+      
+      // 记录完播
+      if (this.$refs.videoPlayer) {
+        const video = this.$refs.videoPlayer
+        const duration = Math.floor(video.duration || 0)
+        this.recordPlayHistory(duration, 100, true)
+      }
       
       // 自动播放下一个推荐视频
       if (this.recommendedVideos && this.recommendedVideos.length > 0) {
@@ -823,22 +1081,34 @@ export default {
       this.sendUserBehavior()
     },
     
-    // 发送用户行为数据到后端
+    // 记录播放历史（真实API调用）
+    async recordPlayHistory(duration, progress, isFinish) {
+      if (!this.isLogin || !this.currentVideo.id) return
+      
+      try {
+        await userVideoApi.recordPlay(
+          this.currentVideo.id,
+          duration,
+          progress,
+          isFinish
+        )
+        // 静默记录，不显示提示
+      } catch (error) {
+        console.error('记录播放历史失败:', error)
+        // 失败不影响主流程，静默处理
+      }
+    },
+    
+    // 发送用户行为数据到后端（保留兼容性）
     sendUserBehavior() {
       if (!this.userBehavior.videoId) return
       
-      const behaviorData = {
-        userId: localStorage.getItem('userId') || 'anonymous',
-        videoId: this.userBehavior.videoId,
-        behaviorType: 'watch',
-        duration: this.userBehavior.playDuration,
-        isCompleted: this.userBehavior.isCompleted,
-        timestamp: new Date().toISOString()
-      }
-      
-      // 实际应调用后端API
-      console.log('发送用户行为数据:', behaviorData)
-      // this.$api.userBehavior.collect(behaviorData)
+      // 使用新的recordPlayHistory方法
+      this.recordPlayHistory(
+        this.userBehavior.playDuration,
+        this.userBehavior.isCompleted ? 100 : Math.floor((this.userBehavior.playDuration / (this.$refs.videoPlayer?.duration || 1)) * 100),
+        this.userBehavior.isCompleted
+      )
     },
     
     // 记录交互行为
@@ -866,6 +1136,87 @@ export default {
       
       console.log('发送不喜欢反馈:', feedbackData)
       // this.$api.feedback.submit(feedbackData)
+    },
+    
+    // 音量控制
+    handleVolumeChange(value) {
+      this.volume = value
+      const videoElement = this.$refs.videoPlayer
+      if (videoElement) {
+        videoElement.volume = value / 100
+        this.isMuted = value === 0
+        videoElement.muted = this.isMuted
+        // 保存音量设置
+        localStorage.setItem('videoVolume', value.toString())
+      }
+    },
+    
+    // 切换静音
+    toggleMute() {
+      const videoElement = this.$refs.videoPlayer
+      if (videoElement) {
+        if (this.isMuted) {
+          // 取消静音，恢复之前的音量
+          this.isMuted = false
+          videoElement.muted = false
+          if (this.volume === 0) {
+            this.volume = 50
+            videoElement.volume = 0.5
+          }
+        } else {
+          // 静音
+          this.isMuted = true
+          videoElement.muted = true
+        }
+      }
+    },
+    
+    // 切换全屏
+    toggleFullscreen() {
+      const videoWrapper = this.$el.querySelector('.video-wrapper-large')
+      if (!videoWrapper) return
+      
+      if (!this.isFullscreen) {
+        // 进入全屏
+        if (videoWrapper.requestFullscreen) {
+          videoWrapper.requestFullscreen()
+        } else if (videoWrapper.webkitRequestFullscreen) {
+          videoWrapper.webkitRequestFullscreen()
+        } else if (videoWrapper.mozRequestFullScreen) {
+          videoWrapper.mozRequestFullScreen()
+        } else if (videoWrapper.msRequestFullscreen) {
+          videoWrapper.msRequestFullscreen()
+        }
+      } else {
+        // 退出全屏
+        if (document.exitFullscreen) {
+          document.exitFullscreen()
+        } else if (document.webkitExitFullscreen) {
+          document.webkitExitFullscreen()
+        } else if (document.mozCancelFullScreen) {
+          document.mozCancelFullScreen()
+        } else if (document.msExitFullscreen) {
+          document.msExitFullscreen()
+        }
+      }
+    },
+    
+    // 处理全屏状态变化
+    handleFullscreenChange() {
+      this.isFullscreen = !!(
+        document.fullscreenElement ||
+        document.webkitFullscreenElement ||
+        document.mozFullScreenElement ||
+        document.msFullscreenElement
+      )
+    },
+    
+    // 视频元数据加载完成
+    handleVideoLoaded() {
+      const videoElement = this.$refs.videoPlayer
+      if (videoElement && videoElement.duration) {
+        this.totalTime = this.formatDuration(Math.floor(videoElement.duration))
+      }
     }
   }
 }
@@ -875,16 +1226,19 @@ export default {
 .video-player-container {
   display: flex;
   gap: 20px;
-  padding: 20px;
-  max-width: 1400px;
+  padding: 20px 10px;
+  max-width: 1600px;
   margin: 0 auto;
   height: calc(100vh - 60px); /* 减去顶部导航高度 */
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* 主视频区域 - 放大 */
 .main-video-section {
   flex: 1;
   min-width: 0; /* 防止flex溢出 */
+  max-width: calc(100% - 400px); /* 为右侧边栏预留空间，减少留白 */
 }
 
 .main-video-card {
@@ -924,8 +1278,10 @@ export default {
 .video-wrapper-large {
   position: relative;
   width: 100%;
-  height: 500px; /* 固定高度，放大的关键 */
+  height: 600px; /* 增加高度，让视频更大 */
   background: #000;
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 .video-element-large {
@@ -953,6 +1309,10 @@ export default {
   opacity: 1;
 }
 
+.video-wrapper-large:hover .custom-video-controls {
+  opacity: 1;
+}
+
 .play-pause-btn {
   width: 80px;
   height: 80px;
@@ -973,6 +1333,125 @@ export default {
 .play-pause-btn i {
   font-size: 40px;
   color: white;
+}
+
+/* 自定义视频控制栏 */
+.custom-video-controls {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
+  padding: 15px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.3s;
+  z-index: 10;
+}
+
+.controls-left {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.controls-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.control-btn {
+  background: transparent;
+  border: none;
+  color: white;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 4px;
+  transition: background 0.3s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.control-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.control-btn i {
+  font-size: 20px;
+}
+
+.time-display {
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  min-width: 100px;
+  text-align: center;
+}
+
+/* 音量控制 */
+.volume-control {
+  position: relative;
+}
+
+.volume-slider-wrapper {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 10px;
+  background: rgba(0, 0, 0, 0.8);
+  padding: 15px 10px;
+  border-radius: 8px;
+  z-index: 100;
+}
+
+.volume-slider {
+  width: 100px;
+}
+
+.volume-slider /deep/ .el-slider__runway {
+  background-color: rgba(255, 255, 255, 0.3);
+  height: 100px;
+}
+
+.volume-slider /deep/ .el-slider__bar {
+  background-color: #409EFF;
+}
+
+.volume-slider /deep/ .el-slider__button {
+  border-color: #409EFF;
+  width: 14px;
+  height: 14px;
+}
+
+/* 全屏样式 */
+.video-wrapper-large:-webkit-full-screen {
+  width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+}
+
+.video-wrapper-large:-moz-full-screen {
+  width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+}
+
+.video-wrapper-large:-ms-fullscreen {
+  width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+}
+
+.video-wrapper-large:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  border-radius: 0;
 }
 
 /* 视频作者信息 */
@@ -1151,10 +1630,12 @@ export default {
 
 /* 右侧边栏 */
 .right-sidebar {
-  width: 320px;
+  width: 360px;
+  min-width: 320px;
   display: flex;
   flex-direction: column;
   gap: 20px;
+  flex-shrink: 0;
 }
 
 .section-header {
@@ -1338,9 +1819,50 @@ export default {
 }
 
 /* 响应式设计 */
+@media (min-width: 1600px) {
+  .video-player-container {
+    max-width: 1800px;
+    padding: 20px 40px;
+  }
+  
+  .video-wrapper-large {
+    height: 700px;
+  }
+}
+
+@media (max-width: 1400px) {
+  .video-player-container {
+    max-width: 100%;
+    padding: 20px 15px;
+  }
+  
+  .main-video-section {
+    max-width: calc(100% - 360px);
+  }
+  
+  .right-sidebar {
+    width: 340px;
+  }
+}
+
+@media (max-width: 1300px) {
+  .video-player-container {
+    padding: 20px 10px;
+  }
+  
+  .main-video-section {
+    max-width: calc(100% - 340px);
+  }
+  
+  .right-sidebar {
+    width: 320px;
+  }
+}
+
 @media (max-width: 1200px) {
   .video-player-container {
     flex-direction: column;
+    padding: 15px 10px;
   }
   
   .right-sidebar {
@@ -1354,15 +1876,20 @@ export default {
     flex: 1;
     min-width: 300px;
   }
+  
+  .video-wrapper-large {
+    height: 500px;
+  }
 }
 
 @media (max-width: 768px) {
   .video-player-container {
-    padding: 10px;
+    padding: 10px 5px;
+    gap: 15px;
   }
   
   .video-wrapper-large {
-    height: 300px;
+    height: 400px;
   }
   
   .video-title {
@@ -1371,11 +1898,22 @@ export default {
   
   .video-actions-large {
     flex-wrap: wrap;
+    padding: 10px 5px;
+    gap: 5px;
   }
   
   .action-item {
-    padding: 10px;
-    min-width: 80px;
+    padding: 8px 10px;
+    min-width: 70px;
+  }
+  
+  .action-icon {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .action-icon i {
+    font-size: 20px;
   }
   
   .right-sidebar {
@@ -1385,6 +1923,31 @@ export default {
   .recommendation-thumbnail img {
     width: 120px;
     height: 68px;
+  }
+}
+
+@media (max-width: 480px) {
+  .video-player-container {
+    padding: 10px 5px;
+  }
+  
+  .video-wrapper-large {
+    height: 300px;
+  }
+  
+  .main-video-card {
+    margin-bottom: 15px;
+  }
+  
+  .video-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  
+  .video-header-actions {
+    width: 100%;
+    justify-content: flex-end;
   }
 }
 </style>

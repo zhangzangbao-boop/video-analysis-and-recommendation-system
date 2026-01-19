@@ -5,46 +5,11 @@ import org.apache.spark.sql.SparkSession
 
 /**
  * HDFS 存储工具类
- * 负责与 HDFS 的交互操作
+ * 修正说明：
+ * 1. 移除了 setModelMetadata 方法 (元数据现已按文档要求存入 MySQL)
+ * 2. 保留文件系统基础操作，用于模型保存前的路径清理
  */
 object HDFSStorage {
-
-  /**
-   * 保存模型元数据到 HDFS
-   *
-   * @param spark     SparkSession
-   * @param modelPath 模型路径
-   * @param rank      隐因子数量
-   * @param regParam  正则化参数
-   * @param maxIter   最大迭代次数
-   * @param rmse      模型评估指标
-   */
-  def setModelMetadata(
-                        spark: SparkSession,
-                        modelPath: String,
-                        rank: Int,
-                        regParam: Double,
-                        maxIter: Int,
-                        rmse: Double
-                      ): Unit = {
-    println(s"[INFO] 保存模型元数据到 HDFS: $modelPath/metadata.json")
-
-    val metadata = s"""
-                      |{
-                      |  "modelPath": "$modelPath",
-                      |  "rank": $rank,
-                      |  "regParam": $regParam,
-                      |  "maxIter": $maxIter,
-                      |  "rmse": $rmse,
-                      |  "trainingTime": "${System.currentTimeMillis()}"
-                      |}
-     """.stripMargin
-
-    val rdd = spark.sparkContext.parallelize(Seq(metadata))
-    rdd.saveAsTextFile(s"$modelPath/metadata.json")
-
-    println("[INFO] 模型元数据保存完成")
-  }
 
   /**
    * 检查 HDFS 路径是否存在
@@ -59,29 +24,33 @@ object HDFSStorage {
   }
 
   /**
-   * 列出 HDFS 目录下的所有文件
-   *
-   * @param spark SparkSession
-   * @param path  HDFS 路径
-   * @return 文件路径列表
-   */
-  def listFiles(spark: SparkSession, path: String): Array[String] = {
-    val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
-    val status = fs.listStatus(new Path(path))
-    status.map(_.getPath.toString)
-  }
-
-  /**
    * 删除 HDFS 路径
+   * (在 ALSTrainer 中保存新模型前，可选择调用此方法清理旧路径，
+   * 虽然 Spark write.overwrite() 通常能处理，但显式清理更安全)
    *
    * @param spark SparkSession
    * @param path  HDFS 路径
    */
   def deletePath(spark: SparkSession, path: String): Unit = {
     val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
-    if (fs.exists(new Path(path))) {
-      fs.delete(new Path(path), true)
-      println(s"[INFO] 已删除 HDFS 路径: $path")
+    val hdfsPath = new Path(path)
+    if (fs.exists(hdfsPath)) {
+      fs.delete(hdfsPath, true)
+      println(s"[INFO] 已清理旧的 HDFS 路径: $path")
+    }
+  }
+
+  /**
+   * 列出 HDFS 目录下的所有文件 (保留作为运维工具方法)
+   */
+  def listFiles(spark: SparkSession, path: String): Array[String] = {
+    val fs = FileSystem.get(spark.sparkContext.hadoopConfiguration)
+    val hdfsPath = new Path(path)
+    if (fs.exists(hdfsPath)) {
+      val status = fs.listStatus(hdfsPath)
+      status.map(_.getPath.toString)
+    } else {
+      Array.empty[String]
     }
   }
 }

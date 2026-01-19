@@ -48,4 +48,54 @@
         </if>
     </select>
 
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO video_play_record (user_id, video_id, duration, progress, is_finish, create_time)
+        VALUES (#{userId}, #{videoId}, #{duration}, #{progress}, #{isFinish}, #{createTime})
+    </insert>
+
+    <select id="selectByUserId" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM video_play_record
+        WHERE user_id = #{userId}
+        ORDER BY create_time DESC
+        <if test="limit != null">
+            LIMIT #{limit}
+        </if>
+    </select>
+
+    <select id="selectByUserIdDistinct" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM video_play_record
+        WHERE (user_id, video_id, create_time) IN (
+            SELECT user_id, video_id, MAX(create_time) as max_time
+            FROM video_play_record
+            WHERE user_id = #{userId}
+            GROUP BY user_id, video_id
+        )
+        ORDER BY create_time DESC
+        <if test="limit != null">
+            LIMIT #{limit}
+        </if>
+    </select>
+
+    <select id="selectByUserIdAndVideoId" resultMap="BaseResultMap">
+        SELECT
+        <include refid="Base_Column_List"/>
+        FROM video_play_record
+        WHERE user_id = #{userId} AND video_id = #{videoId}
+        ORDER BY create_time DESC
+        LIMIT 1
+    </select>
+
+    <update id="updateById">
+        UPDATE video_play_record
+        SET duration = #{duration},
+            progress = #{progress},
+            is_finish = #{isFinish},
+            create_time = #{createTime}
+        WHERE id = #{id}
+    </update>
+
 </mapper>

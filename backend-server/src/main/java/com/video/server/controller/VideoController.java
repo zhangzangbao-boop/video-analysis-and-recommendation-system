@@ -114,6 +114,25 @@ public class VideoController {
         return ResponseEntity.ok(ApiResponse.success(categories));
     }
 
+    /**
+     * 搜索视频
+     */
+    @GetMapping("/search")
+    public ResponseEntity<ApiResponse<PageResponse<Video>>> searchVideos(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Integer categoryId,
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "20") Integer pageSize) {
+        com.video.server.dto.VideoListRequest request = new com.video.server.dto.VideoListRequest();
+        request.setKeyword(keyword);
+        request.setCategory(categoryId != null ? categoryId.toString() : null);
+        request.setStatus("PASSED"); // 只搜索已发布的视频
+        request.setPage(page);
+        request.setPageSize(pageSize);
+        PageResponse<Video> response = videoService.getVideoList(request);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteMyVideo(@PathVariable Long id, HttpServletRequest request) {
         videoService.deleteVideo(id);
