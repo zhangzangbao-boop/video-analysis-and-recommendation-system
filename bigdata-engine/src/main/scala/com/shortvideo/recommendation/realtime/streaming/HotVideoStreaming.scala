@@ -38,12 +38,21 @@ class HotVideoStreaming {
     kafkaParams.put("auto.offset.reset", "latest")
     kafkaParams.put("enable.auto.commit", "false")
 
+    val scalaKafkaParams = kafkaParams.asScala.toMap.asInstanceOf[Map[String, Object]]
+
     val topics = Array(ConfigUtils.getString("kafka.topics.user-behavior", "shortvideo_user_behavior"))
 
-    val kafkaStream: InputDStream[ConsumerRecord[String, String]] = KafkaUtils.createDirectStream[String, String](
+    val offsets= KafkaUtil.getOffsets(kafkaParams, topics)
+    //打印一下 offsets 的大小
+    println(s"offsets size: ${offsets.size}")
+
+    val kafkaStream: InputDStream[ConsumerRecord[String, String]] = KafkaUtils.createDirectStream(
       ssc,
       LocationStrategies.PreferConsistent,
-      ConsumerStrategies.Subscribe(topics, kafkaParams)
+      ConsumerStrategies.Subscribe[String, String](
+        topics.toIterable,
+        scalaKafkaParams,
+        offsets)
     )
 
     // 解析用户行为数据

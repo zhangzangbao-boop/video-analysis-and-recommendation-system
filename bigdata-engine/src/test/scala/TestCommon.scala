@@ -56,7 +56,7 @@ object TestCommon {
     val sparkConfig = SparkConfig()
     println(s"Spark配置: ${sparkConfig}")
 
-    val spark = SparkUtils.createSparkSession("TestApp")
+    val spark = SparkUtil.createSparkSession("TestApp")
     println(s"SparkSession创建成功: ${spark.version}")
 
     // 创建测试DataFrame
@@ -69,7 +69,7 @@ object TestCommon {
     println("测试DataFrame:")
     testData.show()
 
-    SparkUtils.stopSparkSession(spark)
+    SparkUtil.stopSparkSession(spark)
     println("SparkUtils测试通过 ✓")
   }
 
@@ -80,10 +80,10 @@ object TestCommon {
     println(s"Redis配置: ${redisConfig}")
 
     // 初始化连接池
-    RedisUtils.initPool(redisConfig)
+    RedisUtil.initPool(redisConfig)
 
     // 测试连接
-    val connected = RedisUtils.checkRedisConnection(redisConfig)
+    val connected = RedisUtil.checkRedisConnection(redisConfig)
     if (connected) {
       println("Redis连接测试成功")
 
@@ -91,8 +91,8 @@ object TestCommon {
       val testKey = "test:common"
       val testValue = "hello redis"
 
-      RedisUtils.set(testKey, testValue)
-      val getValue = RedisUtils.get(testKey)
+      RedisUtil.set(testKey, testValue)
+      val getValue = RedisUtil.get(testKey)
 
       println(s"设置值: $testValue")
       println(s"获取值: $getValue")
@@ -103,20 +103,20 @@ object TestCommon {
 
       // 测试Hash操作
       val hashKey = "test:hash"
-      RedisUtils.hset(hashKey, "field1", "value1")
-      RedisUtils.hset(hashKey, "field2", "value2")
+      RedisUtil.hset(hashKey, "field1", "value1")
+      RedisUtil.hset(hashKey, "field2", "value2")
 
-      val hashValue = RedisUtils.hget(hashKey, "field1")
+      val hashValue = RedisUtil.hget(hashKey, "field1")
       println(s"Hash获取: $hashValue")
 
       // 清理测试数据
-      RedisUtils.del(testKey)
-      RedisUtils.del(hashKey)
+      RedisUtil.del(testKey)
+      RedisUtil.del(hashKey)
     } else {
       println("Redis连接失败，请检查Redis服务是否启动")
     }
 
-    RedisUtils.closePool()
+    RedisUtil.closePool()
     println("RedisUtils测试完成")
   }
 
@@ -128,7 +128,7 @@ object TestCommon {
 
     // 测试连接（增加超时和重试）
     val connected = try {
-      KafkaUtils.checkKafkaConnection(kafkaConfig)
+      KafkaUtil.checkKafkaConnection(kafkaConfig)
     } catch {
       case e: Exception =>
         println(s"Kafka连接测试异常: ${e.getMessage}")
@@ -150,33 +150,33 @@ object TestCommon {
   def testTimeUtils(): Unit = {
     println("\n--- 测试TimeUtils ---")
 
-    val now = TimeUtils.currentTimestamp
+    val now = TimeUtil.currentTimestamp
     println(s"当前时间戳: $now")
 
-    val nowStr = TimeUtils.currentTimeString()
+    val nowStr = TimeUtil.currentTimeString()
     println(s"当前时间字符串: $nowStr")
 
-    val today = TimeUtils.getTodayDate
+    val today = TimeUtil.getTodayDate
     println(s"今天日期: $today")
 
-    val yesterday = TimeUtils.getYesterdayDate
+    val yesterday = TimeUtil.getYesterdayDate
     println(s"昨天日期: $yesterday")
 
-    val hour = TimeUtils.getCurrentHour
+    val hour = TimeUtil.getCurrentHour
     println(s"当前小时: $hour")
 
-    val timestampStr = TimeUtils.timestampToString(now)
+    val timestampStr = TimeUtil.timestampToString(now)
     println(s"时间戳转字符串: $timestampStr")
 
-    val parsedTimestamp = TimeUtils.stringToTimestamp(timestampStr)
+    val parsedTimestamp = TimeUtil.stringToTimestamp(timestampStr)
     println(s"字符串转时间戳: $parsedTimestamp")
 
     // 测试时间差
-    val startTime = TimeUtils.stringToTimestamp("2024-01-01 00:00:00")
-    val endTime = TimeUtils.stringToTimestamp("2024-01-01 01:30:00")
+    val startTime = TimeUtil.stringToTimestamp("2024-01-01 00:00:00")
+    val endTime = TimeUtil.stringToTimestamp("2024-01-01 01:30:00")
 
-    val diffHours = TimeUtils.getTimeDiffInHours(startTime, endTime)
-    val diffMinutes = TimeUtils.getTimeDiffInMinutes(startTime, endTime)
+    val diffHours = TimeUtil.getTimeDiffInHours(startTime, endTime)
+    val diffMinutes = TimeUtil.getTimeDiffInMinutes(startTime, endTime)
 
     println(s"时间差: $diffHours 小时, $diffMinutes 分钟")
 
@@ -191,7 +191,7 @@ object TestCommon {
       userId = 1001L,
       videoId = 2001L,
       behaviorType = "view",
-      behaviorTime = TimeUtils.currentTimestamp,
+      behaviorTime = TimeUtil.currentTimestamp,
       duration = 60,
       deviceInfo = "iPhone",
       networkType = "wifi",

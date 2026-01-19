@@ -13,7 +13,6 @@ import org.apache.spark.streaming.dstream.InputDStream
 import org.apache.spark.streaming.kafka010.{ConsumerStrategies, KafkaUtils, LocationStrategies}
 import org.apache.spark.streaming.{Duration, Seconds, StreamingContext}
 import org.apache.spark.sql.SparkSession
-
 import scala.collection.JavaConverters._
 
 /**
@@ -39,15 +38,29 @@ class RealtimeRecommendationStreaming {
     kafkaParams.put("auto.offset.reset", "latest")
     kafkaParams.put("enable.auto.commit", "false")
 
+    // 将 Java Map 转换为 Scala 的 Map[String, Object]
+    val scalaKafkaParams = kafkaParams.asScala.toMap.asInstanceOf[Map[String, Object]]
+
     val topics = Array(
       ConfigUtils.getString("kafka.topics.user-behavior", "shortvideo_user_behavior"),
       ConfigUtils.getString("kafka.topics.content-exposure", "shortvideo_content_exposure")
     )
 
-    val kafkaStream: InputDStream[ConsumerRecord[String, String]] = KafkaUtils.createDirectStream[String, String](
+    // 2. 确保 offsets 转换为 Scala Immutable Map
+    // 假设 KafkaUtil.getOffsets 返回的是 Java Map
+    val offsets = KafkaUtil.getOffsets(kafkaParams, topics)
+
+    //打印一下 offsets 的大小
+    println(s"offsets size: ${offsets.size}")
+
+
+    val kafkaStream: InputDStream[ConsumerRecord[String, String]] = KafkaUtils.createDirectStream(
       ssc,
       LocationStrategies.PreferConsistent,
-      ConsumerStrategies.Subscribe[String, String](topics, kafkaParams)
+      ConsumerStrategies.Subscribe[String, String](
+        topics.toIterable,
+        scalaKafkaParams,
+        offsets)
     )
 
     // 解析用户行为数据

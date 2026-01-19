@@ -5,11 +5,10 @@ import java.util.Properties
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 import org.apache.kafka.common.serialization.{StringDeserializer, StringSerializer}
-
+import org.apache.kafka.common.TopicPartition
 import scala.collection.JavaConverters._
 import com.shortvideo.recommendation.common.Constants
 import com.shortvideo.recommendation.common.config.KafkaConfig
-import org.apache.kafka.common.TopicPartition
 
 import java.{lang, util}
 import scala.sys.props
@@ -70,14 +69,23 @@ object KafkaUtil {
     props
   }
 
-  def getOffsets(kafkaParams: Properties, topics: Array[String]): Map[TopicPartition, Long] = {
+  def getOffsets(kafkaParams: java.util.Properties, topics: Array[String]): Map[TopicPartition, Long] = {
+    val consumer = new KafkaConsumer[String, String](kafkaParams)
 
-    val consumer =KafkaUtil.createConsumer(KafkaConfig.apply(), topics.toList)
-    val offsets = consumer.assignment().asScala.map { partition =>
-      val offset = consumer.position(partition)
-      (partition, offset)
-    }.toMap
-    return offsets
+    // 1. 获取所有主题的分区信息
+    val partitionInfos = topics.flatMap(topic => consumer.partitionsFor(topic).asScala)
+
+    // 2. 构造 TopicPartition 列表
+    val tps = partitionInfos.map(p => new TopicPartition(p.topic(), p.partition()))
+
+    // 3. 显式分配分区以获取 position
+    consumer.assign(tps.toSeq.asJava)
+
+    // 4. 获取每个分区的当前偏移量 (或者使用 endOffsets 获取最新位点)
+    val offsets = tps.map(tp => (tp, consumer.position(tp))).toMap
+
+    consumer.close()
+    offsets // 返回的是 Scala 的 Map[TopicPartition, Long]
   }
 
   /**
