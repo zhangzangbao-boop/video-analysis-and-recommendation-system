@@ -15,7 +15,7 @@
         <result column="like_count" property="likeCount"/>
         <result column="comment_count" property="commentCount"/>
         <result column="share_count" property="shareCount"/>
-        <result column="status" property="status" typeHandler="org.apache.ibatis.type.EnumOrdinalTypeHandler"/>
+        <result column="status" property="status" typeHandler="com.video.server.config.VideoStatusTypeHandler"/>
         <result column="audit_msg" property="auditMsg"/>
         <result column="is_hot" property="isHot"/>
         <result column="tags" property="tags"/>
@@ -35,13 +35,22 @@
     <insert id="insert">
         INSERT INTO video_info (id, title, description, user_id, cover_url, video_url, category_id, duration, view_count, like_count, comment_count, share_count, status, is_hot, tags, is_deleted, create_time, update_time)
         VALUES (#{id}, #{title}, #{description}, #{authorId}, #{coverUrl}, #{videoUrl}, #{categoryId}, #{duration}, #{playCount}, #{likeCount}, #{commentCount}, #{shareCount},
-                0,
+                #{status, typeHandler=com.video.server.config.VideoStatusTypeHandler},
                 #{isHot}, #{tags}, #{isDeleted}, #{createTime}, #{updateTime})
     </insert>
 
     <update id="updateById">
         UPDATE video_info
-        SET title = #{title}, user_id = #{authorId}, cover_url = #{coverUrl}, video_url = #{videoUrl}, view_count = #{playCount}, like_count = #{likeCount}, status = #{status}, update_time = #{updateTime}
+        SET title = #{title},
+            user_id = #{authorId},
+            cover_url = #{coverUrl},
+            video_url = #{videoUrl},
+            view_count = #{playCount},
+            like_count = #{likeCount},
+            comment_count = #{commentCount},
+            share_count = #{shareCount},
+            status = #{status, typeHandler=com.video.server.config.VideoStatusTypeHandler},
+            update_time = #{updateTime}
         WHERE id = #{id}
     </update>
 

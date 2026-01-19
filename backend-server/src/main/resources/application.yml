@@ -14,7 +14,7 @@ spring:
   datasource:
     url: jdbc:mysql://localhost:3306/short_video_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true&useSSL=false&allowLoadLocalInfile=true
     username: root
-    password: "123456"  # 请修改为您的MySQL root密码
+    password: "041206"  # 请修改为您的MySQL root密码
     driver-class-name: com.mysql.cj.jdbc.Driver
     # 连接池配置
     hikari:

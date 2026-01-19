@@ -21,12 +21,14 @@ service.interceptors.request.use(
       config.headers['Authorization'] = 'Bearer ' + userToken
     }
     
-    // 如果是文件上传，添加用户ID到header（临时方案，实际应该从JWT token中解析）
-    if (config.headers['Content-Type'] && config.headers['Content-Type'].includes('multipart/form-data')) {
-      const userId = localStorage.getItem('userId')
-      if (userId) {
-        config.headers['X-User-Id'] = userId
-      }
+    // 添加用户ID到header（用于播放历史、点赞、评论等功能）
+    // 优先使用userId，如果没有则使用adminId
+    const userId = localStorage.getItem('userId')
+    const adminId = localStorage.getItem('adminId')
+    if (userId) {
+      config.headers['X-User-Id'] = userId
+    } else if (adminId) {
+      config.headers['X-User-Id'] = adminId
     }
     
     return config

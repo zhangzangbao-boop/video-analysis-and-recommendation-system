@@ -34,4 +34,39 @@ public interface VideoInteractionMapper {
      */
     Long countByCondition(@Param("startTime") LocalDateTime startTime,
                            @Param("endTime") LocalDateTime endTime);
+    
+    /**
+     * 插入互动记录
+     * @param interaction 互动记录
+     * @return 影响行数
+     */
+    int insert(VideoInteraction interaction);
+    
+    /**
+     * 删除互动记录
+     * @param userId 用户ID
+     * @param videoId 视频ID
+     * @param type 类型
+     * @return 影响行数
+     */
+    int delete(@Param("userId") Long userId, @Param("videoId") Long videoId, @Param("type") Integer type);
+    
+    /**
+     * 查询用户对某个视频的互动记录
+     * @param userId 用户ID
+     * @param videoId 视频ID
+     * @param type 类型
+     * @return 互动记录
+     */
+    VideoInteraction selectByUserIdAndVideoIdAndType(@Param("userId") Long userId, 
+                                                     @Param("videoId") Long videoId, 
+                                                     @Param("type") Integer type);
+    
+    /**
+     * 查询用户的点赞记录
+     * @param userId 用户ID
+     * @param limit 限制数量
+     * @return 互动记录列表
+     */
+    List<VideoInteraction> selectLikesByUserId(@Param("userId") Long userId, @Param("limit") Integer limit);
 }
