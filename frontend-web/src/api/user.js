@@ -2,8 +2,14 @@ import request from '@/utils/request'
 
 /**
  * 用户端视频API
+ * 包含：视频基础、互动（点赞/收藏/分享）、评论、用户关系、个人信息
  */
 export const userVideoApi = {
+
+  // ==========================================
+  // 1. 视频基础浏览
+  // ==========================================
+
   // 获取热门视频列表
   getHotVideos() {
     return request({
@@ -53,51 +59,10 @@ export const userVideoApi = {
     })
   },
 
-  // --- 新增接口 ---
+  // ==========================================
+  // 2. 核心互动 (点赞/收藏/分享/举报) 【新增部分】
+  // ==========================================
 
-  // 获取我的视频列表（包含审核状态）
-  getMyVideos(params) {
-    return request({
-      url: '/api/v1/video/my', // 请确保后端 VideoController 有对应接口，或复用列表接口
-      method: 'get',
-      params
-    })
-  },
-
-  // 删除我的视频
-  deleteMyVideo(id) {
-    return request({
-      url: `/api/v1/video/${id}`,
-      method: 'delete'
-    })
-  },
-
-  // ========== 播放历史相关 ==========
-  
-  // 记录播放历史
-  recordPlay(videoId, duration = 0, progress = 0, isFinish = false) {
-    return request({
-      url: `/api/v1/video/${videoId}/play`,
-      method: 'post',
-      params: {
-        duration,
-        progress,
-        isFinish
-      }
-    })
-  },
-
-  // 获取播放历史
-  getPlayHistory(limit = 20) {
-    return request({
-      url: '/api/v1/video/history',
-      method: 'get',
-      params: { limit }
-    })
-  },
-
-  // ========== 点赞相关 ==========
-  
   // 点赞视频
   likeVideo(videoId) {
     return request({
@@ -114,51 +79,117 @@ export const userVideoApi = {
     })
   },
 
-  // 检查是否已点赞
+  // 检查点赞状态
   checkIsLiked(videoId) {
     return request({
-      url: `/api/v1/video/${videoId}/like`,
+      url: `/api/v1/video/${videoId}/like/status`,
       method: 'get'
     })
   },
 
-  // 获取点赞列表
-  getLikedVideos(page = 1, pageSize = 20) {
+  // 收藏视频
+  collectVideo(videoId, folderId = 0) {
     return request({
-      url: '/api/v1/user/likes',
-      method: 'get',
-      params: { page, pageSize }
+      url: `/api/v1/video/${videoId}/collect`,
+      method: 'post',
+      params: { folderId }
     })
   },
 
-  // ========== 评论相关 ==========
-  
+  // 取消收藏
+  uncollectVideo(videoId) {
+    return request({
+      url: `/api/v1/video/${videoId}/collect`,
+      method: 'delete'
+    })
+  },
+
+  // 检查收藏状态
+  checkIsCollected(videoId) {
+    return request({
+      url: `/api/v1/video/${videoId}/collect/status`,
+      method: 'get'
+    })
+  },
+
+  // 分享上报 (增加分享数)
+  shareVideo(videoId) {
+    return request({
+      url: `/api/v1/video/${videoId}/share`,
+      method: 'post'
+    })
+  },
+
+  // 举报视频
+  reportVideo(data) {
+    return request({
+      url: '/api/v1/video/report',
+      method: 'post',
+      data // { videoId, reason }
+    })
+  },
+
+  // 记录播放历史 (埋点)
+  recordPlay(videoId, duration, progress, isFinish) {
+    return request({
+      url: `/api/v1/video/${videoId}/play`,
+      method: 'post',
+      data: {
+        duration,
+        progress,
+        isFinish
+      }
+    })
+  },
+
+  // ==========================================
+  // 3. 用户关系 (关注/取关) 【新增部分】
+  // ==========================================
+
+  // 关注用户
+  followUser(userId) {
+    return request({
+      url: `/api/v1/user/follow/${userId}`,
+      method: 'post'
+    })
+  },
+
+  // 取消关注
+  unfollowUser(userId) {
+    return request({
+      url: `/api/v1/user/follow/${userId}`,
+      method: 'delete'
+    })
+  },
+
+  // 检查关注状态
+  checkIsFollowed(userId) {
+    return request({
+      url: `/api/v1/user/follow/${userId}/status`,
+      method: 'get'
+    })
+  },
+
+  // ==========================================
+  // 4. 评论相关 (保留原有兼容，新版建议用 comment.js)
+  // ==========================================
+
   // 添加评论
-  addComment(videoId, content, parentId = null, replyUserId = null) {
+  addComment(videoId, content, parentId = null) {
     return request({
       url: `/api/v1/video/${videoId}/comment`,
       method: 'post',
       params: {
         content,
-        parentId,
-        replyUserId
+        parentId
       }
     })
   },
 
-  // 获取视频评论列表
+  // 获取视频评论
   getComments(videoId, limit = 20) {
     return request({
       url: `/api/v1/video/${videoId}/comment`,
-      method: 'get',
-      params: { limit }
-    })
-  },
-
-  // 获取评论的回复列表
-  getCommentReplies(parentId, limit = 10) {
-    return request({
-      url: `/api/v1/video/comment/${parentId}/replies`,
       method: 'get',
       params: { limit }
     })
@@ -181,8 +212,10 @@ export const userVideoApi = {
     })
   },
 
-  // ========== 用户信息相关 ==========
-  
+  // ==========================================
+  // 5. 用户信息与设置
+  // ==========================================
+
   // 获取当前用户信息
   getCurrentUser() {
     return request({
@@ -212,8 +245,10 @@ export const userVideoApi = {
     })
   },
 
-  // ========== 搜索相关 ==========
-  
+  // ==========================================
+  // 6. 搜索
+  // ==========================================
+
   // 搜索视频
   searchVideos(keyword, categoryId = null, page = 1, pageSize = 20) {
     return request({
@@ -225,24 +260,6 @@ export const userVideoApi = {
         page,
         pageSize
       }
-    })
-  },
-
-  // ========== 关注/粉丝相关 ==========
-  
-  // 获取关注列表（我关注的人）
-  getFollowingList() {
-    return request({
-      url: '/api/v1/user/following',
-      method: 'get'
-    })
-  },
-
-  // 获取粉丝列表（关注我的人）
-  getFansList() {
-    return request({
-      url: '/api/v1/user/fans',
-      method: 'get'
     })
   }
 }

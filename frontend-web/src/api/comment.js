@@ -1,11 +1,7 @@
 import request from '@/utils/request'
 
 export const commentApi = {
-    /**
-     * 获取视频的一级评论列表
-     * @param {Long} videoId
-     * @param {Object} params { limit, sort: 'hot'|'time' }
-     */
+    // 获取评论列表
     getComments(videoId, params) {
         return request({
             url: `/api/v1/video/${videoId}/comment`,
@@ -14,10 +10,7 @@ export const commentApi = {
         })
     },
 
-    /**
-     * 获取某条评论的子回复
-     * @param {Long} parentId
-     */
+    // 获取子回复
     getReplies(parentId, params) {
         return request({
             url: `/api/v1/video/comment/${parentId}/replies`,
@@ -26,10 +19,7 @@ export const commentApi = {
         })
     },
 
-    /**
-     * 发表评论或回复
-     * 注意：后端使用 @RequestParam 接收，所以这里用 params 传参
-     */
+    // 发表评论
     addComment(data) {
         return request({
             url: `/api/v1/video/${data.videoId}/comment`,
@@ -42,9 +32,7 @@ export const commentApi = {
         })
     },
 
-    /**
-     * 点赞评论
-     */
+    // 点赞评论
     likeComment(commentId) {
         return request({
             url: `/api/v1/video/comment/${commentId}/like`,
@@ -52,9 +40,15 @@ export const commentApi = {
         })
     },
 
-    /**
-     * 删除评论
-     */
+    // 【新增】取消点赞评论 (之前缺失这个导致报错)
+    unlikeComment(commentId) {
+        return request({
+            url: `/api/v1/video/comment/${commentId}/like`,
+            method: 'delete'
+        })
+    },
+
+    // 删除评论
     deleteComment(commentId) {
         return request({
             url: `/api/v1/video/comment/${commentId}`,

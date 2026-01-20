@@ -6,33 +6,19 @@ import java.util.List;
 
 public interface VideoCommentService {
 
-    /**
-     * 发表评论/回复
-     */
     VideoCommentDTO addComment(Long videoId, Long userId, String content, Long parentId, Long replyUserId);
 
-    /**
-     * 获取视频的一级评论 (DTO版)
-     */
-    List<VideoCommentDTO> getCommentsByVideoId(Long videoId, Integer limit);
+    // 修改：增加 currentUserId 参数用于判断点赞状态
+    List<VideoCommentDTO> getCommentsByVideoId(Long videoId, Integer limit, Long currentUserId);
 
-    /**
-     * 获取评论的子回复 (DTO版)
-     */
-    List<VideoCommentDTO> getRepliesByParentId(Long parentId, Integer limit);
+    List<VideoCommentDTO> getRepliesByParentId(Long parentId, Integer limit, Long currentUserId);
 
-    /**
-     * 【修复】加回此方法，供 UserController 调用 (查看我的评论)
-     */
     List<VideoComment> getCommentsByUserId(Long userId, Integer limit);
 
-    /**
-     * 删除评论
-     */
     boolean deleteComment(Long commentId, Long userId);
 
-    /**
-     * 点赞评论
-     */
     boolean likeComment(Long commentId, Long userId);
+
+    // 新增：取消点赞
+    boolean unlikeComment(Long commentId, Long userId);
 }
