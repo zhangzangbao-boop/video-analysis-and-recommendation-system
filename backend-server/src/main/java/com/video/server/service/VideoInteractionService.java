@@ -1,7 +1,6 @@
 package com.video.server.service;
 
-import com.video.server.entity.Video;
-
+import com.video.server.dto.VideoDTO; // 引入 DTO
 import java.util.List;
 
 /**
@@ -9,38 +8,22 @@ import java.util.List;
  */
 public interface VideoInteractionService {
 
-    /**
-     * 点赞视频
-     */
     boolean likeVideo(Long userId, Long videoId);
 
-    /**
-     * 取消点赞
-     */
     boolean unlikeVideo(Long userId, Long videoId);
 
-    /**
-     * 检查是否已点赞
-     */
     boolean isLiked(Long userId, Long videoId);
 
-    /**
-     * 获取用户的点赞列表
-     */
-    List<Video> getLikedVideos(Long userId, Integer limit);
+    List<VideoDTO> getLikedVideos(Long userId, Integer limit);
 
-    /**
-     * 收藏视频
-     */
     boolean collectVideo(Long userId, Long videoId);
 
-    /**
-     * 取消收藏
-     */
     boolean uncollectVideo(Long userId, Long videoId);
 
-    /**
-     * 【新增】检查是否已收藏
-     */
     boolean isCollected(Long userId, Long videoId);
+
+    /**
+     * 【新增】获取收藏视频列表
+     */
+    List<VideoDTO> getCollectedVideos(Long userId, Integer limit);
 }

@@ -366,6 +366,48 @@ object RedisUtil {
   }
 
   /**
+   * 增加ZSet成员的分数
+   * Jedis API: zincrby(String key, double score, String member)
+   * 注意：Jedis方法名是全小写的zincrby，不是zincrBy
+   */
+  def zincrBy(key: String, member: String, increment: Double): Double = {
+    getConnection match {
+      case Some(jedis) =>
+        try {
+          // Jedis的zincrby方法签名: zincrby(String key, double score, String member)
+          // 注意：方法名是全小写的zincrby
+          jedis.zincrby(key, increment, member)
+        } catch {
+          case e: Exception =>
+            println(s"Redis ZINCRBY失败: key=$key, member=$member, error=${e.getMessage}")
+            0.0
+        } finally {
+          closeConnection(jedis)
+        }
+      case None => 0.0
+    }
+  }
+
+  /**
+   * 按排名范围删除ZSet成员
+   */
+  def zremrangeByRank(key: String, start: Long, end: Long): Long = {
+    getConnection match {
+      case Some(jedis) =>
+        try {
+          jedis.zremrangeByRank(key, start, end)
+        } catch {
+          case e: Exception =>
+            println(s"Redis ZREMRANGEBYRANK失败: key=$key, error=${e.getMessage}")
+            0L
+        } finally {
+          closeConnection(jedis)
+        }
+      case None => 0L
+    }
+  }
+
+  /**
    * 删除Key
    */
   def deleteKey(key: String): Long = {

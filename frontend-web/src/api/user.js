@@ -23,10 +23,7 @@ export const userVideoApi = {
     return request({
       url: '/api/v1/video/recommend',
       method: 'get',
-      params: {
-        userId: userId || undefined,
-        limit
-      }
+      params: { userId: userId || undefined, limit }
     })
   },
 
@@ -44,10 +41,8 @@ export const userVideoApi = {
       url: '/api/v1/video/upload',
       method: 'post',
       data: formData,
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      },
-      timeout: 300000 // 5分钟超时
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 300000
     })
   },
 
@@ -60,126 +55,111 @@ export const userVideoApi = {
   },
 
   // ==========================================
-  // 2. 核心互动 (点赞/收藏/分享/举报)
+  // 2. 核心互动
   // ==========================================
 
-  // 点赞视频
   likeVideo(videoId) {
-    return request({
-      url: `/api/v1/video/${videoId}/like`,
-      method: 'post'
-    })
+    return request({ url: `/api/v1/video/${videoId}/like`, method: 'post' })
   },
 
-  // 取消点赞
   unlikeVideo(videoId) {
-    return request({
-      url: `/api/v1/video/${videoId}/like`,
-      method: 'delete'
-    })
+    return request({ url: `/api/v1/video/${videoId}/like`, method: 'delete' })
   },
 
-  // 检查点赞状态
   checkIsLiked(videoId) {
-    return request({
-      url: `/api/v1/video/${videoId}/like/status`,
-      method: 'get'
-    })
+    return request({ url: `/api/v1/video/${videoId}/like/status`, method: 'get' })
   },
 
-  // 收藏视频
   collectVideo(videoId, folderId = 0) {
-    return request({
-      url: `/api/v1/video/${videoId}/collect`,
-      method: 'post',
-      params: { folderId }
-    })
+    return request({ url: `/api/v1/video/${videoId}/collect`, method: 'post', params: { folderId } })
   },
 
-  // 取消收藏
   uncollectVideo(videoId) {
-    return request({
-      url: `/api/v1/video/${videoId}/collect`,
-      method: 'delete'
-    })
+    return request({ url: `/api/v1/video/${videoId}/collect`, method: 'delete' })
   },
 
-  // 检查收藏状态
   checkIsCollected(videoId) {
-    return request({
-      url: `/api/v1/video/${videoId}/collect/status`,
-      method: 'get'
-    })
+    return request({ url: `/api/v1/video/${videoId}/collect/status`, method: 'get' })
   },
 
-  // 分享上报 (增加分享数)
   shareVideo(videoId) {
-    return request({
-      url: `/api/v1/video/${videoId}/share`,
-      method: 'post'
-    })
+    return request({ url: `/api/v1/video/${videoId}/share`, method: 'post' })
   },
 
-  // 举报视频
   reportVideo(data) {
-    return request({
-      url: '/api/v1/video/report',
-      method: 'post',
-      data // { videoId, reason }
-    })
+    return request({ url: '/api/v1/video/report', method: 'post', data })
   },
 
-  // 记录播放历史 (埋点)
   recordPlay(videoId, duration, progress, isFinish) {
     return request({
       url: `/api/v1/video/${videoId}/play`,
       method: 'post',
-      data: {
-        duration,
-        progress,
-        isFinish
-      }
+      data: { duration, progress, isFinish }
     })
   },
 
   // ==========================================
-  // 3. 用户关系 (关注/取关)
+  // 3. 用户关系
   // ==========================================
 
-  // 关注用户
   followUser(userId) {
+    return request({ url: `/api/v1/user/follow/${userId}`, method: 'post' })
+  },
+
+  unfollowUser(userId) {
+    return request({ url: `/api/v1/user/follow/${userId}`, method: 'delete' })
+  },
+
+  checkIsFollowed(userId) {
+    return request({ url: `/api/v1/user/follow/${userId}/status`, method: 'get' })
+  },
+
+  getFollowingList() {
+    return request({ url: '/api/v1/user/following', method: 'get' })
+  },
+
+  getFansList() {
+    return request({ url: '/api/v1/user/fans', method: 'get' })
+  },
+
+  // ==========================================
+  // 4. 个人中心数据
+  // ==========================================
+
+  // 获取播放历史
+  getPlayHistory(pageSize = 20) {
     return request({
-      url: `/api/v1/user/follow/${userId}`,
-      method: 'post'
+      url: '/api/v1/user/history',
+      method: 'get',
+      params: { page: 1, pageSize }
     })
   },
 
-  // 取消关注
-  unfollowUser(userId) {
+  // 【新增】删除单条播放历史
+  deletePlayHistoryItem(videoId) {
     return request({
-      url: `/api/v1/user/follow/${userId}`,
+      url: `/api/v1/user/history/${videoId}`,
       method: 'delete'
     })
   },
 
-  // 检查关注状态
-  checkIsFollowed(userId) {
+  // 【新增】清空播放历史
+  clearPlayHistory() {
     return request({
-      url: `/api/v1/user/follow/${userId}/status`,
-      method: 'get'
+      url: '/api/v1/user/history',
+      method: 'delete'
     })
   },
 
-  // ==========================================
-  // 4. 个人中心数据 (【新增修复部分】)
-  // ==========================================
-
-  // 获取播放历史
-  getPlayHistory(page = 1, pageSize = 20) {
+  // 【新增】通用上传文件 (用于头像)
+  uploadFile(file) {
+    const formData = new FormData()
+    formData.append('file', file)
     return request({
-      url: '/api/v1/user/history',
-      method: 'get',
-      params: { page, pageSize }
+      url: '/api/v1/user/upload/file', // 对应后端新增的上传接口
+      method: 'post',
+      data: formData,
+      headers: { 'Content-Type': 'multipart/form-data' }
     })
   },
 
@@ -192,12 +172,31 @@ export const userVideoApi = {
     })
   },
 
-  // 获取我的作品 (我的视频)
-  getMyVideos(page = 1, pageSize = 20) {
+  // 【新增】获取收藏的视频 (需要后端支持 /api/v1/user/collects)
+  // 如果后端暂无此接口，暂时复用 likes 接口模拟，或者您需要随后添加后端接口
+  getCollectedVideos(page = 1, pageSize = 20) {
     return request({
-      url: '/api/v1/user/works', // 对应后端新增的接口
+      url: '/api/v1/user/collects', // 假设的接口路径
       method: 'get',
       params: { page, pageSize }
+    })
+  },
+
+  // 获取我的作品
+  getMyVideos(params) {
+    const { page = 1, pageSize = 20 } = params || {}
+    return request({
+      url: '/api/v1/user/works',
+      method: 'get',
+      params: { page, pageSize }
+    })
+  },
+
+  // 删除我的作品
+  deleteMyVideo(videoId) {
+    return request({
+      url: `/api/v1/video/${videoId}`,
+      method: 'delete'
     })
   },
 
@@ -205,74 +204,43 @@ export const userVideoApi = {
   // 5. 评论相关
   // ==========================================
 
-  // 添加评论
-  addComment(videoId, content, parentId = null) {
+  addComment(data) {
     return request({
-      url: `/api/v1/video/${videoId}/comment`,
+      url: `/api/v1/video/${data.videoId}/comment`,
       method: 'post',
-      params: {
-        content,
-        parentId
-      }
+      params: { content: data.content, parentId: data.parentId, replyUserId: data.replyUserId }
     })
   },
 
-  // 获取视频评论
   getComments(videoId, limit = 20) {
-    return request({
-      url: `/api/v1/video/${videoId}/comment`,
-      method: 'get',
-      params: { limit }
-    })
+    return request({ url: `/api/v1/video/${videoId}/comment`, method: 'get', params: { limit } })
   },
 
-  // 删除评论
   deleteComment(commentId) {
-    return request({
-      url: `/api/v1/video/comment/${commentId}`,
-      method: 'delete'
-    })
+    return request({ url: `/api/v1/video/comment/${commentId}`, method: 'delete' })
   },
 
-  // 获取用户的评论列表
   getMyComments(page = 1, pageSize = 20) {
-    return request({
-      url: '/api/v1/user/comments',
-      method: 'get',
-      params: { page, pageSize }
-    })
+    return request({ url: '/api/v1/user/comments', method: 'get', params: { page, pageSize } })
   },
 
   // ==========================================
   // 6. 用户信息与设置
   // ==========================================
 
-  // 获取当前用户信息
   getCurrentUser() {
-    return request({
-      url: '/api/v1/user/profile',
-      method: 'get'
-    })
+    return request({ url: '/api/v1/user/profile', method: 'get' })
   },
 
-  // 更新用户信息
   updateProfile(data) {
-    return request({
-      url: '/api/v1/user/profile',
-      method: 'put',
-      data
-    })
+    return request({ url: '/api/v1/user/profile', method: 'put', data })
   },
 
-  // 修改密码
   changePassword(oldPassword, newPassword) {
     return request({
       url: '/api/v1/user/password',
       method: 'put',
-      data: {
-        oldPassword,
-        newPassword
-      }
+      data: { oldPassword, newPassword }
     })
   },
 
@@ -280,17 +248,11 @@ export const userVideoApi = {
   // 7. 搜索
   // ==========================================
 
-  // 搜索视频
   searchVideos(keyword, categoryId = null, page = 1, pageSize = 20) {
     return request({
       url: '/api/v1/video/search',
       method: 'get',
-      params: {
-        keyword,
-        categoryId,
-        page,
-        pageSize
-      }
+      params: { keyword, categoryId, page, pageSize }
     })
   }
 }

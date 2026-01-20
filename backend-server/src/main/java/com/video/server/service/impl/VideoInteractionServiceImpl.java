@@ -1,6 +1,6 @@
 package com.video.server.service.impl;
 
-import com.video.server.entity.Video;
+import com.video.server.dto.VideoDTO; // 引入
 import com.video.server.entity.VideoInteraction;
 import com.video.server.mapper.VideoInteractionMapper;
 import com.video.server.mapper.VideoMapper;
@@ -8,14 +8,11 @@ import com.video.server.service.VideoInteractionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import com.video.server.entity.Video;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
-/**
- * 视频互动服务实现
- */
 @Service
 @RequiredArgsConstructor
 public class VideoInteractionServiceImpl implements VideoInteractionService {
@@ -31,13 +28,9 @@ public class VideoInteractionServiceImpl implements VideoInteractionService {
     @Override
     @Transactional
     public boolean likeVideo(Long userId, Long videoId) {
-        // 检查是否已点赞
         VideoInteraction existing = interactionMapper.selectByUserIdAndVideoIdAndType(userId, videoId, TYPE_LIKE);
-        if (existing != null) {
-            return false; // 已点赞
-        }
+        if (existing != null) return false;
 
-        // 创建点赞记录
         VideoInteraction interaction = new VideoInteraction();
         interaction.setUserId(userId);
         interaction.setVideoId(videoId);
@@ -45,9 +38,7 @@ public class VideoInteractionServiceImpl implements VideoInteractionService {
         interaction.setCreateTime(LocalDateTime.now());
         interactionMapper.insert(interaction);
 
-        // 增加视频点赞数
         videoMapper.incrementLikeCount(videoId);
-
         return true;
     }
 
@@ -56,7 +47,6 @@ public class VideoInteractionServiceImpl implements VideoInteractionService {
     public boolean unlikeVideo(Long userId, Long videoId) {
         int deleted = interactionMapper.delete(userId, videoId, TYPE_LIKE);
         if (deleted > 0) {
-            // 减少视频点赞数
             Video video = videoMapper.selectById(videoId);
             if (video != null && video.getLikeCount() != null && video.getLikeCount() > 0) {
                 video.setLikeCount(video.getLikeCount() - 1);
@@ -74,31 +64,22 @@ public class VideoInteractionServiceImpl implements VideoInteractionService {
     }
 
     @Override
-    public List<Video> getLikedVideos(Long userId, Integer limit) {
-        List<VideoInteraction> interactions = interactionMapper.selectLikesByUserId(userId, limit);
-        return interactions.stream()
-                .map(interaction -> videoMapper.selectById(interaction.getVideoId()))
-                .filter(video -> video != null)
-                .collect(Collectors.toList());
+    public List<VideoDTO> getLikedVideos(Long userId, Integer limit) {
+        return interactionMapper.selectLikedVideos(userId, limit);
     }
 
     @Override
     @Transactional
     public boolean collectVideo(Long userId, Long videoId) {
-        // 检查是否已收藏
         VideoInteraction existing = interactionMapper.selectByUserIdAndVideoIdAndType(userId, videoId, TYPE_COLLECT);
-        if (existing != null) {
-            return false; // 已收藏
-        }
+        if (existing != null) return false;
 
-        // 创建收藏记录
         VideoInteraction interaction = new VideoInteraction();
         interaction.setUserId(userId);
         interaction.setVideoId(videoId);
         interaction.setType(TYPE_COLLECT);
         interaction.setCreateTime(LocalDateTime.now());
         interactionMapper.insert(interaction);
-
         return true;
     }
 
@@ -109,12 +90,17 @@ public class VideoInteractionServiceImpl implements VideoInteractionService {
         return deleted > 0;
     }
 
-    /**
-     * 【新增】检查收藏状态实现
-     */
     @Override
     public boolean isCollected(Long userId, Long videoId) {
         VideoInteraction interaction = interactionMapper.selectByUserIdAndVideoIdAndType(userId, videoId, TYPE_COLLECT);
         return interaction != null;
+    }
+
+    /**
+     * 【新增】实现获取收藏视频
+     */
+    @Override
+    public List<VideoDTO> getCollectedVideos(Long userId, Integer limit) {
+        return interactionMapper.selectCollectedVideos(userId, limit);
     }
 }

@@ -1,5 +1,7 @@
 package com.shortvideo.recommendation.common
 
+import com.shortvideo.recommendation.common.utils.ConfigUtils
+
 /**
  * 常量定义类
  */
@@ -72,19 +74,45 @@ object Constants {
 
   // HDFS路径
   object HDFS {
-    val BASE_PATH = "hdfs://namenode:9000/shortvideo"
+    // 从配置文件读取基础路径，如果没有配置则使用默认值
+    // 默认使用本地文件系统路径，适合本地开发环境
+    val BASE_PATH: String = {
+      val configPath = ConfigUtils.getString("hdfs.base.path", "file:///tmp/shortvideo")
+      configPath
+    }
 
     // 数据层路径
-    val ODS_PATH = s"$BASE_PATH/ods"
-    val DWD_PATH = s"$BASE_PATH/dwd"
-    val DWS_PATH = s"$BASE_PATH/dws"
-    val ADS_PATH = s"$BASE_PATH/ads"
+    val ODS_PATH: String = {
+      val path = ConfigUtils.getString("hdfs.ods.path", s"$BASE_PATH/ods")
+      path
+    }
+    
+    val DWD_PATH: String = {
+      val path = ConfigUtils.getString("hdfs.dwd.path", s"$BASE_PATH/dwd")
+      path
+    }
+    
+    val DWS_PATH: String = {
+      val path = ConfigUtils.getString("hdfs.dws.path", s"$BASE_PATH/dws")
+      path
+    }
+    
+    val ADS_PATH: String = {
+      val path = ConfigUtils.getString("hdfs.ads.path", s"$BASE_PATH/ads")
+      path
+    }
 
     // 模型路径
-    val MODEL_PATH = s"$BASE_PATH/models"
+    val MODEL_PATH: String = {
+      val path = ConfigUtils.getString("hdfs.model.path", s"$BASE_PATH/models")
+      path
+    }
 
     // 日志路径
-    val LOG_PATH = s"$BASE_PATH/logs"
+    val LOG_PATH: String = {
+      val path = ConfigUtils.getString("hdfs.log.path", s"$BASE_PATH/logs")
+      path
+    }
   }
 
   // 用户行为类型

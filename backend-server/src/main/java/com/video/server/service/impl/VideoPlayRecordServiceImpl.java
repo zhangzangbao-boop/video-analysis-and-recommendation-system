@@ -68,4 +68,22 @@ public class VideoPlayRecordServiceImpl implements VideoPlayRecordService {
                 .distinct() // 再次去重，防止数据异常
                 .collect(Collectors.toList());
     }
+
+    /**
+     * 【新增】实现删除单条
+     */
+    @Override
+    @Transactional
+    public void deleteRecord(Long userId, Long videoId) {
+        playRecordMapper.deleteByUserIdAndVideoId(userId, videoId);
+    }
+
+    /**
+     * 【新增】实现清空
+     */
+    @Override
+    @Transactional
+    public void clearHistory(Long userId) {
+        playRecordMapper.deleteByUserId(userId);
+    }
 }
