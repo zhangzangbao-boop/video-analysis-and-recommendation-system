@@ -215,6 +215,23 @@ object DataGeneratorApp {
   private def saveToFlumeDirectory(logEntry: String): Unit = {
     // 1. 先保存到本地目录
     try {
+<<<<<<< HEAD
+      // 为每个日志条目创建唯一的临时文件，然后重命名以确保Flume能正确处理
+      val timestamp = System.currentTimeMillis()
+      val tempFileName = s"logs/temp_$timestamp.tmp"
+      val finalFileName = s"logs/user_behavior_${timestamp}.json"
+
+      // 先写入临时文件
+      val tempWriter = new BufferedWriter(new FileWriter(tempFileName))
+      tempWriter.write(logEntry)
+      tempWriter.close()
+
+      // 重命名文件，这样Flume的spooldir source能检测到新文件
+      val tempFile = new java.io.File(tempFileName)
+      val finalFile = new java.io.File(finalFileName)
+      tempFile.renameTo(finalFile)
+
+=======
       // 检查是否有参数指定生成到特定文件
       val flumeMode = sys.props.getOrElse("flume.mode", "spooldir") // 默认使用spooldir模式
       
@@ -259,6 +276,7 @@ object DataGeneratorApp {
           println(s"警告: 文件重命名失败，文件可能已存在或路径不可访问: ${finalFile.getAbsolutePath}")
         }
       }
+>>>>>>> c35d1770f455eebfae8352aa4d348a028d1b6042
     } catch {
       case ex: Exception =>
         println(s"保存到本地目录失败: ${ex.getMessage}")

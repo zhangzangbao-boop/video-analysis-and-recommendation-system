@@ -3,6 +3,7 @@ package com.video.server.service.impl;
 import com.video.server.constant.VideoStatus;
 import com.video.server.dto.PageResponse;
 import com.video.server.dto.VideoListRequest;
+import com.video.server.dto.VideoUploadRequest;
 import com.video.server.entity.Video;
 import com.video.server.entity.VideoCategory;
 import com.video.server.mapper.CategoryMapper;
@@ -13,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
@@ -50,10 +52,13 @@ public class VideoServiceImpl implements VideoService {
     }
 
     @Override
-    public PageResponse<Video> getVideoList(VideoListRequest request) {
-        // 修复点：确保状态转换正确
-        String status = convertStatus(request.getStatus());
+    public List<Video> getHotVideos() {
+        return getHotVideoList();
+    }
 
+    @Override
+    public PageResponse<Video> getVideoList(VideoListRequest request) {
+        String status = convertStatus(request.getStatus());
         int offset = (request.getPage() - 1) * request.getPageSize();
         List<Video> list = videoMapper.selectByCondition(request.getKeyword(), status, offset, request.getPageSize());
         Long total = videoMapper.countByCondition(request.getKeyword(), status);
@@ -70,7 +75,11 @@ public class VideoServiceImpl implements VideoService {
 
     @Override
     public Video getVideoById(Long videoId) {
-        return videoMapper.selectById(videoId);
+        Video video = videoMapper.selectById(videoId);
+        if (video != null) {
+            videoMapper.incrementPlayCount(videoId);
+        }
+        return video;
     }
 
     @Override
@@ -90,6 +99,11 @@ public class VideoServiceImpl implements VideoService {
             }
         }
         return videoMapper.selectByStatusOrderByPlayCountDesc("PASSED", limit);
+    }
+
+    @Override
+    public List<Video> getRecommendVideos(Long userId, Integer limit) {
+        return getRecommendVideoList(userId, limit);
     }
 
     @Override
@@ -152,20 +166,54 @@ public class VideoServiceImpl implements VideoService {
     }
 
     @Override
+    @Transactional
+    public void uploadVideo(VideoUploadRequest request, Long userId) {
+        Video video = new Video();
+        video.setId(com.video.server.utils.IdGenerator.nextId());
+        video.setAuthorId(userId);
+        video.setTitle(request.getTitle());
+        video.setDescription(request.getDescription());
+        video.setVideoUrl(request.getVideoUrl());
+        video.setCoverUrl(request.getCoverUrl());
+        video.setCategoryId(request.getCategoryId());
+        video.setTags(request.getTags());
+        video.setDuration(request.getDuration() != null ? request.getDuration() : 0);
+        video.setStatus(VideoStatus.PENDING);
+        video.setIsHot(0);
+        video.setPlayCount(0L);
+        video.setLikeCount(0L);
+        video.setCommentCount(0L);
+        video.setShareCount(0L);
+        video.setIsDeleted(0);
+        video.setCreateTime(LocalDateTime.now());
+        video.setUpdateTime(LocalDateTime.now());
+        videoMapper.insert(video);
+    }
+
+    @Override
     public List<VideoCategory> getCategories() {
         return categoryMapper.selectAll();
     }
 
-    // 🔥 核心修复：状态转换逻辑
+    @Override
+    public List<Video> searchVideos(String keyword, Integer categoryId, Integer page, Integer pageSize) {
+        int offset = (page - 1) * pageSize;
+        return videoMapper.searchVideos(keyword, categoryId, offset, pageSize);
+    }
+
+    /**
+     * 【新增】实现获取用户作品
+     */
+    @Override
+    public List<Video> getUserPublishedVideos(Long userId, Integer limit) {
+        return videoMapper.selectByAuthorId(userId, limit);
+    }
+
     private String convertStatus(String frontendStatus) {
         if (frontendStatus == null || "all".equalsIgnoreCase(frontendStatus)) return null;
-
-        // 兼容前端传来的大写 PENDING/PASSED/REJECTED
         if ("PENDING".equalsIgnoreCase(frontendStatus)) return VideoStatus.PENDING.name();
         if ("PASSED".equalsIgnoreCase(frontendStatus) || "PUBLISHED".equalsIgnoreCase(frontendStatus)) return VideoStatus.PASSED.name();
         if ("REJECTED".equalsIgnoreCase(frontendStatus) || "REMOVED".equalsIgnoreCase(frontendStatus)) return VideoStatus.REJECTED.name();
-
-        // 兼容旧的小写参数
         switch (frontendStatus.toLowerCase()) {
             case "pending": return VideoStatus.PENDING.name();
             case "published": return VideoStatus.PASSED.name();

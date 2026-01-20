@@ -41,16 +41,14 @@
 
     <update id="updateById">
         UPDATE video_info
-        SET title = #{title},
-            user_id = #{authorId},
-            cover_url = #{coverUrl},
-            video_url = #{videoUrl},
-            view_count = #{playCount},
-            like_count = #{likeCount},
-            comment_count = #{commentCount},
-            share_count = #{shareCount},
-            status = #{status, typeHandler=com.video.server.config.VideoStatusTypeHandler},
-            update_time = #{updateTime}
+        <set>
+            <if test="title != null">title = #{title},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="coverUrl != null">cover_url = #{coverUrl},</if>
+            <if test="playCount != null">view_count = #{playCount},</if>
+            <if test="likeCount != null">like_count = #{likeCount},</if>
+            <if test="commentCount != null">comment_count = #{commentCount},</if>
+        </set>
         WHERE id = #{id}
     </update>
 
@@ -104,6 +102,10 @@
         </if>
     </select>
 
+    <update id="incrementPlayCount">
+        UPDATE video_info SET view_count = view_count + 1 WHERE id = #{id}
+    </update>
+
     <update id="incrementLikeCount">
         UPDATE video_info SET like_count = like_count + 1 WHERE id = #{videoId}
     </update>
@@ -150,6 +152,27 @@
         SELECT COUNT(*) FROM video_info WHERE is_deleted = 0
         <if test="startTime != null">AND create_time &gt;= #{startTime}</if>
         <if test="endTime != null">AND create_time &lt;= #{endTime}</if>
+    </select>
+
+    <select id="selectByAuthorId" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM video_info
+        WHERE user_id = #{authorId} AND status = 1 AND is_deleted = 0
+        ORDER BY create_time DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="searchVideos" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/> FROM video_info
+        WHERE status = 1 AND is_deleted = 0
+        <if test="keyword != null and keyword != ''">
+            AND (title LIKE CONCAT('%', #{keyword}, '%') OR description LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <if test="categoryId != null">
+            AND category_id = #{categoryId}
+        </if>
+        ORDER BY create_time DESC
+        LIMIT #{limit} OFFSET #{offset}
     </select>
 
 </mapper>
