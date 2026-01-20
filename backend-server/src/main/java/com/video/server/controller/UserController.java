@@ -10,10 +10,7 @@ import com.video.server.entity.VideoComment;
 import com.video.server.exception.BusinessException;
 import com.video.server.mapper.UserFollowMapper;
 import com.video.server.mapper.UserMapper;
-import com.video.server.service.UserService;
-import com.video.server.service.VideoPlayRecordService;
-import com.video.server.service.VideoInteractionService;
-import com.video.server.service.VideoCommentService;
+import com.video.server.service.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.DigestUtils;
@@ -33,14 +30,15 @@ import java.util.UUID;
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RequiredArgsConstructor
 public class UserController {
-    
+
     private final UserService userService;
     private final UserMapper userMapper;
     private final UserFollowMapper userFollowMapper;
     private final VideoPlayRecordService playRecordService;
     private final VideoInteractionService interactionService;
     private final VideoCommentService commentService;
-    
+    private final VideoService videoService; // 新增注入：用于查询我的作品
+
     /**
      * 获取当前用户信息
      */
@@ -48,122 +46,80 @@ public class UserController {
     public ResponseEntity<ApiResponse<User>> getCurrentUser(HttpServletRequest request) {
         Long userId = getUserIdFromRequest(request);
         User user = userService.getUserById(userId);
-        // 清除敏感信息
-        user.setPassword(null);
-        user.setSalt(null);
+        if (user != null) {
+            user.setPassword(null);
+            user.setSalt(null);
+        }
         return ResponseEntity.ok(ApiResponse.success(user));
     }
-    
-    /**
-     * 更新用户信息
-     */
+
     @PutMapping("/profile")
-    public ResponseEntity<ApiResponse<User>> updateProfile(
-            @RequestBody UserUpdateRequest request,
-            HttpServletRequest httpRequest) {
+    public ResponseEntity<ApiResponse<User>> updateProfile(@RequestBody UserUpdateRequest request, HttpServletRequest httpRequest) {
         Long userId = getUserIdFromRequest(httpRequest);
         User user = userService.getUserById(userId);
-        
-        // 更新允许修改的字段
-        if (request.getNickname() != null) {
-            user.setNickname(request.getNickname());
-        }
-        if (request.getAvatarUrl() != null) {
-            user.setAvatarUrl(request.getAvatarUrl());
-        }
-        if (request.getRealName() != null) {
-            user.setRealName(request.getRealName());
-        }
-        if (request.getEmail() != null) {
-            user.setEmail(request.getEmail());
-        }
-        if (request.getGender() != null) {
-            user.setGender(request.getGender());
-        }
-        if (request.getBio() != null) {
-            user.setBio(request.getBio());
-        }
+        if (request.getNickname() != null) user.setNickname(request.getNickname());
+        if (request.getAvatarUrl() != null) user.setAvatarUrl(request.getAvatarUrl());
+        if (request.getRealName() != null) user.setRealName(request.getRealName());
+        if (request.getEmail() != null) user.setEmail(request.getEmail());
+        if (request.getGender() != null) user.setGender(request.getGender());
+        if (request.getBio() != null) user.setBio(request.getBio());
         user.setUpdateTime(LocalDateTime.now());
-        
-        // 更新数据库
         userMapper.updateById(user);
-        
-        // 清除敏感信息
         user.setPassword(null);
         user.setSalt(null);
         return ResponseEntity.ok(ApiResponse.success(user));
     }
-    
-    /**
-     * 修改密码
-     */
+
     @PutMapping("/password")
-    public ResponseEntity<ApiResponse<Void>> changePassword(
-            @RequestBody PasswordChangeRequest request,
-            HttpServletRequest httpRequest) {
+    public ResponseEntity<ApiResponse<Void>> changePassword(@RequestBody PasswordChangeRequest request, HttpServletRequest httpRequest) {
         Long userId = getUserIdFromRequest(httpRequest);
         User user = userService.getUserById(userId);
-        
-        // 验证旧密码
         if (!verifyPassword(request.getOldPassword(), user.getPassword(), user.getSalt())) {
             throw new BusinessException(400, "旧密码错误");
         }
-        
-        // 生成新盐值并加密新密码
         String newSalt = UUID.randomUUID().toString().replace("-", "");
         String encryptedPassword = encryptPassword(request.getNewPassword(), newSalt);
-        
-        // 更新密码
         userMapper.updatePasswordById(userId, encryptedPassword, newSalt);
-        
         return ResponseEntity.ok(ApiResponse.success());
     }
-    
-    /**
-     * 获取播放历史（使用真实的video_play_record表）
-     */
+
+    // 播放历史
     @GetMapping("/history")
-    public ResponseEntity<ApiResponse<List<Video>>> getPlayHistory(
-            @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "20") Integer pageSize,
-            HttpServletRequest request) {
+    public ResponseEntity<ApiResponse<List<Video>>> getPlayHistory(@RequestParam(defaultValue = "1") Integer page, @RequestParam(defaultValue = "20") Integer pageSize, HttpServletRequest request) {
         Long userId = getUserIdFromRequest(request);
-        
-        // 使用真实的播放记录服务
         List<Video> videos = playRecordService.getPlayHistory(userId, pageSize);
         return ResponseEntity.ok(ApiResponse.success(videos));
     }
-    
-    /**
-     * 获取点赞记录（使用真实的video_interaction表）
-     */
+
+    // 点赞记录
     @GetMapping("/likes")
-    public ResponseEntity<ApiResponse<List<Video>>> getLikes(
-            @RequestParam(defaultValue = "1") Integer page,
-            @RequestParam(defaultValue = "20") Integer pageSize,
-            HttpServletRequest request) {
+    public ResponseEntity<ApiResponse<List<Video>>> getLikes(@RequestParam(defaultValue = "1") Integer page, @RequestParam(defaultValue = "20") Integer pageSize, HttpServletRequest request) {
         Long userId = getUserIdFromRequest(request);
-        
-        // 使用真实的互动服务
         List<Video> videos = interactionService.getLikedVideos(userId, pageSize);
         return ResponseEntity.ok(ApiResponse.success(videos));
     }
-    
-    /**
-     * 获取评论记录（使用真实的video_comment表）
-     */
+
+    // 评论记录
     @GetMapping("/comments")
-    public ResponseEntity<ApiResponse<List<VideoComment>>> getComments(
+    public ResponseEntity<ApiResponse<List<VideoComment>>> getComments(@RequestParam(defaultValue = "1") Integer page, @RequestParam(defaultValue = "20") Integer pageSize, HttpServletRequest request) {
+        Long userId = getUserIdFromRequest(request);
+        List<VideoComment> comments = commentService.getCommentsByUserId(userId, pageSize);
+        return ResponseEntity.ok(ApiResponse.success(comments));
+    }
+
+    /**
+     * 【新增】获取我的作品
+     */
+    @GetMapping("/works")
+    public ResponseEntity<ApiResponse<List<Video>>> getMyWorks(
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "20") Integer pageSize,
             HttpServletRequest request) {
         Long userId = getUserIdFromRequest(request);
-        
-        // 使用真实的评论服务
-        List<VideoComment> comments = commentService.getCommentsByUserId(userId, pageSize);
-        return ResponseEntity.ok(ApiResponse.success(comments));
+        List<Video> videos = videoService.getUserPublishedVideos(userId, pageSize);
+        return ResponseEntity.ok(ApiResponse.success(videos));
     }
-    
+
     /**
      * 关注用户
      */
@@ -172,31 +128,28 @@ public class UserController {
             @PathVariable Long followUserId,
             HttpServletRequest request) {
         Long userId = getUserIdFromRequest(request);
-        
+
         if (userId.equals(followUserId)) {
             throw new BusinessException(400, "不能关注自己");
         }
-        
-        // 检查是否已关注
+
         UserFollow existing = userFollowMapper.selectByUserIdAndFollowUserId(userId, followUserId);
         if (existing != null) {
             throw new BusinessException(400, "已经关注过该用户");
         }
-        
-        // 创建关注关系
+
         UserFollow follow = new UserFollow();
         follow.setUserId(userId);
         follow.setFollowUserId(followUserId);
         follow.setCreateTime(LocalDateTime.now());
         userFollowMapper.insert(follow);
-        
-        // 更新关注数和粉丝数
+
         updateFollowCount(userId, 1);
         updateFansCount(followUserId, 1);
-        
+
         return ResponseEntity.ok(ApiResponse.success());
     }
-    
+
     /**
      * 取消关注
      */
@@ -205,22 +158,20 @@ public class UserController {
             @PathVariable Long followUserId,
             HttpServletRequest request) {
         Long userId = getUserIdFromRequest(request);
-        
-        // 删除关注关系
+
         int deleted = userFollowMapper.deleteByUserIdAndFollowUserId(userId, followUserId);
         if (deleted > 0) {
-            // 更新关注数和粉丝数
             updateFollowCount(userId, -1);
             updateFansCount(followUserId, -1);
         }
-        
+
         return ResponseEntity.ok(ApiResponse.success());
     }
-    
+
     /**
      * 检查是否已关注
      */
-    @GetMapping("/follow/{followUserId}")
+    @GetMapping("/follow/{followUserId}/status")
     public ResponseEntity<ApiResponse<Boolean>> isFollowing(
             @PathVariable Long followUserId,
             HttpServletRequest request) {
@@ -228,9 +179,9 @@ public class UserController {
         UserFollow follow = userFollowMapper.selectByUserIdAndFollowUserId(userId, followUserId);
         return ResponseEntity.ok(ApiResponse.success(follow != null));
     }
-    
+
     /**
-     * 获取关注列表（我关注的人）
+     * 获取关注列表
      */
     @GetMapping("/following")
     public ResponseEntity<ApiResponse<List<User>>> getFollowingList(HttpServletRequest request) {
@@ -238,9 +189,9 @@ public class UserController {
         List<User> followingList = userFollowMapper.selectFollowingList(userId);
         return ResponseEntity.ok(ApiResponse.success(followingList));
     }
-    
+
     /**
-     * 获取粉丝列表（关注我的人）
+     * 获取粉丝列表
      */
     @GetMapping("/fans")
     public ResponseEntity<ApiResponse<List<User>>> getFansList(HttpServletRequest request) {
@@ -248,10 +199,9 @@ public class UserController {
         List<User> fansList = userFollowMapper.selectFansList(userId);
         return ResponseEntity.ok(ApiResponse.success(fansList));
     }
-    
-    /**
-     * 更新用户关注数
-     */
+
+    // --- 辅助方法 ---
+
     private void updateFollowCount(Long userId, int delta) {
         User user = userMapper.selectById(userId);
         if (user != null) {
@@ -260,10 +210,7 @@ public class UserController {
             userMapper.updateById(user);
         }
     }
-    
-    /**
-     * 更新用户粉丝数
-     */
+
     private void updateFansCount(Long userId, int delta) {
         User user = userMapper.selectById(userId);
         if (user != null) {
@@ -272,10 +219,7 @@ public class UserController {
             userMapper.updateById(user);
         }
     }
-    
-    /**
-     * 从请求中获取用户ID
-     */
+
     private Long getUserIdFromRequest(HttpServletRequest request) {
         Object userIdObj = request.getAttribute("userId");
         if (userIdObj == null) {
@@ -283,19 +227,13 @@ public class UserController {
         }
         return (Long) userIdObj;
     }
-    
-    /**
-     * 验证密码
-     */
+
     private boolean verifyPassword(String inputPassword, String storedPassword, String salt) {
         String saltedPassword = inputPassword + salt;
         String hashedPassword = DigestUtils.md5DigestAsHex(saltedPassword.getBytes(StandardCharsets.UTF_8));
         return hashedPassword.equals(storedPassword);
     }
-    
-    /**
-     * 加密密码
-     */
+
     private String encryptPassword(String password, String salt) {
         String saltedPassword = password + salt;
         return DigestUtils.md5DigestAsHex(saltedPassword.getBytes(StandardCharsets.UTF_8));

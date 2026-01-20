@@ -48,4 +48,26 @@ public interface VideoMapper extends BaseMapper<Video> {
 
     Long countByConditionForOffline(@Param("startTime") java.time.LocalDateTime startTime,
                                     @Param("endTime") java.time.LocalDateTime endTime);
+
+    /**
+     * 【新增】查询用户发布的作品
+     */
+    List<Video> selectByAuthorId(@Param("authorId") Long authorId, @Param("limit") Integer limit);
+
+    // ==========================================
+    // 【核心修复】补全缺失的方法定义
+    // ==========================================
+
+    /**
+     * 增加播放量
+     */
+    void incrementPlayCount(@Param("id") Long id);
+
+    /**
+     * 搜索视频 (前台搜索用)
+     */
+    List<Video> searchVideos(@Param("keyword") String keyword,
+                             @Param("categoryId") Integer categoryId,
+                             @Param("offset") Integer offset,
+                             @Param("limit") Integer limit);
 }
