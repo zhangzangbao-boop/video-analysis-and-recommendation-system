@@ -1,5 +1,6 @@
 package com.video.server.service.impl;
 
+import com.video.server.dto.VideoCommentDTO;
 import com.video.server.entity.Video;
 import com.video.server.entity.VideoComment;
 import com.video.server.mapper.VideoCommentMapper;
@@ -13,77 +14,81 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * 视频评论服务实现
- */
 @Service
 @RequiredArgsConstructor
 public class VideoCommentServiceImpl implements VideoCommentService {
-    
+
     private final VideoCommentMapper commentMapper;
     private final VideoMapper videoMapper;
-    
+
     @Override
     @Transactional
-    public VideoComment addComment(Long videoId, Long userId, String content, Long parentId, Long replyUserId) {
+    public VideoCommentDTO addComment(Long videoId, Long userId, String content, Long parentId, Long replyUserId) {
         VideoComment comment = new VideoComment();
-        comment.setId(IdGenerator.nextId());
+        long id = IdGenerator.nextId();
+        comment.setId(id);
         comment.setVideoId(videoId);
         comment.setUserId(userId);
         comment.setContent(content);
         comment.setParentId(parentId != null ? parentId : 0L);
         comment.setReplyUserId(replyUserId);
         comment.setLikeCount(0);
-        comment.setStatus(1); // 1-正常
+        comment.setStatus(1);
         comment.setIsDeleted(0);
         comment.setCreateTime(LocalDateTime.now());
-        
+
         commentMapper.insert(comment);
-        
-        // 更新视频评论数
+
         Video video = videoMapper.selectById(videoId);
         if (video != null) {
-            Long commentCount = commentMapper.countByVideoId(videoId);
-            video.setCommentCount(commentCount);
+            Long count = commentMapper.countByVideoId(videoId);
+            video.setCommentCount(count);
             videoMapper.updateById(video);
         }
-        
-        return comment;
+
+        return commentMapper.selectDTOById(id);
     }
-    
+
     @Override
-    public List<VideoComment> getCommentsByVideoId(Long videoId, Integer limit) {
-        return commentMapper.selectByVideoId(videoId, limit);
+    public List<VideoCommentDTO> getCommentsByVideoId(Long videoId, Integer limit) {
+        return commentMapper.selectDTOByVideoId(videoId, limit);
     }
-    
+
     @Override
-    public List<VideoComment> getRepliesByParentId(Long parentId, Integer limit) {
-        return commentMapper.selectByParentId(parentId, limit);
+    public List<VideoCommentDTO> getRepliesByParentId(Long parentId, Integer limit) {
+        return commentMapper.selectDTOByParentId(parentId, limit);
     }
-    
+
+    /**
+     * 【修复】实现加回的方法
+     */
     @Override
     public List<VideoComment> getCommentsByUserId(Long userId, Integer limit) {
         return commentMapper.selectByUserId(userId, limit);
     }
-    
+
     @Override
     @Transactional
     public boolean deleteComment(Long commentId, Long userId) {
         VideoComment comment = commentMapper.selectById(commentId);
         if (comment == null || !comment.getUserId().equals(userId)) {
-            return false; // 评论不存在或无权删除
+            return false;
         }
-        
         commentMapper.deleteById(commentId);
-        
-        // 更新视频评论数
-        Video video = videoMapper.selectById(comment.getVideoId());
-        if (video != null) {
-            Long commentCount = commentMapper.countByVideoId(comment.getVideoId());
-            video.setCommentCount(commentCount);
-            videoMapper.updateById(video);
-        }
-        
+
+        Long count = commentMapper.countByVideoId(comment.getVideoId());
+        Video video = new Video();
+        video.setId(comment.getVideoId());
+        video.setCommentCount(count);
+        videoMapper.updateById(video);
+
         return true;
+    }
+
+    @Override
+    @Transactional
+    public boolean likeComment(Long commentId, Long userId) {
+        int rows = commentMapper.updateLikeCount(commentId, 1);
+        return rows > 0;
     }
 }

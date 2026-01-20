@@ -15,71 +15,90 @@
         <result column="create_time" property="createTime"/>
     </resultMap>
 
-    <sql id="Base_Column_List">
-        id, video_id, user_id, content, parent_id, reply_user_id, like_count, status, is_deleted, create_time
-    </sql>
+    <resultMap id="DTOResultMap" type="com.video.server.dto.VideoCommentDTO" extends="BaseResultMap">
+        <result column="nickname" property="nickname"/>
+        <result column="avatar_url" property="avatarUrl"/>
+        <result column="reply_nickname" property="replyNickname"/>
+    </resultMap>
 
     <insert id="insert">
         INSERT INTO video_comment (id, video_id, user_id, content, parent_id, reply_user_id, like_count, status, is_deleted, create_time)
         VALUES (#{id}, #{videoId}, #{userId}, #{content}, #{parentId}, #{replyUserId}, #{likeCount}, #{status}, #{isDeleted}, #{createTime})
     </insert>
 
+    <update id="deleteById">
+        UPDATE video_comment SET is_deleted = 1 WHERE id = #{id}
+    </update>
+
     <select id="selectById" resultMap="BaseResultMap">
-        SELECT
-        <include refid="Base_Column_List"/>
-        FROM video_comment
-        WHERE id = #{id} AND is_deleted = 0
+        SELECT * FROM video_comment WHERE id = #{id}
     </select>
 
-    <select id="selectByVideoId" resultMap="BaseResultMap">
+    <select id="countByVideoId" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM video_comment WHERE video_id = #{videoId} AND is_deleted = 0 AND status = 1
+    </select>
+
+    <select id="selectDTOById" resultMap="DTOResultMap">
         SELECT
-        <include refid="Base_Column_List"/>
-        FROM video_comment
-        WHERE video_id = #{videoId} AND parent_id = 0 AND status = 1 AND is_deleted = 0
-        ORDER BY create_time DESC
+            c.*,
+            u.nickname,
+            u.avatar_url,
+            ru.nickname AS reply_nickname
+        FROM video_comment c
+                 LEFT JOIN sys_user u ON c.user_id = u.id
+                 LEFT JOIN sys_user ru ON c.reply_user_id = ru.id
+        WHERE c.id = #{id}
+    </select>
+
+    <select id="selectDTOByVideoId" resultMap="DTOResultMap">
+        SELECT
+        c.*,
+        u.nickname,
+        u.avatar_url
+        FROM video_comment c
+        LEFT JOIN sys_user u ON c.user_id = u.id
+        WHERE c.video_id = #{videoId}
+        AND c.parent_id = 0
+        AND c.status = 1
+        AND c.is_deleted = 0
+        ORDER BY c.create_time DESC
         <if test="limit != null">
             LIMIT #{limit}
         </if>
     </select>
 
-    <select id="selectByParentId" resultMap="BaseResultMap">
+    <select id="selectDTOByParentId" resultMap="DTOResultMap">
         SELECT
-        <include refid="Base_Column_List"/>
-        FROM video_comment
-        WHERE parent_id = #{parentId} AND status = 1 AND is_deleted = 0
-        ORDER BY create_time ASC
+        c.*,
+        u.nickname,
+        u.avatar_url,
+        ru.nickname AS reply_nickname
+        FROM video_comment c
+        LEFT JOIN sys_user u ON c.user_id = u.id
+        LEFT JOIN sys_user ru ON c.reply_user_id = ru.id
+        WHERE c.parent_id = #{parentId}
+        AND c.status = 1
+        AND c.is_deleted = 0
+        ORDER BY c.create_time ASC
         <if test="limit != null">
             LIMIT #{limit}
         </if>
     </select>
 
     <select id="selectByUserId" resultMap="BaseResultMap">
-        SELECT
-        <include refid="Base_Column_List"/>
-        FROM video_comment
-        WHERE user_id = #{userId} AND is_deleted = 0
+        SELECT * FROM video_comment
+        WHERE user_id = #{userId}
+        AND is_deleted = 0
         ORDER BY create_time DESC
         <if test="limit != null">
             LIMIT #{limit}
         </if>
     </select>
 
-    <update id="deleteById">
-        UPDATE video_comment
-        SET is_deleted = 1
-        WHERE id = #{id}
-    </update>
-
     <update id="updateLikeCount">
         UPDATE video_comment
         SET like_count = like_count + #{delta}
         WHERE id = #{id}
     </update>
-
-    <select id="countByVideoId" resultType="java.lang.Long">
-        SELECT COUNT(*)
-        FROM video_comment
-        WHERE video_id = #{videoId} AND status = 1 AND is_deleted = 0
-    </select>
 
 </mapper>
