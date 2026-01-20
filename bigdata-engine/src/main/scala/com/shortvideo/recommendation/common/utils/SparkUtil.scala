@@ -5,6 +5,7 @@ import org.apache.spark.streaming.{StreamingContext, Seconds}
 import org.apache.spark.SparkConf
 import com.shortvideo.recommendation.common.Constants
 import com.shortvideo.recommendation.common.config.SparkConfig
+import java.io.File
 
 /**
  * Spark工具类
@@ -12,10 +13,24 @@ import com.shortvideo.recommendation.common.config.SparkConfig
 object SparkUtil {
 
   /**
+   * 确保日志目录存在
+   */
+  private def ensureLogDirectory(): Unit = {
+    val logDir = new File("logs")
+    if (!logDir.exists()) {
+      logDir.mkdirs()
+      println(s"创建日志目录: ${logDir.getAbsolutePath}")
+    }
+  }
+
+  /**
    * 创建SparkSession（批处理）
    */
   def createSparkSession(appName: String = Constants.APP_NAME,
                          master: String = "local[*]"): SparkSession = {
+    
+    // 确保日志目录存在
+    ensureLogDirectory()
 
     val sparkConf = new SparkConf()
       .setAppName(appName)
@@ -56,6 +71,9 @@ object SparkUtil {
    */
   def createStreamingContext(appName: String = Constants.APP_NAME,
                              batchDuration: Int = 10): StreamingContext = {
+    
+    // 确保日志目录存在
+    ensureLogDirectory()
 
     val sparkConf = new SparkConf()
       .setAppName(appName)
@@ -77,6 +95,9 @@ object SparkUtil {
    * 从配置创建SparkSession
    */
   def createSparkSessionFromConfig(config: SparkConfig): SparkSession = {
+    // 确保日志目录存在
+    ensureLogDirectory()
+    
     val sparkConf = new SparkConf()
 
     // 设置基础配置

@@ -13,6 +13,8 @@
     <maven.compiler.target>8</maven.compiler.target>
     <scala.version>2.12.10</scala.version>
     <spark.version>3.1.1</spark.version>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
   </properties>
 
 
@@ -145,8 +147,8 @@
   </dependencies>
 
   <build>
+    <defaultGoal>clean install</defaultGoal>
     <resources>
-
       <resource>
         <directory>src/main/resources</directory>
         <filtering>true</filtering>
@@ -158,9 +160,19 @@
         <directory>src/test/resources</directory>
         <filtering>true</filtering>
       </testResource>
-
     </testResources>
     <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-resources-plugin</artifactId>
+        <version>3.3.1</version>
+        <configuration>
+          <encoding>UTF-8</encoding>
+          <nonFilteredFileExtensions>
+            <nonFilteredFileExtension>conf</nonFilteredFileExtension>
+          </nonFilteredFileExtensions>
+        </configuration>
+      </plugin>
       <plugin>
         <groupId>net.alchim31.maven</groupId>
         <artifactId>scala-maven-plugin</artifactId>
@@ -211,4 +223,3 @@
   </build>
 
 </project>
-

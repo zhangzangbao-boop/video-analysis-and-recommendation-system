@@ -3,6 +3,7 @@ package com.shortvideo.recommendation.datagenerator
 import java.io.{BufferedWriter, FileWriter}
 import java.util.concurrent.{Executors, ScheduledExecutorService, TimeUnit}
 import com.shortvideo.recommendation.common.entity.UserBehavior
+import com.shortvideo.recommendation.common.utils.HDFSUtil
 import scala.io.StdIn
 import java.io.File
 
@@ -21,20 +22,33 @@ object DataGeneratorApp {
     
     val choice = StdIn.readLine("请输入选择 (1/2/3): ").trim
     
-    // 确保日志目录存在
-    val logDir = new File("logs")
+    // 确保日志目录存在 (生成到bigdata-engine/logs下)
+    val logDir = new File("bigdata-engine/logs")
     if (!logDir.exists()) {
       logDir.mkdirs()
-      println("创建日志目录: logs")
+      println(s"创建日志目录: ${logDir.getAbsolutePath}")
     }
     
-    choice match {
-      case "1" => generateByCount()
-      case "2" => generateByTime()
-      case "3" => generateRealTime()
-      case _ => 
-        println("无效选择，使用默认模式: 按数量生成")
-        generateByCount()
+    // 检查HDFS是否可用
+    if (HDFSUtil.isHDFSAvailable()) {
+      println("[INFO] HDFS连接正常，日志将同步到HDFS")
+    } else {
+      println("[WARNING] HDFS不可用，日志将仅保存到本地")
+      println("[TIP] 请确保Hadoop HDFS服务已启动 (start-dfs.cmd)")
+    }
+    
+    try {
+      choice match {
+        case "1" => generateByCount()
+        case "2" => generateByTime()
+        case "3" => generateRealTime()
+        case _ => 
+          println("无效选择，使用默认模式: 按数量生成")
+          generateByCount()
+      }
+    } finally {
+      // 关闭HDFS连接
+      HDFSUtil.close()
     }
   }
   
@@ -196,9 +210,10 @@ object DataGeneratorApp {
   }
   
   /**
-   * 保存到Flume监控的目录
+   * 保存到本地日志目录和HDFS
    */
   private def saveToFlumeDirectory(logEntry: String): Unit = {
+    // 1. 先保存到本地目录
     try {
       // 检查是否有参数指定生成到特定文件
       val flumeMode = sys.props.getOrElse("flume.mode", "spooldir") // 默认使用spooldir模式
@@ -211,9 +226,15 @@ object DataGeneratorApp {
         writer.close()
       } else {
         // spooldir模式：为每个日志条目创建唯一的临时文件，然后重命名以确保Flume能正确处理
+        // 确保目录存在
+        val logDir = new File("bigdata-engine/logs")
+        if (!logDir.exists()) {
+          logDir.mkdirs()
+        }
+        
         val timestamp = System.currentTimeMillis()
-        val tempFileName = s"logs/temp_$timestamp.tmp"
-        val finalFileName = s"logs/user_behavior_${timestamp}.json"
+        val tempFileName = s"bigdata-engine/logs/temp_$timestamp.tmp"
+        val finalFileName = s"bigdata-engine/logs/user_behavior_${timestamp}.json"
         
         // 先写入临时文件
         val tempWriter = new BufferedWriter(new FileWriter(tempFileName))
@@ -223,11 +244,25 @@ object DataGeneratorApp {
         // 重命名文件，这样Flume的spooldir source能检测到新文件
         val tempFile = new java.io.File(tempFileName)
         val finalFile = new java.io.File(finalFileName)
-        tempFile.renameTo(finalFile)
+        if (tempFile.renameTo(finalFile)) {
+          println(s"[SUCCESS] 日志已保存到本地: ${finalFile.getAbsolutePath}")
+          
+          // 2. 同步到HDFS（不阻塞主流程）
+          try {
+            HDFSUtil.writeLogToHDFS(logEntry, Some(finalFile.getName))
+          } catch {
+            case ex: Exception =>
+              // HDFS同步失败不影响本地保存，只输出警告
+              // 异常已在HDFSUtil中处理，这里不再打印
+          }
+        } else {
+          println(s"警告: 文件重命名失败，文件可能已存在或路径不可访问: ${finalFile.getAbsolutePath}")
+        }
       }
     } catch {
       case ex: Exception =>
-        println(s"保存到Flume目录失败: ${ex.getMessage}")
+        println(s"保存到本地目录失败: ${ex.getMessage}")
+        ex.printStackTrace()
     }
   }
 }

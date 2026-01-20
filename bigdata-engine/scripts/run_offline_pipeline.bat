@@ -16,6 +16,8 @@ set "BASE_DIR=%cd%"
 set "JAR_PATH=%BASE_DIR%\target\spark-example-1.0-jar-with-dependencies.jar"
 set "LOG_DIR=%BASE_DIR%\logs\pipeline"
 
+:: 确保日志目录存在
+if not exist "%BASE_DIR%\logs" mkdir "%BASE_DIR%\logs"
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 
 set "CURRENT_DATE=%date:~0,4%%date:~5,2%%date:~8,2%"
