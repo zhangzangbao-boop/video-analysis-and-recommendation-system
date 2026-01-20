@@ -5,7 +5,7 @@ import org.apache.spark.streaming.{StreamingContext, Seconds}
 import org.apache.spark.SparkConf
 import com.shortvideo.recommendation.common.Constants
 import com.shortvideo.recommendation.common.config.SparkConfig
-import com.shortvideo.recommendation.common.utils.ConfigUtils
+import java.io.File
 
 /**
  * Spark工具类
@@ -13,10 +13,24 @@ import com.shortvideo.recommendation.common.utils.ConfigUtils
 object SparkUtil {
 
   /**
+   * 确保日志目录存在
+   */
+  private def ensureLogDirectory(): Unit = {
+    val logDir = new File("logs")
+    if (!logDir.exists()) {
+      logDir.mkdirs()
+      println(s"创建日志目录: ${logDir.getAbsolutePath}")
+    }
+  }
+
+  /**
    * 创建SparkSession（批处理）
    */
   def createSparkSession(appName: String = Constants.APP_NAME,
                          master: String = "local[*]"): SparkSession = {
+    
+    // 确保日志目录存在
+    ensureLogDirectory()
 
     val sparkConf = new SparkConf()
       .setAppName(appName)
@@ -57,10 +71,12 @@ object SparkUtil {
    */
   def createStreamingContext(appName: String = Constants.APP_NAME,
                              batchDuration: Int = 10): StreamingContext = {
+    
+    // 确保日志目录存在
+    ensureLogDirectory()
 
     val sparkConf = new SparkConf()
       .setAppName(appName)
-      .setMaster("local[*]")
       .set("spark.streaming.backpressure.enabled", "true")
       .set("spark.streaming.kafka.maxRatePerPartition", "1000")
       .set("spark.streaming.stopGracefullyOnShutdown", "true")
@@ -69,22 +85,8 @@ object SparkUtil {
     val ssc = new StreamingContext(sparkConf, Seconds(batchDuration))
 
     // 设置检查点
-    // 优先使用配置文件中的checkpoint路径，如果没有则使用默认路径
-    val checkpointPath = if (ConfigUtils.getBoolean("app.checkpoint.enabled", true)) {
-      val configPath = ConfigUtils.getString("app.checkpoint.path", "")
-      if (configPath.nonEmpty) {
-        s"$configPath/$appName"
-      } else {
-        // 如果配置文件中没有设置，使用HDFS.LOG_PATH（已经从配置文件读取）
-        s"${Constants.HDFS.LOG_PATH}/checkpoint/$appName"
-      }
-    } else {
-      // 如果checkpoint被禁用，使用临时路径
-      s"file:///tmp/shortvideo/checkpoint/$appName"
-    }
-    
+    val checkpointPath = s"${Constants.HDFS.LOG_PATH}/checkpoint/$appName"
     ssc.checkpoint(checkpointPath)
-    println(s"StreamingContext checkpoint路径设置为: $checkpointPath")
 
     ssc
   }
@@ -93,6 +95,9 @@ object SparkUtil {
    * 从配置创建SparkSession
    */
   def createSparkSessionFromConfig(config: SparkConfig): SparkSession = {
+    // 确保日志目录存在
+    ensureLogDirectory()
+    
     val sparkConf = new SparkConf()
 
     // 设置基础配置

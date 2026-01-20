@@ -13,9 +13,16 @@ setlocal
 cd /d %~dp0..
 set "BASE_DIR=%cd%"
 :: 确保这里的 jar 包名称和你 pom.xml 里的 artifactId/version 对应
-set "JAR_PATH=%BASE_DIR%\target\spark-example-1.0-jar-with-dependencies.jar"
+set "JAR_PATH=%BASE_DIR%\target\bigdata-engine-1.0-jar-with-dependencies.jar"
 set "LOG_DIR=%BASE_DIR%\logs\pipeline"
 
+:: 配置 HDFS 相关环境变量（如果需要）
+if "%HADOOP_HOME%"=="" (
+    echo [WARN] HADOOP_HOME 未设置，将使用 Spark 内置的 Hadoop 客户端
+)
+
+:: 确保日志目录存在
+if not exist "%BASE_DIR%\logs" mkdir "%BASE_DIR%\logs"
 if not exist "%LOG_DIR%" mkdir "%LOG_DIR%"
 
 set "CURRENT_DATE=%date:~0,4%%date:~5,2%%date:~8,2%"
@@ -68,11 +75,15 @@ echo        类名: %CLASS_NAME%
 :: 这里的参数说明:
 :: --master local[*] : 本地多线程运行
 :: --driver-memory 2G : 确保内存足够
+:: 配置 HDFS 相关参数
 call spark-submit ^
   --class "%CLASS_NAME%" ^
   --master local[*] ^
   --driver-memory 2G ^
   --executor-memory 2G ^
+  --conf "spark.hadoop.fs.defaultFS=hdfs://localhost:9000" ^
+  --conf "spark.hadoop.dfs.client.use.datanode.hostname=false" ^
+  --conf "spark.hadoop.dfs.replication=1" ^
   "%JAR_PATH%" >> "%LOG_FILE%" 2>&1
 
 if %errorlevel% equ 0 (
