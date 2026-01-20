@@ -22,7 +22,7 @@ object ALSTrainer {
       .appName("ShortVideoALSRecommendation")
       // 生产环境通常由 spark-submit 指定 master，这里保留 local[*] 方便调试
       .master("local[*]")
-      .config("spark.sql.shuffle.partitions", "100")
+      .config("spark.hadoop.fs.defaultFS", "hdfs://localhost:9000")
       .getOrCreate()
 
     import spark.implicits._

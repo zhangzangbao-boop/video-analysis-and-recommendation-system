@@ -5,6 +5,7 @@ import org.apache.spark.streaming.{StreamingContext, Seconds}
 import org.apache.spark.SparkConf
 import com.shortvideo.recommendation.common.Constants
 import com.shortvideo.recommendation.common.config.SparkConfig
+import com.shortvideo.recommendation.common.utils.ConfigUtils
 
 /**
  * Spark工具类
@@ -59,6 +60,7 @@ object SparkUtil {
 
     val sparkConf = new SparkConf()
       .setAppName(appName)
+      .setMaster("local[*]")
       .set("spark.streaming.backpressure.enabled", "true")
       .set("spark.streaming.kafka.maxRatePerPartition", "1000")
       .set("spark.streaming.stopGracefullyOnShutdown", "true")
@@ -67,8 +69,22 @@ object SparkUtil {
     val ssc = new StreamingContext(sparkConf, Seconds(batchDuration))
 
     // 设置检查点
-    val checkpointPath = s"${Constants.HDFS.LOG_PATH}/checkpoint/$appName"
+    // 优先使用配置文件中的checkpoint路径，如果没有则使用默认路径
+    val checkpointPath = if (ConfigUtils.getBoolean("app.checkpoint.enabled", true)) {
+      val configPath = ConfigUtils.getString("app.checkpoint.path", "")
+      if (configPath.nonEmpty) {
+        s"$configPath/$appName"
+      } else {
+        // 如果配置文件中没有设置，使用HDFS.LOG_PATH（已经从配置文件读取）
+        s"${Constants.HDFS.LOG_PATH}/checkpoint/$appName"
+      }
+    } else {
+      // 如果checkpoint被禁用，使用临时路径
+      s"file:///tmp/shortvideo/checkpoint/$appName"
+    }
+    
     ssc.checkpoint(checkpointPath)
+    println(s"StreamingContext checkpoint路径设置为: $checkpointPath")
 
     ssc
   }

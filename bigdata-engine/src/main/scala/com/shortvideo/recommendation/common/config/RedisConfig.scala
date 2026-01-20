@@ -30,4 +30,11 @@ object RedisConfig {
       minIdle = ConfigUtils.getInt("redis.min.idle", 5)
     )
   }
+
+  /**
+   * 创建Redis配置（别名方法，保持API一致性）
+   */
+  def createConfig(): RedisConfig = {
+    RedisConfig()
+  }
 }
