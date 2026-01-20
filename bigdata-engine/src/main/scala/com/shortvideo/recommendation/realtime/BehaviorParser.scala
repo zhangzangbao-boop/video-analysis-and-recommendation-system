@@ -20,6 +20,43 @@ object BehaviorParser {
   // JSON 隐式格式定义（使用 play-json）
   implicit val userBehaviorEventReads: Reads[UserBehaviorEvent] = Json.reads[UserBehaviorEvent]
 
+  // 兼容“直接就是UserBehavior字段”的日志格式（你当前Kafka里的JSON就是这种）
+  // 示例：{"behaviorTime":"2026-01-20 13:51:35.653","behaviorType":"share",...}
+  private implicit val userBehaviorReads: Reads[UserBehavior] = new Reads[UserBehavior] {
+    override def reads(json: JsValue): JsResult[UserBehavior] = {
+      def str(path: String): Option[String] = (json \ path).asOpt[String]
+      def long(path: String): Option[Long] = (json \ path).asOpt[Long].orElse((json \ path).asOpt[Int].map(_.toLong))
+      def int(path: String): Option[Int] = (json \ path).asOpt[Int].orElse((json \ path).asOpt[Long].map(_.toInt))
+
+      val userId = long("userId")
+      val videoId = long("videoId")
+      val behaviorType = str("behaviorType").orElse(str("behavior"))
+
+      // behaviorTime: "yyyy-MM-dd HH:mm:ss.SSS" 或 "yyyy-MM-dd HH:mm:ss"
+      val behaviorTimeStr = str("behaviorTime").orElse(str("createDate"))
+      val behaviorTs: Option[Timestamp] = behaviorTimeStr.flatMap(parseTimestampString)
+
+      if (userId.isEmpty || videoId.isEmpty || behaviorType.isEmpty || behaviorTs.isEmpty) {
+        JsError("missing required fields for UserBehavior (userId, videoId, behaviorType/behavior, behaviorTime)")
+      } else {
+        JsSuccess(
+          UserBehavior(
+            userId = userId.get,
+            videoId = videoId.get,
+            behaviorType = behaviorType.get.toLowerCase,
+            behaviorTime = behaviorTs.get,
+            duration = int("duration").getOrElse(0),
+            deviceInfo = str("deviceInfo").orElse(str("device")).getOrElse(""),
+            networkType = str("networkType").orElse(str("network")).getOrElse(""),
+            ipAddress = str("ipAddress").orElse(str("ip")).getOrElse(""),
+            location = str("location").getOrElse(""),
+            extraInfo = str("extraInfo").orElse(str("extra")).getOrElse("")
+          )
+        )
+      }
+    }
+  }
+
   /**
    * 主解析入口：从原始 Kafka DStream 解析成 UserBehavior 流
    *
@@ -32,11 +69,10 @@ object BehaviorParser {
       .flatMap {
         case (_, value) =>
           try {
-            // 1. 解析成中间格式 UserBehaviorEvent
-            val event = parseToEvent(value)
-
-            // 2. 转换为业务实体 UserBehavior
-            Some(convertToUserBehavior(event))
+            // 兼容两种格式：
+            // A) 标准事件格式 UserBehaviorEvent（包含 logId/timestamp/behavior/properties）
+            // B) 直接实体格式 UserBehavior（包含 behaviorTime/behaviorType/duration/deviceInfo...）
+            parseToUserBehavior(value)
           } catch {
             case e: Exception =>
               // 记录错误日志，但不抛异常打断流（生产环境建议用结构化日志）
@@ -48,6 +84,26 @@ object BehaviorParser {
   }
 
   /**
+   * 将 JSON 字符串解析为 UserBehavior（兼容两种日志结构）
+   */
+  private def parseToUserBehavior(jsonStr: String): Option[UserBehavior] = {
+    val js = Json.parse(jsonStr)
+
+    // 先尝试 UserBehaviorEvent
+    js.validate[UserBehaviorEvent] match {
+      case JsSuccess(event, _) =>
+        Some(convertToUserBehavior(event))
+      case JsError(_) =>
+        // 再尝试直接 UserBehavior
+        js.validate[UserBehavior] match {
+          case JsSuccess(behavior, _) => Some(behavior)
+          case JsError(errors2) =>
+            throw new KafkaException(s"JSON 解析失败: ${errors2.mkString(", ")}, raw: $jsonStr")
+        }
+    }
+  }
+
+  /**
    * 将 JSON 字符串解析为 UserBehaviorEvent
    */
   private def parseToEvent(jsonStr: String): UserBehaviorEvent = {
@@ -56,6 +112,23 @@ object BehaviorParser {
       case JsError(errors) =>
         throw new KafkaException(s"JSON 解析失败: ${errors.mkString(", ")}, raw: $jsonStr")
     }
+  }
+
+  private def parseTimestampString(s: String): Option[Timestamp] = {
+    // 支持毫秒/无毫秒两种格式
+    val patterns = List(
+      "yyyy-MM-dd HH:mm:ss.SSS",
+      "yyyy-MM-dd HH:mm:ss"
+    )
+
+    patterns.view.flatMap { p =>
+      try {
+        val fmt = new java.text.SimpleDateFormat(p)
+        Some(new Timestamp(fmt.parse(s).getTime))
+      } catch {
+        case _: Exception => None
+      }
+    }.headOption
   }
 
   /**
