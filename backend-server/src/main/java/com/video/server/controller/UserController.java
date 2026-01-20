@@ -10,10 +10,7 @@ import com.video.server.entity.VideoComment;
 import com.video.server.exception.BusinessException;
 import com.video.server.mapper.UserFollowMapper;
 import com.video.server.mapper.UserMapper;
-import com.video.server.service.UserService;
-import com.video.server.service.VideoPlayRecordService;
-import com.video.server.service.VideoInteractionService;
-import com.video.server.service.VideoCommentService;
+import com.video.server.service.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.DigestUtils;
@@ -40,6 +37,7 @@ public class UserController {
     private final VideoPlayRecordService playRecordService;
     private final VideoInteractionService interactionService;
     private final VideoCommentService commentService;
+    private final VideoService videoService; // 新增注入：用于查询我的作品
 
     /**
      * 获取当前用户信息
@@ -85,6 +83,7 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success());
     }
 
+    // 播放历史
     @GetMapping("/history")
     public ResponseEntity<ApiResponse<List<Video>>> getPlayHistory(@RequestParam(defaultValue = "1") Integer page, @RequestParam(defaultValue = "20") Integer pageSize, HttpServletRequest request) {
         Long userId = getUserIdFromRequest(request);
@@ -92,6 +91,7 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(videos));
     }
 
+    // 点赞记录
     @GetMapping("/likes")
     public ResponseEntity<ApiResponse<List<Video>>> getLikes(@RequestParam(defaultValue = "1") Integer page, @RequestParam(defaultValue = "20") Integer pageSize, HttpServletRequest request) {
         Long userId = getUserIdFromRequest(request);
@@ -99,11 +99,25 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(videos));
     }
 
+    // 评论记录
     @GetMapping("/comments")
     public ResponseEntity<ApiResponse<List<VideoComment>>> getComments(@RequestParam(defaultValue = "1") Integer page, @RequestParam(defaultValue = "20") Integer pageSize, HttpServletRequest request) {
         Long userId = getUserIdFromRequest(request);
         List<VideoComment> comments = commentService.getCommentsByUserId(userId, pageSize);
         return ResponseEntity.ok(ApiResponse.success(comments));
+    }
+
+    /**
+     * 【新增】获取我的作品
+     */
+    @GetMapping("/works")
+    public ResponseEntity<ApiResponse<List<Video>>> getMyWorks(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "20") Integer pageSize,
+            HttpServletRequest request) {
+        Long userId = getUserIdFromRequest(request);
+        List<Video> videos = videoService.getUserPublishedVideos(userId, pageSize);
+        return ResponseEntity.ok(ApiResponse.success(videos));
     }
 
     /**
@@ -155,8 +169,7 @@ public class UserController {
     }
 
     /**
-     * 【修复】检查是否已关注
-     * 路径改为: /follow/{followUserId}/status
+     * 检查是否已关注
      */
     @GetMapping("/follow/{followUserId}/status")
     public ResponseEntity<ApiResponse<Boolean>> isFollowing(
