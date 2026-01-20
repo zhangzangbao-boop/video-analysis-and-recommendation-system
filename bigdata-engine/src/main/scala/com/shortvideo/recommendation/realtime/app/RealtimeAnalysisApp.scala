@@ -31,7 +31,7 @@ object RealtimeAnalysisApp {
     )
 
     // 4. 定义要订阅的 Topic（需与 Flume Sink 中的配置保持一致）
-    val topics = Array("user_behaviors")
+    val topics = Array("shortvideo_user_behavior")
 
     // 5. 创建 Kafka 直连流
     // 使用 Direct 方式，由 Spark 直接管理 Offset
