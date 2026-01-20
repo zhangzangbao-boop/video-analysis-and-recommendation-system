@@ -71,12 +71,14 @@ object SparkUtil {
    */
   def createStreamingContext(appName: String = Constants.APP_NAME,
                              batchDuration: Int = 10): StreamingContext = {
-    
+
     // 确保日志目录存在
     ensureLogDirectory()
 
     val sparkConf = new SparkConf()
       .setAppName(appName)
+      // 本地开发默认使用 local[*]，如果后续需要集群模式，可在外部通过 spark.master 覆盖
+      .setMaster("local[*]")
       .set("spark.streaming.backpressure.enabled", "true")
       .set("spark.streaming.kafka.maxRatePerPartition", "1000")
       .set("spark.streaming.stopGracefullyOnShutdown", "true")

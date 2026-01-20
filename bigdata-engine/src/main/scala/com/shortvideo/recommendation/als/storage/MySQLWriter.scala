@@ -1,14 +1,15 @@
 package com.shortvideo.recommendation.als.storage
 
+import com.shortvideo.recommendation.common.config.DatabaseConfig
 import java.sql.{Connection, DriverManager, PreparedStatement, Timestamp}
 import org.apache.spark.sql.Row
 
 object MySQLWriter {
 
-  // [修正] 数据库名与 application.yml 保持一致
-  private val JDBC_URL = "jdbc:mysql://localhost:3306/short_video_platform?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai"
-  private val JDBC_USER = "root"
-  private val JDBC_PASSWORD = "123456"
+  // 数据库连接配置统一从 common.config.DatabaseConfig 获取
+  private val JDBC_URL = DatabaseConfig.JDBC_URL
+  private val JDBC_USER = DatabaseConfig.JDBC_USER
+  private val JDBC_PASSWORD = DatabaseConfig.JDBC_PASSWORD
 
   /**
    * 写入推荐结果到 MySQL

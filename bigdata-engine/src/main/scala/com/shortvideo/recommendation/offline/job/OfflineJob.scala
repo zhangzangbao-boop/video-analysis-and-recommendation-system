@@ -1,5 +1,6 @@
 package com.shortvideo.recommendation.offline.job
 
+import com.shortvideo.recommendation.common.config.DatabaseConfig
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.functions._
 import java.sql.{Connection, DriverManager, PreparedStatement, Date => SQLDate}
@@ -19,10 +20,10 @@ import java.time.format.DateTimeFormatter
  */
 object OfflineJob {
 
-  // MySQL 连接配置（与 MySQLWriter 保持一致）
-  private val JDBC_URL = "jdbc:mysql://localhost:3306/short_video_platform?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai"
-  private val JDBC_USER = "root"
-  private val JDBC_PASSWORD = "123456"
+  // MySQL 连接配置统一从 common.config.DatabaseConfig 获取
+  private val JDBC_URL = DatabaseConfig.JDBC_URL
+  private val JDBC_USER = DatabaseConfig.JDBC_USER
+  private val JDBC_PASSWORD = DatabaseConfig.JDBC_PASSWORD
 
   def main(args: Array[String]): Unit = {
     val spark = SparkSession.builder()

@@ -3,6 +3,9 @@ package com.shortvideo.recommendation.realtime.app
 import com.shortvideo.recommendation.common.config.{KafkaConfig, RedisConfig, SparkConfig}
 import com.shortvideo.recommendation.common.utils.{RedisUtil, SparkUtil}
 import com.shortvideo.recommendation.realtime.BehaviorParser
+import com.shortvideo.recommendation.realtime.hot.RealtimeHotVideoAggregator
+import com.shortvideo.recommendation.realtime.mysql.VideoInfoMySQLLoader
+import com.shortvideo.recommendation.realtime.recommend.RealtimeRecommender
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.spark.streaming.kafka010._
 import org.apache.spark.streaming.kafka010.LocationStrategies.PreferConsistent
@@ -39,6 +42,14 @@ object RealtimeAnalysisApp {
       println("[初始化] 创建StreamingContext...")
       val ssc = SparkUtil.createStreamingContext(sparkConfig.appName)
 
+      // 3.1 启动时从 MySQL 加载 video_info，并广播（避免每个批次都读数据库）
+      println("[初始化] 从MySQL加载 video_info...")
+      val videoList = VideoInfoMySQLLoader.loadAll()
+      if (videoList.isEmpty) {
+        println("[WARN] video_info 为空，实时推荐将无法生成（请确认MySQL表中有可推荐数据）")
+      }
+      val videoMapBc = ssc.sparkContext.broadcast(videoList.map(v => v.id -> v).toMap)
+
       // 4. 构造 Kafka 参数
       val kafkaParams = Map[String, Object](
         "bootstrap.servers"  -> kafkaConfig.bootstrapServers,
@@ -64,15 +75,19 @@ object RealtimeAnalysisApp {
       println("[处理] 解析用户行为数据...")
       val behaviorStream = BehaviorParser.parse(rawKafkaStream)
 
-      // 8. 实时热门视频处理
-      println("[处理] 启动实时热门视频统计...")
+      // 7.1 实时热门视频榜（写入 Redis: rec:video:hot）
+      println("[处理] 启动实时热门视频统计（写入 rec:video:hot）...")
+      RealtimeHotVideoAggregator.start(behaviorStream, topLimit = 1000, expireSeconds = 7 * 24 * 60 * 60)
 
-
-
-      // 9. 实时用户行为处理
-      println("[处理] 启动实时用户行为统计...")
-
-
+      // 8. 实时推荐（最小可跑版本：热门候选 + 过滤已看 + 写入Redis）
+      // 可通过启动参数传入 topN：args(0)=inputPath 已被 ALS 用到，这里实时模块先固定为20
+      println("[处理] 启动实时推荐生成并写入Redis...")
+      behaviorStream.foreachRDD { rdd =>
+        if (!rdd.isEmpty()) {
+          val videoMap = videoMapBc.value
+          RealtimeRecommender.generateAndSave(rdd, videoMap, topN = 20, hotCandidateSize = 200)
+        }
+      }
 
       // 10. 监控输出（可选）
       behaviorStream.foreachRDD { rdd =>

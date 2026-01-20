@@ -108,21 +108,42 @@ object ALSTrainer {
     println("Spark ALS 离线推荐训练 (文档标准版)")
     println("=" * 80)
 
+    // 0. 先确定输入路径（决定使用 HDFS 还是本地文件系统）
+    // 支持两种路径格式：
+    // 1. HDFS：hdfs://localhost:9000/short-video/behavior/logs/*/*.json
+    // 2. 本地：file:///.../bigdata-engine/logs/*.json
+    val today = LocalDate.now().toString
+    val inputPath = if (args.length > 0 && args(0).nonEmpty) {
+      args(0)
+    } else {
+      "hdfs://localhost:9000/short-video/behavior/logs/*/*.json"
+    }
+    val useHdfs = inputPath.startsWith("hdfs://")
+
     // 1. 初始化 Spark
-    val spark = SparkSession.builder()
+    val sparkBuilder = SparkSession.builder()
       .appName("ShortVideoALSRecommendation")
       // 生产环境通常由 spark-submit 指定 master，这里保留 local[*] 方便调试
       .master("local[*]")
       .config("spark.sql.shuffle.partitions", "100")
-      // 配置 HDFS 相关设置，确保能正确连接到 HDFS
-      .config("spark.hadoop.fs.defaultFS", "hdfs://localhost:9000")
-      .config("spark.hadoop.dfs.client.use.datanode.hostname", "false")
-      .config("spark.hadoop.dfs.replication", "1")
-      .getOrCreate()
+
+    // 仅当 inputPath 是 hdfs:// 时，才强制设置 HDFS 默认文件系统
+    if (useHdfs) {
+      sparkBuilder
+        // 配置 HDFS 相关设置，确保能正确连接到 HDFS
+        .config("spark.hadoop.fs.defaultFS", "hdfs://localhost:9000")
+        .config("spark.hadoop.dfs.client.use.datanode.hostname", "false")
+        .config("spark.hadoop.dfs.replication", "1")
+    } else {
+      println(s"[INFO] 检测到使用本地文件系统输入: $inputPath")
+      println("[INFO] 本次运行不会强制设置 spark.hadoop.fs.defaultFS 为 HDFS")
+    }
+
+    val spark = sparkBuilder.getOrCreate()
     
     // 设置 Hadoop 配置，确保使用 HDFS 而不是本地文件系统
     val hadoopConf = spark.sparkContext.hadoopConfiguration
-    if (!hadoopConf.get("fs.defaultFS", "").startsWith("hdfs://")) {
+    if (useHdfs && !hadoopConf.get("fs.defaultFS", "").startsWith("hdfs://")) {
       hadoopConf.set("fs.defaultFS", "hdfs://localhost:9000")
       println("[INFO] 已设置 HDFS 默认文件系统: hdfs://localhost:9000")
     }
@@ -130,7 +151,6 @@ object ALSTrainer {
     import spark.implicits._
 
     // 2. 配置参数 (严格对应文档 2.4)
-    val today = LocalDate.now().toString
     
     // ALS 超参数 (文档指定) - 必须先定义，后面会使用
     val rank = 20          // 文档要求: 20
@@ -138,17 +158,9 @@ object ALSTrainer {
     val regParam = 0.1     // 文档要求: 0.1
     val topN = 20          // 文档要求: 20
     
-    // 文档指定读取路径：/short-video/behavior/logs/%Y-%m-%d/*.json
-    // 支持两种路径格式：
-    // 1. 按日期分区：hdfs://localhost:9000/short-video/behavior/logs/2025-01-20/*.json
-    // 2. 通配符匹配：hdfs://localhost:9000/short-video/behavior/logs/*/*.json (读取所有历史数据)
-    val inputPath = if (args.length > 0 && args(0).nonEmpty) {
-      args(0) // 允许通过命令行参数指定路径
-    } else {
-      // 默认使用通配符读取所有历史数据（按日期分区）
-      "hdfs://localhost:9000/short-video/behavior/logs/*/*.json"
-    }
-    val modelPath = s"hdfs://localhost:9000/short-video/als-model/model-$today"
+    val modelPath =
+      if (useHdfs) s"hdfs://localhost:9000/short-video/als-model/model-$today"
+      else s"file:///tmp/shortvideo/als-model/model-$today"
 
     println(s"[INFO] 配置参数:")
     println(s"  - HDFS 输入路径: $inputPath")
@@ -158,7 +170,7 @@ object ALSTrainer {
     try {
       // 验证HDFS路径，但允许跳过验证（通过环境变量或配置）
       val skipValidation = sys.env.getOrElse("SKIP_HDFS_VALIDATION", "false").toLowerCase == "true"
-      if (!skipValidation && !validateHDFSDirectory(spark, inputPath)) {
+      if (useHdfs && !skipValidation && !validateHDFSDirectory(spark, inputPath)) {
         println(s"[ERROR] HDFS路径验证失败，请确保HDFS服务运行且路径正确！")
         println(s"[INFO] 如需跳过验证，设置环境变量 SKIP_HDFS_VALIDATION=true")
         return
