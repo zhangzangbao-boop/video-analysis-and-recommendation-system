@@ -69,10 +69,10 @@
         <include refid="Base_Column_List"/>
         FROM video_play_record
         WHERE (user_id, video_id, create_time) IN (
-            SELECT user_id, video_id, MAX(create_time) as max_time
-            FROM video_play_record
-            WHERE user_id = #{userId}
-            GROUP BY user_id, video_id
+        SELECT user_id, video_id, MAX(create_time) as max_time
+        FROM video_play_record
+        WHERE user_id = #{userId}
+        GROUP BY user_id, video_id
         )
         ORDER BY create_time DESC
         <if test="limit != null">
@@ -97,5 +97,15 @@
             create_time = #{createTime}
         WHERE id = #{id}
     </update>
+
+    <delete id="deleteByUserIdAndVideoId">
+        DELETE FROM video_play_record
+        WHERE user_id = #{userId} AND video_id = #{videoId}
+    </delete>
+
+    <delete id="deleteByUserId">
+        DELETE FROM video_play_record
+        WHERE user_id = #{userId}
+    </delete>
 
 </mapper>

@@ -26,4 +26,13 @@ public interface VideoPlayRecordService {
      * @return 视频列表
      */
     List<Video> getPlayHistory(Long userId, Integer limit);
+    /**
+     * 【新增】删除单条记录
+     */
+    void deleteRecord(Long userId, Long videoId);
+
+    /**
+     * 【新增】清空历史
+     */
+    void clearHistory(Long userId);
 }

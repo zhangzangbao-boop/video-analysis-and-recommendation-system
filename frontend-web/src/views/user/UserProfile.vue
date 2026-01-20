@@ -1,548 +1,339 @@
 <template>
-  <div class="profile-container">
-    <div v-if="!isLogin" class="not-logged-card">
-      <el-card class="not-logged-card-inner">
-        <div class="not-logged-content">
-          <div class="not-logged-icon"><i class="el-icon-user"></i></div>
-          <h3 class="not-logged-title">您尚未登录</h3>
-          <p class="not-logged-desc">登录后可查看个人资料、播放历史和账号设置</p>
-          <div class="not-logged-actions">
-            <el-button type="primary" size="large" icon="el-icon-user" @click="$router.push('/login')" class="login-btn">立即登录</el-button>
-            <el-button type="text" size="large" @click="$router.push('/main/video')">返回首页</el-button>
-          </div>
-        </div>
-      </el-card>
+  <div class="profile-page">
+    <div class="profile-banner">
+      <div class="banner-mask"></div>
     </div>
 
-    <div v-else>
-      <el-card class="profile-main-card">
-        <div class="profile-header-enhanced">
-          <div class="avatar-section-enhanced">
-            <div class="avatar-wrapper">
-              <el-avatar :size="120" :src="userInfo.avatar" class="user-avatar-enhanced">{{ userInfo.username.charAt(0) }}</el-avatar>
-              <div class="avatar-badge"><i class="el-icon-star-on"></i><span>活跃用户</span></div>
-            </div>
+    <div class="main-container">
+      <div class="user-info-card glass-effect">
+        <div class="info-left">
+          <div class="avatar-wrapper">
+            <el-avatar :size="96" :src="userInfo.avatarUrl || defaultAvatar" class="main-avatar">
+              {{ userInfo.username ? userInfo.username.charAt(0) : 'U' }}
+            </el-avatar>
+            <div class="vip-badge" v-if="userInfo.level > 2">PRO</div>
           </div>
-          <div class="user-info-enhanced">
-            <div class="user-title-section">
-              <h1 class="username-enhanced">{{ userInfo.username }}</h1>
-              <el-tag type="success" size="small">在线</el-tag>
+          <div class="text-content">
+            <div class="name-row">
+              <h1 class="nickname">{{ userInfo.nickname || userInfo.username }}</h1>
+              <span class="level-tag">Lv.{{ userInfo.level || 1 }}</span>
             </div>
-            <div class="user-bio-enhanced">{{ userInfo.bio || '这个人很懒，还没有写简介哦~' }}</div>
-            <div class="stats-cards">
-              <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);" @click="showFollowingList = true">
-                <div class="stat-icon"><i class="el-icon-star-on"></i></div>
-                <div class="stat-content">
-                  <div class="stat-number">{{ userInfo.followCount || 0 }}</div>
-                  <div class="stat-label">关注</div>
-                </div>
-              </div>
-              <div class="stat-card" style="background: linear-gradient(135deg, #5ee7df 0%, #b490ca 100%);" @click="showFansList = true">
-                <div class="stat-icon"><i class="el-icon-user"></i></div>
-                <div class="stat-content">
-                  <div class="stat-number">{{ userInfo.fansCount || 0 }}</div>
-                  <div class="stat-label">粉丝</div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="quick-actions">
-            <el-button type="primary" icon="el-icon-edit" class="action-btn">编辑资料</el-button>
-            <el-button icon="el-icon-setting" class="action-btn">账号设置</el-button>
+            <p class="bio" :title="userInfo.bio">{{ userInfo.bio || '这个人很神秘，什么都没写...' }}</p>
           </div>
         </div>
-      </el-card>
 
-      <el-card class="tabs-card">
-        <div class="custom-tabs">
+        <div class="info-right">
+          <div class="stat-box" @click="showFollowingList = true">
+            <div class="stat-num">{{ userInfo.followCount || 0 }}</div>
+            <div class="stat-label">关注</div>
+          </div>
+          <div class="stat-box" @click="showFansList = true">
+            <div class="stat-num">{{ userInfo.fansCount || 0 }}</div>
+            <div class="stat-label">粉丝</div>
+          </div>
+          <div class="action-group">
+            <el-button type="primary" round class="edit-btn" @click="openEditProfile">编辑资料</el-button>
+            <el-button icon="el-icon-setting" circle class="setting-btn" @click="openAccountSettings"></el-button>
+          </div>
+        </div>
+      </div>
+
+      <div class="nav-bar-sticky">
+        <div class="nav-list">
           <div
               v-for="tab in tabs"
-              :key="tab.name"
-              class="custom-tab-item"
-              :class="{ active: activeTab === tab.name }"
-              @click="handleTabClick(tab.name)"
+              :key="tab.key"
+              class="nav-item"
+              :class="{ active: currentTab === tab.key }"
+              @click="switchTab(tab.key)"
           >
-            <i :class="tab.icon"></i>
-            <span>{{ tab.label }}</span>
-            <div class="tab-indicator" v-if="activeTab === tab.name"></div>
+            <i :class="tab.icon"></i> {{ tab.label }}
+            <span class="active-line"></span>
+          </div>
+        </div>
+      </div>
+
+      <div class="content-wrapper fade-enter">
+
+        <div v-show="currentTab === 'works'" class="tab-view">
+          <div class="view-header">
+            <div class="header-left">
+              <h2>我的作品</h2>
+              <span class="sub-text">共 {{ worksTotal }} 个视频</span>
+            </div>
+            <el-button type="primary" icon="el-icon-upload2" round @click="openUploadDialog">投稿视频</el-button>
+          </div>
+
+          <div v-loading="loadingWorks" class="works-list-container">
+            <div v-if="myWorksList.length === 0" class="empty-placeholder">
+              <i class="el-icon-folder-opened" style="font-size: 60px; color: #e0e0e0; margin-bottom: 20px;"></i>
+              <p>空空如也，去投个稿吧~</p>
+            </div>
+
+            <div v-else class="work-list">
+              <div v-for="item in myWorksList" :key="item.id" class="work-item">
+                <div class="work-cover" @click="goToVideo(item.id)">
+                  <img :src="item.coverUrl" loading="lazy" />
+                  <span class="duration">{{ formatDuration(item.duration) }}</span>
+
+                  <div class="status-tag success" v-if="item.status === 'PASSED'">已发布</div>
+                  <div class="status-tag warning" v-else-if="item.status === 'PENDING'">审核中</div>
+                  <div class="status-tag error" v-else-if="item.status === 'REJECTED'">已驳回</div>
+                </div>
+
+                <div class="work-detail">
+                  <div class="work-top">
+                    <h3 class="work-title" @click="goToVideo(item.id)" :title="item.title">{{ item.title }}</h3>
+                    <div class="work-actions" @click.stop>
+                      <el-dropdown trigger="hover" placement="bottom-end" @command="(cmd) => handleWorkCommand(cmd, item)">
+                        <i class="el-icon-more action-icon"></i>
+                        <el-dropdown-menu slot="dropdown">
+                          <el-dropdown-item command="edit" icon="el-icon-edit">编辑</el-dropdown-item>
+                          <el-dropdown-item command="delete" icon="el-icon-delete" style="color: #F56C6C">删除</el-dropdown-item>
+                        </el-dropdown-menu>
+                      </el-dropdown>
+                    </div>
+                  </div>
+
+                  <div class="work-desc">{{ item.description || '暂无简介' }}</div>
+
+                  <div class="work-footer">
+                    <span class="time">{{ formatTime(item.createTime) }}</span>
+                    <div class="stats">
+                      <span><i class="el-icon-video-play"></i> {{ formatNumber(item.playCount) }}</span>
+                      <span><i class="el-icon-chat-round"></i> {{ formatNumber(item.commentCount) }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        </div>
+
+        <div v-show="currentTab === 'history'" class="tab-view">
+          <div class="view-header">
+            <h2>历史记录</h2>
+            <el-button type="text" icon="el-icon-delete" @click="clearHistory" class="text-danger">清空历史</el-button>
+          </div>
+
+          <div v-loading="loadingHistory" class="history-timeline">
+            <div v-if="playHistoryList.length === 0" class="empty-placeholder">
+              <p>暂无观看记录</p>
+            </div>
+
+            <div v-else class="timeline-list">
+              <div v-for="item in playHistoryList" :key="item.id" class="timeline-item">
+                <div class="time-node"></div>
+                <div class="item-card">
+                  <div class="cover" @click="goToVideo(item.id)">
+                    <img :src="item.coverUrl" />
+                  </div>
+                  <div class="detail">
+                    <h3 @click="goToVideo(item.id)">{{ item.title }}</h3>
+                    <p class="view-time">观看于 {{ formatTime(item.createTime) }}</p>
+                    <div class="author-row">
+                      UP: {{ item.authorName || '未知' }}
+                    </div>
+                  </div>
+                  <div class="actions">
+                    <el-button icon="el-icon-delete" circle size="mini" @click="deleteHistoryItem(item)"></el-button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="tab-content">
-          <div v-show="activeTab === 'works'" class="tab-pane enhanced">
-            <div class="content-header">
-              <h3><i class="el-icon-video-camera"></i> 我的作品 <span class="count-badge">({{ worksTotal }})</span></h3>
-              <p>管理您上传的视频，查看审核状态</p>
-            </div>
-
-            <div v-loading="loadingWorks">
-              <el-table 
-                :data="myWorksList" 
-                style="width: 100%" 
-                v-if="myWorksList.length > 0" 
-                border 
-                stripe
-                @row-click="handleRowClick"
-                :row-style="{ cursor: 'pointer' }"
-              >
-                <el-table-column label="封面" width="140" align="center">
-                  <template slot-scope="scope">
-                    <img 
-                      :src="scope.row.coverUrl" 
-                      style="width: 100px; height: 56px; object-fit: cover; border-radius: 4px; cursor: pointer;"
-                      @click.stop="goToVideo(scope.row.id)"
-                    >
-                  </template>
-                </el-table-column>
-
-                <el-table-column prop="title" label="标题" min-width="200">
-                  <template slot-scope="scope">
-                    <span 
-                      style="font-weight: bold; cursor: pointer; color: #409EFF;"
-                      @click.stop="goToVideo(scope.row.id)"
-                    >
-                      {{ scope.row.title }}
-                    </span>
-                  </template>
-                </el-table-column>
-
-                <el-table-column label="状态" width="150" align="center">
-                  <template slot-scope="scope">
-                    <el-tag v-if="scope.row.status === 'PASSED'" type="success" size="small">已发布</el-tag>
-                    <el-tag v-else-if="scope.row.status === 'PENDING'" type="warning" size="small">审核中</el-tag>
-
-                    <el-tooltip
-                        v-else-if="scope.row.status === 'REJECTED'"
-                        class="item"
-                        effect="dark"
-                        :content="scope.row.auditMsg || '管理员未填写驳回原因'"
-                        placement="top">
-                      <el-tag type="danger" size="small" style="cursor: pointer;">
-                        已驳回 <i class="el-icon-question"></i>
-                      </el-tag>
-                    </el-tooltip>
-                  </template>
-                </el-table-column>
-
-                <el-table-column prop="createTime" label="上传时间" width="180" align="center" :formatter="formatDate"></el-table-column>
-
-                <el-table-column label="操作" width="120" align="center">
-                  <template slot-scope="scope">
-                    <el-button 
-                      type="text" 
-                      style="color: #409EFF; margin-right: 10px;" 
-                      icon="el-icon-video-play" 
-                      @click.stop="goToVideo(scope.row.id)"
-                    >
-                      播放
-                    </el-button>
-                    <el-button 
-                      type="text" 
-                      style="color: #F56C6C" 
-                      icon="el-icon-delete" 
-                      @click.stop="handleDeleteWork(scope.row)"
-                    >
-                      删除
-                    </el-button>
-                  </template>
-                </el-table-column>
-              </el-table>
-
-              <div v-else class="empty-state">
-                <div class="empty-icon"><i class="el-icon-folder-opened"></i></div>
-                <h4>暂无作品</h4>
-                <p>快去上传你的第一个视频吧</p>
-                <el-button type="primary" size="medium" @click="goToUpload">去上传</el-button>
+        <div v-show="currentTab === 'favorites'" class="tab-view">
+          <div class="fav-container">
+            <div class="fav-menu">
+              <div class="menu-title">我的收藏</div>
+              <div class="menu-item active">
+                <i class="el-icon-folder-opened"></i> 默认收藏夹
+                <span class="count">{{ collectedVideos.length }}</span>
+              </div>
+              <div class="menu-item disabled">
+                <i class="el-icon-lock"></i> 私密收藏
+                <i class="el-icon-lock lock-icon"></i>
               </div>
             </div>
-          </div>
 
-          <div v-show="activeTab === 'upload'" class="tab-pane enhanced">
-            <div class="content-header">
-              <h3><i class="el-icon-upload"></i> 上传视频</h3>
-              <p>分享你的精彩瞬间</p>
-            </div>
-            <div class="upload-video-section">
-              <el-form ref="uploadForm" :model="uploadForm" :rules="uploadRules" label-width="100px" class="upload-form">
-                <el-form-item label="视频标题" prop="title">
-                  <el-input v-model="uploadForm.title" placeholder="请输入视频标题" maxlength="50" show-word-limit></el-input>
-                </el-form-item>
-                <el-form-item label="视频介绍" prop="description">
-                  <el-input v-model="uploadForm.description" type="textarea" :rows="4" placeholder="简单介绍一下你的视频吧" maxlength="500" show-word-limit></el-input>
-                </el-form-item>
-                <el-form-item label="视频分类" prop="categoryId">
-                  <el-select v-model="uploadForm.categoryId" placeholder="请选择分类" style="width: 100%">
-                    <el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.id"></el-option>
-                  </el-select>
-                </el-form-item>
-                <el-form-item label="上传视频" prop="videoFile">
-                  <div class="upload-area" @click="triggerFileInput">
-                    <div v-if="!uploadForm.videoFile" class="upload-placeholder">
-                      <i class="el-icon-upload"></i>
-                      <p>点击上传视频 (MP4)</p>
-                    </div>
-                    <div v-else class="upload-preview">
-                      <i class="el-icon-video-play" style="font-size: 24px; margin-right: 10px; color: #409EFF;"></i>
-                      <span>{{ uploadForm.videoFile.name }}</span>
-                    </div>
-                  </div>
-                  <input type="file" ref="fileInput" accept="video/mp4,video/quicktime" @change="handleFileSelect" style="display: none;">
-                </el-form-item>
-                <el-form-item label="上传封面" prop="coverFile">
-                  <div class="upload-area" @click="triggerCoverInput" style="min-height: 120px;">
-                    <div v-if="!uploadForm.coverFile && !uploadForm.coverPreview" class="upload-placeholder">
-                      <i class="el-icon-picture"></i>
-                      <p>点击上传封面 (JPG/PNG)</p>
-                    </div>
-                    <div v-else class="cover-preview">
-                      <img :src="uploadForm.coverPreview" style="max-height: 120px; object-fit: contain;">
-                    </div>
-                  </div>
-                  <input type="file" ref="coverInput" accept="image/jpeg,image/png" @change="handleCoverSelect" style="display: none;">
-                </el-form-item>
-                <el-form-item>
-                  <el-button type="primary" :loading="uploading" @click="submitUpload" class="submit-btn">发布视频</el-button>
-                  <el-button @click="resetUploadForm">重置</el-button>
-                </el-form-item>
-              </el-form>
-            </div>
-          </div>
-
-          <!-- 播放历史 -->
-          <div v-show="activeTab === 'history'" class="tab-pane enhanced">
-            <div class="content-header">
-              <h3>播放历史</h3>
-              <el-button size="small" @click="loadPlayHistory">刷新</el-button>
-            </div>
-            <div v-if="loadingHistory" class="loading-state">
-              <i class="el-icon-loading"></i> 加载中...
-            </div>
-            <div v-else-if="playHistoryList.length === 0" class="empty-state">
-              <div class="empty-icon"><i class="el-icon-time"></i></div>
-              <h4>暂无播放历史</h4>
-              <p>您还没有观看过任何视频</p>
-            </div>
-            <div v-else class="video-list">
-              <div 
-                v-for="video in playHistoryList" 
-                :key="video.id" 
-                class="video-item"
-                @click="goToVideo(video.id)"
-              >
-                <div class="video-thumbnail">
-                  <img :src="video.coverUrl || video.thumbnail" :alt="video.title">
-                  <div class="video-duration">{{ formatDuration(video.duration) }}</div>
+            <div class="fav-body">
+              <div v-loading="loadingCollects" class="video-grid-modern compact">
+                <div v-if="collectedVideos.length === 0" class="empty-placeholder">
+                  <p>还没收藏过视频哦</p>
                 </div>
-                <div class="video-info">
-                  <h4 class="video-title">{{ video.title }}</h4>
-                  <div class="video-meta">
-                    <span><i class="el-icon-view"></i> {{ formatNumber(video.playCount || 0) }}</span>
-                    <span><i class="el-icon-star-on"></i> {{ formatNumber(video.likeCount || 0) }}</span>
-                    <span><i class="el-icon-time"></i> {{ formatTime(video.createTime) }}</span>
+                <div v-else v-for="item in collectedVideos" :key="item.id" class="video-card" @click="goToVideo(item.id)">
+                  <div class="card-cover">
+                    <img :src="item.coverUrl" />
+                    <div class="hover-overlay red">
+                      <el-button type="danger" round size="mini" @click.stop="cancelCollect(item)">取消收藏</el-button>
+                    </div>
+                  </div>
+                  <div class="card-info">
+                    <h3 class="title">{{ item.title }}</h3>
+                    <div class="data-row">
+                      <span>UP: {{ item.authorName || '未知' }}</span>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
+        </div>
 
-          <!-- 点赞记录 -->
-          <div v-show="activeTab === 'likes'" class="tab-pane enhanced">
-            <div class="content-header">
-              <h3>点赞记录</h3>
-              <el-button size="small" @click="loadLikedVideos">刷新</el-button>
-            </div>
-            <div v-if="loadingLikes" class="loading-state">
-              <i class="el-icon-loading"></i> 加载中...
-            </div>
-            <div v-else-if="likedVideosList.length === 0" class="empty-state">
-              <div class="empty-icon"><i class="el-icon-star-on"></i></div>
-              <h4>暂无点赞记录</h4>
-              <p>您还没有点赞过任何视频</p>
-            </div>
-            <div v-else class="video-list">
-              <div 
-                v-for="video in likedVideosList" 
-                :key="video.id" 
-                class="video-item"
-                @click="goToVideo(video.id)"
+        <div v-show="currentTab === 'interactions'" class="tab-view">
+          <div class="fav-container">
+
+            <div class="fav-menu">
+              <div class="menu-title">互动中心</div>
+
+              <div
+                  class="menu-item"
+                  :class="{ active: interactionSubTab === 'likes' }"
+                  @click="interactionSubTab = 'likes'"
               >
-                <div class="video-thumbnail">
-                  <img :src="video.coverUrl || video.thumbnail" :alt="video.title">
-                  <div class="video-duration">{{ formatDuration(video.duration) }}</div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <i class="el-icon-thumb"></i> 点赞视频
                 </div>
-                <div class="video-info">
-                  <h4 class="video-title">{{ video.title }}</h4>
-                  <div class="video-meta">
-                    <span><i class="el-icon-view"></i> {{ formatNumber(video.playCount || 0) }}</span>
-                    <span><i class="el-icon-star-on"></i> {{ formatNumber(video.likeCount || 0) }}</span>
-                    <span><i class="el-icon-time"></i> {{ formatTime(video.createTime) }}</span>
-                  </div>
+                <span class="count" v-if="likedVideos.length">{{ likedVideos.length }}</span>
+              </div>
+
+              <div
+                  class="menu-item"
+                  :class="{ active: interactionSubTab === 'comments' }"
+                  @click="interactionSubTab = 'comments'"
+              >
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <i class="el-icon-chat-line-square"></i> 我的评论
                 </div>
+                <span class="count" v-if="myComments.length">{{ myComments.length }}</span>
               </div>
             </div>
-          </div>
 
-          <!-- 评论记录 -->
-          <div v-show="activeTab === 'comments'" class="tab-pane enhanced">
-            <div class="content-header">
-              <h3>评论记录</h3>
-              <el-button size="small" @click="loadMyComments">刷新</el-button>
-            </div>
-            <div v-if="loadingComments" class="loading-state">
-              <i class="el-icon-loading"></i> 加载中...
-            </div>
-            <div v-else-if="myCommentsList.length === 0" class="empty-state">
-              <div class="empty-icon"><i class="el-icon-chat-dot-round"></i></div>
-              <h4>暂无评论记录</h4>
-              <p>您还没有评论过任何视频</p>
-            </div>
-            <div v-else class="comment-list">
-              <div 
-                v-for="comment in myCommentsList" 
-                :key="comment.id" 
-                class="comment-item"
-                @click="goToVideo(comment.videoId)"
-              >
-                <div class="comment-content">
-                  <p class="comment-text">{{ comment.content }}</p>
-                  <div class="comment-meta">
-                    <span class="comment-video">视频: {{ getVideoTitle(comment.videoId) }}</span>
-                    <span class="comment-time">{{ formatTime(comment.createTime) }}</span>
-                    <span class="comment-likes">
-                      <i class="el-icon-star-on"></i> {{ comment.likeCount || 0 }}
-                    </span>
-                  </div>
+            <div class="fav-body">
+
+              <div class="fav-content-header">
+                <div class="fav-title">
+                  {{ interactionSubTab === 'likes' ? '我点赞的视频' : '我发布的评论' }}
                 </div>
-                <el-button 
-                  type="text" 
-                  size="small" 
-                  icon="el-icon-delete"
-                  @click.stop="deleteComment(comment.id)"
-                >
-                  删除
-                </el-button>
               </div>
-            </div>
-          </div>
 
-          <!-- 账号设置 -->
-          <div v-show="activeTab === 'settings'" class="tab-pane enhanced">
-            <div class="content-header">
-              <h3>账号设置</h3>
-              <el-button type="primary" size="small" @click="saveProfile" :loading="savingProfile">保存修改</el-button>
-            </div>
-            
-            <el-tabs v-model="settingsActiveTab" type="card">
-              <!-- 基本信息 -->
-              <el-tab-pane label="基本信息" name="basic">
-                <div class="settings-form">
-                  <el-form :model="profileForm" :rules="profileRules" ref="profileForm" label-width="120px">
-                    <el-form-item label="用户名">
-                      <el-input v-model="profileForm.username" disabled></el-input>
-                      <div class="form-tip">用户名不可修改</div>
-                    </el-form-item>
-                    
-                    <el-form-item label="昵称" prop="nickname">
-                      <el-input v-model="profileForm.nickname" placeholder="请输入昵称" maxlength="20" show-word-limit></el-input>
-                    </el-form-item>
-                    
-                    <el-form-item label="头像">
-                      <div class="avatar-upload-section">
-                        <el-avatar :size="80" :src="profileForm.avatarUrl || undefined" class="avatar-preview">
-                          <i class="el-icon-user-solid"></i>
-                        </el-avatar>
-                        <div class="avatar-actions">
-                          <el-button size="small" @click="triggerAvatarUpload">上传头像</el-button>
-                          <el-button size="small" type="text" @click="removeAvatar">移除头像</el-button>
-                        </div>
-                        <input type="file" ref="avatarInput" accept="image/*" style="display: none" @change="handleAvatarSelect">
+              <div v-if="interactionSubTab === 'likes'" v-loading="loadingLikes">
+                <div v-if="likedVideos.length === 0" class="empty-placeholder">
+                  <p>暂无点赞</p>
+                </div>
+                <div v-else class="video-grid-modern">
+                  <div v-for="item in likedVideos" :key="item.id" class="video-card" @click="goToVideo(item.id)">
+                    <div class="card-cover">
+                      <img :src="item.coverUrl" />
+                      <div class="like-badge"><i class="el-icon-thumb"></i> 已赞</div>
+                      <div class="hover-overlay red">
+                        <el-button type="danger" round size="mini" @click.stop="cancelLike(item)">取消点赞</el-button>
                       </div>
-                    </el-form-item>
-                    
-                    <el-form-item label="真实姓名" prop="realName">
-                      <el-input v-model="profileForm.realName" placeholder="请输入真实姓名" maxlength="20"></el-input>
-                    </el-form-item>
-                    
-                    <el-form-item label="电子邮箱" prop="email">
-                      <el-input v-model="profileForm.email" placeholder="请输入电子邮箱" type="email"></el-input>
-                    </el-form-item>
-                    
-                    <el-form-item label="性别" prop="gender">
-                      <el-radio-group v-model="profileForm.gender">
-                        <el-radio label="male">男</el-radio>
-                        <el-radio label="female">女</el-radio>
-                        <el-radio label="">保密</el-radio>
-                      </el-radio-group>
-                    </el-form-item>
-                    
-                    <el-form-item label="个人简介" prop="bio">
-                      <el-input 
-                        v-model="profileForm.bio" 
-                        type="textarea" 
-                        :rows="4" 
-                        placeholder="请输入个人简介" 
-                        maxlength="200" 
-                        show-word-limit
-                      ></el-input>
-                    </el-form-item>
-                    
-                    <el-form-item label="手机号">
-                      <el-input v-model="profileForm.phone" disabled></el-input>
-                      <div class="form-tip">手机号不可修改</div>
-                    </el-form-item>
-                  </el-form>
-                </div>
-              </el-tab-pane>
-              
-              <!-- 修改密码 -->
-              <el-tab-pane label="修改密码" name="password">
-                <div class="settings-form">
-                  <el-form :model="passwordForm" :rules="passwordRules" ref="passwordForm" label-width="120px">
-                    <el-form-item label="当前密码" prop="oldPassword">
-                      <el-input 
-                        v-model="passwordForm.oldPassword" 
-                        type="password" 
-                        placeholder="请输入当前密码"
-                        show-password
-                      ></el-input>
-                    </el-form-item>
-                    
-                    <el-form-item label="新密码" prop="newPassword">
-                      <el-input 
-                        v-model="passwordForm.newPassword" 
-                        type="password" 
-                        placeholder="请输入新密码（至少6位）"
-                        show-password
-                      ></el-input>
-                    </el-form-item>
-                    
-                    <el-form-item label="确认新密码" prop="confirmPassword">
-                      <el-input 
-                        v-model="passwordForm.confirmPassword" 
-                        type="password" 
-                        placeholder="请再次输入新密码"
-                        show-password
-                      ></el-input>
-                    </el-form-item>
-                    
-                    <el-form-item>
-                      <el-button type="primary" @click="changePassword" :loading="changingPassword">修改密码</el-button>
-                      <el-button @click="resetPasswordForm">重置</el-button>
-                    </el-form-item>
-                  </el-form>
-                </div>
-              </el-tab-pane>
-              
-              <!-- 账号信息 -->
-              <el-tab-pane label="账号信息" name="info">
-                <div class="account-info">
-                  <div class="info-item">
-                    <span class="info-label">用户ID：</span>
-                    <span class="info-value">{{ profileForm.id || '--' }}</span>
-                  </div>
-                  <div class="info-item">
-                    <span class="info-label">用户等级：</span>
-                    <span class="info-value">Lv.{{ profileForm.level || 1 }}</span>
-                  </div>
-                  <div class="info-item">
-                    <span class="info-label">账户余额：</span>
-                    <span class="info-value">¥{{ (profileForm.balance || 0).toFixed(2) }}</span>
-                  </div>
-                  <div class="info-item">
-                    <span class="info-label">积分：</span>
-                    <span class="info-value">{{ profileForm.points || 0 }}</span>
-                  </div>
-                  <div class="info-item">
-                    <span class="info-label">粉丝数：</span>
-                    <span class="info-value">{{ profileForm.fansCount || 0 }}</span>
-                  </div>
-                  <div class="info-item">
-                    <span class="info-label">关注数：</span>
-                    <span class="info-value">{{ profileForm.followCount || 0 }}</span>
-                  </div>
-                  <div class="info-item">
-                    <span class="info-label">注册时间：</span>
-                    <span class="info-value">{{ formatTime(profileForm.createTime) }}</span>
-                  </div>
-                  <div class="info-item">
-                    <span class="info-label">最后登录：</span>
-                    <span class="info-value">{{ formatTime(profileForm.lastLogin) }}</span>
+                    </div>
+                    <div class="card-info">
+                      <h3 class="title">{{ item.title }}</h3>
+                      <div class="data-row">
+                        <span>UP: {{ item.authorName || '未知' }}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </el-tab-pane>
-            </el-tabs>
-          </div>
-        </div>
-      </el-card>
-    </div>
-    
-    <!-- 关注列表弹窗 -->
-    <el-dialog
-      title="关注列表"
-      :visible.sync="showFollowingList"
-      width="600px"
-      :before-close="() => { showFollowingList = false }"
-    >
-      <div v-loading="loadingFollowing">
-        <div v-if="followingList.length === 0" class="empty-list">
-          <i class="el-icon-user"></i>
-          <p>还没有关注任何人</p>
-        </div>
-        <div v-else class="user-list">
-          <div 
-            v-for="user in followingList" 
-            :key="user.id"
-            class="user-item"
-          >
-            <el-avatar :size="50" :src="user.avatarUrl || undefined">
-              <i class="el-icon-user-solid"></i>
-            </el-avatar>
-            <div class="user-info">
-              <div class="user-name">{{ user.nickname || user.username }}</div>
-              <div class="user-bio">{{ user.bio || '暂无简介' }}</div>
-            </div>
-            <div class="user-stats">
-              <span>关注 {{ user.followCount || 0 }}</span>
-              <span>粉丝 {{ user.fansCount || 0 }}</span>
+              </div>
+
+              <div v-if="interactionSubTab === 'comments'" v-loading="loadingComments">
+                <div v-if="myComments.length === 0" class="empty-placeholder">
+                  <p>暂无评论</p>
+                </div>
+                <div v-else class="comment-timeline">
+                  <div v-for="item in myComments" :key="item.id" class="comment-card-item">
+                    <div class="comment-main">
+                      <div class="comment-quote">
+                        评论了视频: <strong class="target-link" @click="goToVideo(item.videoId)">{{ getVideoTitle(item.videoId) }}</strong>
+                      </div>
+                      <div class="comment-content">
+                        {{ item.content }}
+                      </div>
+                      <div class="comment-footer">
+                        {{ formatTime(item.createTime) }}
+                        <span class="delete-link" @click="deleteMyComment(item)">删除</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
         </div>
       </div>
-    </el-dialog>
-    
-    <!-- 粉丝列表弹窗 -->
-    <el-dialog
-      title="粉丝列表"
-      :visible.sync="showFansList"
-      width="600px"
-      :before-close="() => { showFansList = false }"
-    >
-      <div v-loading="loadingFans">
-        <div v-if="fansList.length === 0" class="empty-list">
-          <i class="el-icon-user"></i>
-          <p>还没有粉丝</p>
-        </div>
-        <div v-else class="user-list">
-          <div 
-            v-for="user in fansList" 
-            :key="user.id"
-            class="user-item"
-          >
-            <el-avatar :size="50" :src="user.avatarUrl || undefined">
-              <i class="el-icon-user-solid"></i>
-            </el-avatar>
-            <div class="user-info">
-              <div class="user-name">{{ user.nickname || user.username }}</div>
-              <div class="user-bio">{{ user.bio || '暂无简介' }}</div>
+
+    <el-dialog title="发布作品" :visible.sync="showUploadDialog" width="600px" custom-class="modern-dialog">
+      <el-form ref="uploadForm" :model="uploadForm" label-position="top">
+        <el-row :gutter="20">
+          <el-col :span="16">
+            <el-form-item label="标题">
+              <el-input v-model="uploadForm.title" placeholder="取个吸引人的标题吧"></el-input>
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="分区">
+              <el-select v-model="uploadForm.categoryId" placeholder="选择分区">
+                <el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.id"></el-option>
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-form-item label="简介">
+          <el-input type="textarea" :rows="3" v-model="uploadForm.description" placeholder="简单介绍一下视频内容..."></el-input>
+        </el-form-item>
+
+        <div class="upload-row">
+          <div class="upload-box video-uploader" @click="triggerFileInput" :class="{hasFile: !!uploadForm.videoFile}">
+            <i class="el-icon-video-camera-solid" v-if="!uploadForm.videoFile"></i>
+            <div class="upload-text" v-if="!uploadForm.videoFile">上传视频文件</div>
+            <div class="file-name" v-else>
+              <i class="el-icon-check"></i> {{ uploadForm.videoFile.name }}
             </div>
-            <div class="user-stats">
-              <span>关注 {{ user.followCount || 0 }}</span>
-              <span>粉丝 {{ user.fansCount || 0 }}</span>
-            </div>
+            <input type="file" ref="fileInput" accept="video/mp4" hidden @change="handleFileSelect">
+          </div>
+
+          <div class="upload-box cover-uploader" @click="triggerCoverInput" :style="coverStyle">
+            <i class="el-icon-picture" v-if="!uploadForm.coverPreview"></i>
+            <div class="upload-text" v-if="!uploadForm.coverPreview">上传封面</div>
+            <input type="file" ref="coverInput" accept="image/*" hidden @change="handleCoverSelect">
           </div>
         </div>
+      </el-form>
+      <div slot="footer">
+        <el-button @click="showUploadDialog = false">取消</el-button>
+        <el-button type="primary" :loading="uploading" @click="submitUpload">立即发布</el-button>
       </div>
     </el-dialog>
+
+    <el-dialog title="编辑个人资料" :visible.sync="showEditDialog" width="500px" custom-class="modern-dialog">
+      <div class="edit-avatar-center">
+        <el-avatar :size="80" :src="editForm.avatarUrl || userInfo.avatarUrl || defaultAvatar"></el-avatar>
+        <el-button type="text" @click="$refs.avatarInput.click()">更换头像</el-button>
+        <input type="file" ref="avatarInput" hidden accept="image/*" @change="handleAvatarSelect">
+      </div>
+      <el-form :model="editForm" label-width="60px">
+        <el-form-item label="昵称">
+          <el-input v-model="editForm.nickname"></el-input>
+        </el-form-item>
+        <el-form-item label="简介">
+          <el-input type="textarea" v-model="editForm.bio" :rows="3"></el-input>
+        </el-form-item>
+      </el-form>
+      <div slot="footer">
+        <el-button @click="showEditDialog = false">取消</el-button>
+        <el-button type="primary" @click="saveProfile">保存</el-button>
+      </div>
+    </el-dialog>
+
   </div>
 </template>
 
@@ -553,852 +344,727 @@ export default {
   name: 'UserProfile',
   data() {
     return {
-      activeTab: 'works', // 默认进入"我的作品"
-      tabs: [
-        { name: 'works', label: '我的作品', icon: 'el-icon-video-camera' },
-        { name: 'upload', label: '上传视频', icon: 'el-icon-upload' },
-        { name: 'history', label: '播放历史', icon: 'el-icon-time' },
-        { name: 'likes', label: '点赞记录', icon: 'el-icon-star-on' },
-        { name: 'comments', label: '评论记录', icon: 'el-icon-chat-dot-round' },
-        { name: 'settings', label: '账号设置', icon: 'el-icon-setting' }
-      ],
-      userInfo: {
-        username: localStorage.getItem('username') || '用户',
-        avatar: '',
-        bio: '暂无简介',
-        followCount: 0,
-        fansCount: 0
-      },
-      
-      // 关注/粉丝列表
-      showFollowingList: false,
-      showFansList: false,
-      followingList: [],
-      fansList: [],
-      loadingFollowing: false,
-      loadingFans: false,
+      defaultAvatar: 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png',
+      userInfo: {},
 
-      // --- 我的作品数据 ---
+      currentTab: 'works',
+      tabs: [
+        { key: 'works', label: '我的作品', icon: 'el-icon-video-camera' },
+        { key: 'history', label: '播放历史', icon: 'el-icon-time' },
+        { key: 'favorites', label: '收藏夹', icon: 'el-icon-star-off' },
+        { key: 'interactions', label: '互动记录', icon: 'el-icon-chat-dot-square' }
+      ],
+      interactionSubTab: 'likes',
+
+      // Data Lists
       myWorksList: [],
       worksTotal: 0,
-      loadingWorks: false,
-
-      // --- 上传表单数据 ---
-      uploadForm: {
-        title: '',
-        description: '',
-        categoryId: null,
-        videoFile: null,
-        coverFile: null,
-        coverPreview: null
-      },
-      categories: [],
-      uploading: false,
-      uploadRules: {
-        title: [{ required: true, message: '请输入标题', trigger: 'blur' }],
-        videoFile: [{ required: true, message: '请选择视频', trigger: 'change' }]
-      },
-
-      // --- 播放历史数据 ---
       playHistoryList: [],
-      loadingHistory: false,
-
-      // --- 点赞记录数据 ---
-      likedVideosList: [],
-      loadingLikes: false,
-
-      // --- 评论记录数据 ---
-      myCommentsList: [],
-      loadingComments: false,
-      
-      // 视频标题缓存（用于评论记录中显示视频标题）
+      collectedVideos: [],
+      likedVideos: [],
+      myComments: [],
       videoTitleCache: {},
 
-      // --- 账号设置相关 ---
-      settingsActiveTab: 'basic',
-      profileForm: {
-        id: null,
-        username: '',
-        nickname: '',
-        avatarUrl: '',
-        realName: '',
-        email: '',
-        gender: '',
-        bio: '',
-        phone: '',
-        level: 1,
-        balance: 0,
-        points: 0,
-        fansCount: 0,
-        followCount: 0,
-        createTime: null,
-        lastLogin: null
-      },
-      profileRules: {
-        nickname: [
-          { max: 20, message: '昵称长度不能超过20个字符', trigger: 'blur' }
-        ],
-        email: [
-          { type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }
-        ],
-        bio: [
-          { max: 200, message: '个人简介长度不能超过200个字符', trigger: 'blur' }
-        ]
-      },
-      passwordForm: {
-        oldPassword: '',
-        newPassword: '',
-        confirmPassword: ''
-      },
-      passwordRules: {
-        oldPassword: [
-          { required: true, message: '请输入当前密码', trigger: 'blur' }
-        ],
-        newPassword: [
-          { required: true, message: '请输入新密码', trigger: 'blur' },
-          { min: 6, message: '密码长度至少6位', trigger: 'blur' }
-        ],
-        confirmPassword: [
-          { required: true, message: '请再次输入新密码', trigger: 'blur' },
-          { validator: (rule, value, callback) => {
-              if (value !== this.passwordForm.newPassword) {
-                callback(new Error('两次输入的密码不一致'));
-              } else {
-                callback();
-              }
-            }, trigger: 'blur' }
-        ]
-      },
-      savingProfile: false,
-      changingPassword: false
+      // Loading States
+      loadingWorks: false,
+      loadingHistory: false,
+      loadingCollects: false,
+      loadingLikes: false,
+      loadingComments: false,
+
+      // Dialogs
+      showUploadDialog: false,
+      showEditDialog: false,
+      uploading: false,
+      uploadForm: { title: '', description: '', categoryId: null, videoFile: null, coverFile: null, coverPreview: null },
+      editForm: { nickname: '', bio: '', avatarUrl: '' },
+      categories: [],
+
+      // Follow Lists
+      showFollowingList: false,
+      showFansList: false
     }
   },
   computed: {
-    isLogin() {
-      // 简单判断是否有token
-      return !!localStorage.getItem('token') || !!localStorage.getItem('userToken');
+    coverStyle() {
+      return this.uploadForm.coverPreview ? { backgroundImage: `url(${this.uploadForm.coverPreview})`, backgroundSize: 'cover' } : {}
     }
   },
-  mounted() {
-    if (this.isLogin) {
-      this.loadCategories();
-      this.fetchMyWorks(); // 初始加载作品
-      this.loadUserProfile(); // 加载用户信息
+  created() {
+    if (!localStorage.getItem('userToken')) {
+      this.$router.push('/login')
+    } else {
+      this.loadUserInfo()
+      this.loadCategories()
+      this.switchTab('works')
     }
   },
   methods: {
-    handleTabClick(tabName) {
-      this.activeTab = tabName;
-      if (tabName === 'works') {
-        this.fetchMyWorks();
-      } else if (tabName === 'history') {
-        this.loadPlayHistory();
-      } else if (tabName === 'likes') {
-        this.loadLikedVideos();
-      } else if (tabName === 'comments') {
-        this.loadMyComments();
-      } else if (tabName === 'settings') {
-        this.loadUserProfile();
+    async loadUserInfo() {
+      const res = await userVideoApi.getCurrentUser()
+      if (res.code === 200) {
+        this.userInfo = res.data
+        // 初始化编辑表单
+        this.editForm.nickname = res.data.nickname
+        this.editForm.bio = res.data.bio
+        this.editForm.avatarUrl = res.data.avatarUrl
+      }
+    },
+    switchTab(key) {
+      this.currentTab = key
+      if(key === 'works') this.loadMyWorks()
+      if(key === 'history') this.loadHistory()
+      if(key === 'favorites') this.loadFavorites()
+      if(key === 'interactions') {
+        this.loadLikes()
+        this.loadComments()
       }
     },
 
-    goToUpload() {
-      this.activeTab = 'upload';
-    },
-
-  // --- 获取我的作品 ---
-    async fetchMyWorks() {
-      this.loadingWorks = true;
+    // --- Data Loaders ---
+    async loadMyWorks() {
+      this.loadingWorks = true
       try {
-        const res = await userVideoApi.getMyVideos({ page: 1, limit: 20 });
-        if (res.code === 200) {
-          // 【核心修复】增加对 .list 的判断
-          // 后端 PageResponse 通常使用 list 或 content 字段，而不是 records
-          this.myWorksList = res.data.list || res.data.records || res.data.content || [];
-          this.worksTotal = res.data.total || 0;
+        const res = await userVideoApi.getMyVideos({ page: 1, pageSize: 20 })
+        this.myWorksList = res.data.list || res.data || []
+        this.worksTotal = res.data.total || this.myWorksList.length
+      } finally { this.loadingWorks = false }
+    },
+    async loadHistory() {
+      this.loadingHistory = true
+      try {
+        const res = await userVideoApi.getPlayHistory(50)
+        this.playHistoryList = res.data || []
+      } finally { this.loadingHistory = false }
+    },
+    async loadFavorites() {
+      this.loadingCollects = true
+      // 兼容处理：如果没有后端接口，置空防止报错
+      try {
+        const res = await userVideoApi.getCollectedVideos(1, 20)
+        this.collectedVideos = (res && res.data && (res.data.list || res.data)) || []
+      } catch(e) { this.collectedVideos = [] }
+      this.loadingCollects = false
+    },
+    async loadLikes() {
+      this.loadingLikes = true
+      const res = await userVideoApi.getLikedVideos(1, 50)
+      this.likedVideos = (res.data && (res.data.list || res.data)) || []
+      this.loadingLikes = false
+    },
+    async loadComments() {
+      this.loadingComments = true
+      const res = await userVideoApi.getMyComments(1, 50)
+      this.myComments = (res.data && (res.data.list || res.data)) || []
+      this.loadingComments = false
+      this.loadVideoTitles()
+    },
 
-          // 调试日志：如果还是不显示，按 F12 看控制台打印了什么
-          console.log('我的作品列表数据:', this.myWorksList);
-        }
-      } catch (error) {
-        console.error('获取作品失败', error);
-      } finally {
-        this.loadingWorks = false;
+    // --- Actions ---
+    handleWorkCommand(cmd, item) {
+      if(cmd === 'delete') {
+        this.$confirm('确定删除作品?','提示',{type:'warning'}).then(async () => {
+          await userVideoApi.deleteMyVideo(item.id)
+          this.$message.success('已删除')
+          this.loadMyWorks()
+        })
       }
     },
-    // --- 删除我的作品 ---
-    handleDeleteWork(row) {
-      this.$confirm('确定删除该作品吗？此操作不可恢复。', '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }).then(async () => {
+    async cancelCollect(item) {
+      await userVideoApi.uncollectVideo(item.id)
+      this.$message.success('取消收藏')
+      this.loadFavorites()
+    },
+    async cancelLike(item) {
+      await userVideoApi.unlikeVideo(item.id)
+      this.loadLikes()
+    },
+    // 【修改】删除单条历史
+    async deleteHistoryItem(item) {
+      this.$confirm('确认删除这条记录?', '提示', { type: 'warning' }).then(async () => {
         try {
-          await userVideoApi.deleteMyVideo(row.id);
-          this.$message.success('删除成功');
-          this.fetchMyWorks(); // 刷新列表
+          await userVideoApi.deletePlayHistoryItem(item.id) // 传入 videoId
+          this.playHistoryList = this.playHistoryList.filter(i => i.id !== item.id)
+          this.$message.success('已删除')
         } catch (e) {
-          this.$message.error('删除失败');
+          console.warn(e)
         }
-      });
+      })
     },
 
-    // ========== 播放历史相关 ==========
-    
-    // 加载播放历史
-    async loadPlayHistory() {
-      if (!this.isLogin) {
-        this.$message.warning('请先登录');
-        return;
-      }
-      
-      this.loadingHistory = true;
-      try {
-        const res = await userVideoApi.getPlayHistory(50);
-        if (res && res.code === 200) {
-          this.playHistoryList = res.data || [];
-        } else {
-          this.$message.error('加载播放历史失败');
-        }
-      } catch (error) {
-        console.error('加载播放历史失败:', error);
-        this.$message.error('加载播放历史失败，请稍后重试');
-      } finally {
-        this.loadingHistory = false;
-      }
-    },
-
-    // ========== 点赞记录相关 ==========
-    
-    // 加载点赞记录
-    async loadLikedVideos() {
-      if (!this.isLogin) {
-        this.$message.warning('请先登录');
-        return;
-      }
-      
-      this.loadingLikes = true;
-      try {
-        const res = await userVideoApi.getLikedVideos(1, 50);
-        if (res && res.code === 200) {
-          // 处理分页数据
-          if (res.data && res.data.list) {
-            this.likedVideosList = res.data.list;
-          } else if (Array.isArray(res.data)) {
-            this.likedVideosList = res.data;
-          } else {
-            this.likedVideosList = [];
-          }
-        } else {
-          this.$message.error('加载点赞记录失败');
-        }
-      } catch (error) {
-        console.error('加载点赞记录失败:', error);
-        this.$message.error('加载点赞记录失败，请稍后重试');
-      } finally {
-        this.loadingLikes = false;
-      }
-    },
-
-    // ========== 评论记录相关 ==========
-    
-    // 加载评论记录
-    async loadMyComments() {
-      if (!this.isLogin) {
-        this.$message.warning('请先登录');
-        return;
-      }
-      
-      this.loadingComments = true;
-      try {
-        const res = await userVideoApi.getMyComments(1, 50);
-        if (res && res.code === 200) {
-          // 处理分页数据
-          if (res.data && res.data.list) {
-            this.myCommentsList = res.data.list;
-          } else if (Array.isArray(res.data)) {
-            this.myCommentsList = res.data;
-          } else {
-            this.myCommentsList = [];
-          }
-          
-          // 加载视频标题缓存
-          await this.loadVideoTitles();
-        } else {
-          this.$message.error('加载评论记录失败');
-        }
-      } catch (error) {
-        console.error('加载评论记录失败:', error);
-        this.$message.error('加载评论记录失败，请稍后重试');
-      } finally {
-        this.loadingComments = false;
-      }
-    },
-    
-    // 加载视频标题缓存
-    async loadVideoTitles() {
-      const videoIds = [...new Set(this.myCommentsList.map(c => c.videoId))];
-      for (const videoId of videoIds) {
-        if (!this.videoTitleCache[videoId]) {
-          try {
-            const res = await userVideoApi.getVideoById(videoId);
-            if (res && res.data) {
-              this.videoTitleCache[videoId] = res.data.title || '未知视频';
-            }
-          } catch (error) {
-            console.error(`加载视频${videoId}标题失败:`, error);
-            this.videoTitleCache[videoId] = '未知视频';
-          }
-        }
-      }
-    },
-    
-    // 获取视频标题
-    getVideoTitle(videoId) {
-      return this.videoTitleCache[videoId] || '加载中...';
-    },
-    
-    // 删除评论
-    async deleteComment(commentId) {
-      this.$confirm('确定删除这条评论吗？', '提示', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }).then(async () => {
+    // 【修改】清空历史
+    async clearHistory() {
+      this.$confirm('确定清空所有播放历史?', '提示', { type: 'warning' }).then(async () => {
         try {
-          await userVideoApi.deleteComment(commentId);
-          this.$message.success('删除成功');
-          this.loadMyComments(); // 刷新列表
-        } catch (error) {
-          console.error('删除评论失败:', error);
-          this.$message.error('删除失败，请稍后重试');
+          await userVideoApi.clearPlayHistory()
+          this.playHistoryList = []
+          this.$message.success('历史已清空')
+        } catch (e) {
+          console.warn('清空失败', e)
         }
-      });
+      })
+    },
+    async deleteMyComment(item) {
+      await userVideoApi.deleteComment(item.id)
+      this.loadComments()
     },
 
-    // ========== 工具方法 ==========
-    
-    // 跳转到视频播放页
-    goToVideo(videoId) {
-      if (!videoId) {
-        this.$message.warning('视频ID无效');
-        return;
-      }
-      this.$router.push({
-        path: `/main/video/${videoId}`,
-        query: { from: 'profile' }
-      });
-    },
-    
-    // 处理表格行点击
-    handleRowClick(row) {
-      // 只有已发布的视频才能跳转
-      if (row.status === 'PASSED' && row.id) {
-        this.goToVideo(row.id);
-      } else if (row.status === 'PENDING') {
-        this.$message.info('视频正在审核中，审核通过后才能播放');
-      } else if (row.status === 'REJECTED') {
-        this.$message.warning('视频已被驳回，无法播放');
-      }
-    },
-    
-    // 格式化时长（秒 -> mm:ss）
-    formatDuration(seconds) {
-      if (!seconds) return '0:00';
-      const mins = Math.floor(seconds / 60);
-      const secs = Math.floor(seconds % 60);
-      return `${mins}:${secs.toString().padStart(2, '0')}`;
-    },
-    
-    // 格式化数字（添加单位）
-    formatNumber(num) {
-      if (!num) return '0';
-      if (num < 1000) return num.toString();
-      if (num < 10000) return (num / 1000).toFixed(1) + 'k';
-      if (num < 100000000) return (num / 10000).toFixed(1) + '万';
-      return (num / 100000000).toFixed(1) + '亿';
-    },
-    
-    // 格式化时间
-    formatTime(timeStr) {
-      if (!timeStr) return '--';
-      const date = new Date(timeStr);
-      const now = new Date();
-      const diff = now - date;
-      
-      if (diff < 60000) return '刚刚';
-      if (diff < 3600000) return Math.floor(diff / 60000) + '分钟前';
-      if (diff < 86400000) return Math.floor(diff / 3600000) + '小时前';
-      if (diff < 604800000) return Math.floor(diff / 86400000) + '天前';
-      
-      return date.toLocaleDateString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    },
-
-    // ========== 账号设置相关 ==========
-    
-    // 加载用户信息
-    async loadUserProfile() {
-      if (!this.isLogin) {
-        this.$message.warning('请先登录');
-        return;
-      }
-      
-      try {
-        const res = await userVideoApi.getCurrentUser();
-        if (res && res.code === 200 && res.data) {
-          // 更新用户信息显示
-          this.userInfo = {
-            username: res.data.username || '',
-            avatar: res.data.avatarUrl || '',
-            bio: res.data.bio || '暂无简介',
-            followCount: res.data.followCount || 0,
-            fansCount: res.data.fansCount || 0
-          };
-          
-          // 更新表单数据
-          this.profileForm = {
-            id: res.data.id,
-            username: res.data.username || '',
-            nickname: res.data.nickname || '',
-            avatarUrl: res.data.avatarUrl || '',
-            realName: res.data.realName || '',
-            email: res.data.email || '',
-            gender: res.data.gender || '',
-            bio: res.data.bio || '',
-            phone: res.data.phone || '',
-            level: res.data.level || 1,
-            balance: res.data.balance || 0,
-            points: res.data.points || 0,
-            fansCount: res.data.fansCount || 0,
-            followCount: res.data.followCount || 0,
-            createTime: res.data.createTime,
-            lastLogin: res.data.lastLogin
-          };
-          
-          // 更新用户信息显示
-          this.userInfo.username = res.data.nickname || res.data.username || '用户';
-          this.userInfo.avatar = res.data.avatarUrl || '';
-          this.userInfo.bio = res.data.bio || '暂无简介';
-          this.userInfo.followCount = res.data.followCount || 0;
-          this.userInfo.fansCount = res.data.fansCount || 0;
-        }
-      } catch (error) {
-        console.error('加载用户信息失败:', error);
-        this.$message.error('加载用户信息失败，请稍后重试');
-      }
-    },
-    
-    // 保存用户信息
-    async saveProfile() {
-      this.$refs.profileForm.validate(async (valid) => {
-        if (!valid) {
-          this.$message.warning('请检查表单填写是否正确');
-          return;
-        }
-        
-        this.savingProfile = true;
-        try {
-          const updateData = {
-            nickname: this.profileForm.nickname,
-            avatarUrl: this.profileForm.avatarUrl,
-            realName: this.profileForm.realName,
-            email: this.profileForm.email,
-            gender: this.profileForm.gender || null,
-            bio: this.profileForm.bio
-          };
-          
-          const res = await userVideoApi.updateProfile(updateData);
-          if (res && res.code === 200) {
-            this.$message.success('保存成功');
-            // 更新本地存储的用户名
-            if (res.data && res.data.nickname) {
-              localStorage.setItem('username', res.data.nickname);
-            }
-            // 重新加载用户信息
-            await this.loadUserProfile();
-          } else {
-            this.$message.error(res?.msg || '保存失败');
-          }
-        } catch (error) {
-          console.error('保存用户信息失败:', error);
-          this.$message.error('保存失败，请稍后重试');
-        } finally {
-          this.savingProfile = false;
-        }
-      });
-    },
-    
-    // 修改密码
-    async changePassword() {
-      this.$refs.passwordForm.validate(async (valid) => {
-        if (!valid) {
-          this.$message.warning('请检查表单填写是否正确');
-          return;
-        }
-        
-        this.changingPassword = true;
-        try {
-          const res = await userVideoApi.changePassword(
-            this.passwordForm.oldPassword,
-            this.passwordForm.newPassword
-          );
-          if (res && res.code === 200) {
-            this.$message.success('密码修改成功，请重新登录');
-            this.resetPasswordForm();
-            // 可以选择自动退出登录
-            setTimeout(() => {
-              localStorage.clear();
-              this.$router.push('/login');
-            }, 1500);
-          } else {
-            this.$message.error(res?.msg || '密码修改失败');
-          }
-        } catch (error) {
-          console.error('修改密码失败:', error);
-          this.$message.error('修改密码失败，请稍后重试');
-        } finally {
-          this.changingPassword = false;
-        }
-      });
-    },
-    
-    // 重置密码表单
-    resetPasswordForm() {
-      this.passwordForm = {
-        oldPassword: '',
-        newPassword: '',
-        confirmPassword: ''
-      };
-      if (this.$refs.passwordForm) {
-        this.$refs.passwordForm.clearValidate();
-      }
-    },
-    
-    // 触发头像上传
-    triggerAvatarUpload() {
-      this.$refs.avatarInput.click();
-    },
-    
-    // 处理头像选择
-    handleAvatarSelect(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-      
-      // 验证文件类型
-      if (!file.type.startsWith('image/')) {
-        this.$message.warning('请选择图片文件');
-        return;
-      }
-      
-      // 验证文件大小（限制5MB）
-      if (file.size > 5 * 1024 * 1024) {
-        this.$message.warning('图片大小不能超过5MB');
-        return;
-      }
-      
-      // 读取文件并预览
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        // 这里可以上传到服务器，暂时使用base64
-        // 实际项目中应该上传到OSS或服务器
-        this.profileForm.avatarUrl = e.target.result;
-        this.$message.info('头像已更新，请点击保存按钮保存修改');
-      };
-      reader.readAsDataURL(file);
-      
-      // 清空input，以便可以重复选择同一文件
-      event.target.value = '';
-    },
-    
-    // 移除头像
-    removeAvatar() {
-      this.profileForm.avatarUrl = '';
-      this.$message.info('头像已移除，请点击保存按钮保存修改');
-    },
-
-    // --- 上传相关逻辑 ---
-    triggerFileInput() { this.$refs.fileInput.click(); },
-    triggerCoverInput() { this.$refs.coverInput.click(); },
-
-    handleFileSelect(e) {
-      const file = e.target.files[0];
-      if (file) this.uploadForm.videoFile = file;
-    },
-
+    // --- Upload ---
+    openUploadDialog() { this.showUploadDialog = true },
+    triggerFileInput() { this.$refs.fileInput.click() },
+    triggerCoverInput() { this.$refs.coverInput.click() },
+    handleFileSelect(e) { this.uploadForm.videoFile = e.target.files[0] },
     handleCoverSelect(e) {
-      const file = e.target.files[0];
-      if (file) {
-        this.uploadForm.coverFile = file;
-        this.uploadForm.coverPreview = URL.createObjectURL(file);
+      const file = e.target.files[0]
+      if(file) {
+        this.uploadForm.coverFile = file
+        this.uploadForm.coverPreview = URL.createObjectURL(file)
       }
     },
-
-    async loadCategories() {
-      try {
-        const res = await userVideoApi.getCategories();
-        this.categories = res.data || [];
-      } catch (e) {
-        console.error('分类加载失败');
-      }
-    },
-
-    resetUploadForm() {
-      this.$refs.uploadForm.resetFields();
-      this.uploadForm.coverPreview = null;
-      this.uploadForm.videoFile = null;
-      this.uploadForm.coverFile = null;
-    },
-
     async submitUpload() {
-      this.$refs.uploadForm.validate(async valid => {
-        if (!valid) return;
-        this.uploading = true;
-        try {
-          const fd = new FormData();
-          fd.append('file', this.uploadForm.videoFile);
-          fd.append('title', this.uploadForm.title);
-          if (this.uploadForm.description) fd.append('description', this.uploadForm.description);
-          if (this.uploadForm.categoryId) fd.append('categoryId', this.uploadForm.categoryId);
-          if (this.uploadForm.coverFile) fd.append('coverFile', this.uploadForm.coverFile);
-
-          await userVideoApi.uploadVideo(fd);
-          this.$message.success('发布成功，请等待审核');
-          this.resetUploadForm();
-          this.activeTab = 'works'; // 自动跳转到作品页
-          this.fetchMyWorks();      // 刷新列表可以看到新视频（状态为 Pending）
-        } catch (e) {
-          this.$message.error('上传失败: ' + (e.response?.data?.msg || e.message || '未知错误'));
-        } finally {
-          this.uploading = false;
-        }
-      });
-    },
-
-    formatDate(row, column, cellValue) {
-      if (!cellValue) return '';
-      return cellValue.replace('T', ' ').substring(0, 16);
-    },
-    
-    // ========== 关注/粉丝相关 ==========
-    
-    // 加载关注列表
-    async loadFollowingList() {
-      this.loadingFollowing = true;
+      if(!this.uploadForm.title || !this.uploadForm.videoFile) return this.$message.warning('请填写标题并选择视频')
+      this.uploading = true
       try {
-        const res = await userVideoApi.getFollowingList();
-        if (res && res.code === 200) {
-          this.followingList = res.data || [];
+        const fd = new FormData()
+        fd.append('file', this.uploadForm.videoFile)
+        fd.append('title', this.uploadForm.title)
+        fd.append('categoryId', this.uploadForm.categoryId || 1)
+        if(this.uploadForm.description) fd.append('description', this.uploadForm.description)
+        if(this.uploadForm.coverFile) fd.append('coverFile', this.uploadForm.coverFile)
+
+        await userVideoApi.uploadVideo(fd)
+        this.$message.success('投稿成功！请等待审核通过后显示')
+        this.showUploadDialog = false
+        // 修改：强制刷新列表
+        if (this.currentTab === 'works') {
+          this.loadMyWorks()
         } else {
-          this.$message.error('加载关注列表失败');
-          this.followingList = [];
+          this.switchTab('works')
         }
-      } catch (error) {
-        console.error('加载关注列表失败:', error);
-        this.$message.error('加载关注列表失败，请稍后重试');
-        this.followingList = [];
-      } finally {
-        this.loadingFollowing = false;
+      } catch(e) { this.$message.error('上传失败') }
+      finally { this.uploading = false }
+    },
+
+// --- Edit Profile ---
+    openEditProfile() {
+      this.showEditDialog = true
+      // 每次打开时重置头像文件
+      this.editForm.avatarFile = null
+    },
+
+    handleAvatarSelect(e) {
+      const file = e.target.files[0]
+      if(file) {
+        // 保存文件对象用于上传
+        this.editForm.avatarFile = file
+        const reader = new FileReader()
+        reader.onload = (ev) => { this.editForm.avatarUrl = ev.target.result } // 仅用于预览
+        reader.readAsDataURL(file)
       }
     },
-    
-    // 加载粉丝列表
-    async loadFansList() {
-      this.loadingFans = true;
+
+    // 【修改】保存资料（含头像上传）
+    async saveProfile() {
+      this.uploading = true
       try {
-        const res = await userVideoApi.getFansList();
-        if (res && res.code === 200) {
-          this.fansList = res.data || [];
-        } else {
-          this.$message.error('加载粉丝列表失败');
-          this.fansList = [];
+        // 1. 如果选择了新头像，先上传头像
+        if (this.editForm.avatarFile) {
+          const res = await userVideoApi.uploadFile(this.editForm.avatarFile)
+          if (res.code === 200) {
+            this.editForm.avatarUrl = res.data // 获取后端返回的云存储 URL
+          }
         }
-      } catch (error) {
-        console.error('加载粉丝列表失败:', error);
-        this.$message.error('加载粉丝列表失败，请稍后重试');
-        this.fansList = [];
+
+        // 2. 更新资料
+        await userVideoApi.updateProfile({
+          nickname: this.editForm.nickname,
+          bio: this.editForm.bio,
+          avatarUrl: this.editForm.avatarUrl // 传入新的 URL
+        })
+
+        this.$message.success('资料已更新')
+        this.showEditDialog = false
+        this.loadUserInfo() // 刷新页面信息
+      } catch (e) {
+        this.$message.error('保存失败')
       } finally {
-        this.loadingFans = false;
-      }
-    }
-  },
-  watch: {
-    showFollowingList(newVal) {
-      if (newVal) {
-        this.loadFollowingList();
+        this.uploading = false
       }
     },
-    showFansList(newVal) {
-      if (newVal) {
-        this.loadFansList();
+    openAccountSettings() { this.$message.info('账号设置开发中...') },
+
+    // --- Utils ---
+    goToVideo(id) { this.$router.push(`/main/video/${id}`) },
+    async loadCategories() {
+      const res = await userVideoApi.getCategories()
+      this.categories = res.data || []
+    },
+    formatDuration(s) {
+      if(!s) return '00:00'
+      const m = Math.floor(s/60); const sec=Math.floor(s%60)
+      return `${m}:${sec<10?'0'+sec:sec}`
+    },
+    formatNumber(n) { return n > 10000 ? (n/10000).toFixed(1)+'w' : n || 0 },
+    formatTime(t) { return t ? t.replace('T', ' ').substring(0,16) : '' },
+    formatTimeAgo(t) { return this.formatTime(t).split(' ')[0] },
+    async loadVideoTitles() {
+      const ids = [...new Set(this.myComments.map(c => c.videoId))]
+      for(let id of ids) {
+        if(!this.videoTitleCache[id]) {
+          try {
+            const res = await userVideoApi.getVideoById(id)
+            this.$set(this.videoTitleCache, id, res.data.title)
+          } catch(e) {
+            // 【修复】添加日志，解决 no-empty 报错
+            console.warn('获取视频标题失败', e)
+          }
+        }
       }
-    }
+    },
+    getVideoTitle(id) { return this.videoTitleCache[id] || `视频ID:${id}` }
   }
 }
 </script>
 
 <style scoped>
-/* 保持原有样式，增加少量新样式 */
-.profile-container { padding: 20px; max-width: 1200px; margin: 0 auto; background: #f5f7fa; min-height: 100vh; }
-.profile-header-enhanced { display: flex; gap: 30px; padding: 30px; align-items: center; }
-.avatar-section-enhanced { position: relative; }
-.user-info-enhanced { flex: 1; }
-.username-enhanced { margin: 0 0 10px 0; font-size: 28px; color: #333; }
-.stats-cards { display: flex; gap: 20px; margin-top: 20px; }
-.stat-card { flex: 1; padding: 15px; border-radius: 10px; color: white; display: flex; align-items: center; gap: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); cursor: pointer; transition: all 0.3s; }
-.stat-card:hover { transform: translateY(-3px); box-shadow: 0 6px 15px rgba(0,0,0,0.15); }
-.stat-number { font-size: 24px; font-weight: bold; }
-.count-badge { font-size: 14px; color: #409EFF; font-weight: normal; margin-left: 8px; }
-.custom-tabs { display: flex; border-bottom: 2px solid #eee; margin-bottom: 20px; padding: 0 20px; }
-.custom-tab-item { padding: 15px 25px; cursor: pointer; position: relative; color: #666; display: flex; align-items: center; gap: 8px; transition: all 0.3s; }
-.custom-tab-item:hover { color: #409EFF; }
-.custom-tab-item.active { color: #409EFF; font-weight: bold; }
-.tab-indicator { position: absolute; bottom: -2px; left: 0; width: 100%; height: 3px; background: #409EFF; }
+/* * 现代极简设计 CSS
+ * 核心：去边框、大阴影、圆角、留白
+ */
 
-/* 上传区域样式 */
-.upload-form { max-width: 800px; margin: 0 auto; }
-.upload-area { border: 2px dashed #dcdfe6; padding: 20px; text-align: center; cursor: pointer; border-radius: 8px; background: #fafafa; transition: border-color 0.3s; display: flex; align-items: center; justify-content: center; min-height: 100px; }
-.upload-area:hover { border-color: #409EFF; background: #f0f7ff; }
-.upload-placeholder { color: #909399; }
-.upload-placeholder i { font-size: 32px; margin-bottom: 10px; }
-.submit-btn { width: 200px; }
-
-/* 空状态 */
-.empty-state { text-align: center; padding: 60px 0; color: #999; }
-.empty-icon { font-size: 64px; margin-bottom: 20px; color: #e0e0e0; }
-
-/* 加载状态 */
-.loading-state { text-align: center; padding: 40px 0; color: #999; }
-.loading-state i { font-size: 24px; animation: rotate 1s linear infinite; }
-@keyframes rotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+.profile-page {
+  min-height: 100vh;
+  background: #f6f7f8;
 }
 
-/* 内容头部 */
-.content-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #eee; }
-.content-header h3 { margin: 0; font-size: 18px; color: #333; }
-
-/* 视频列表 */
-.video-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
-.video-item { cursor: pointer; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: transform 0.3s, box-shadow 0.3s; }
-.video-item:hover { transform: translateY(-4px); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-.video-thumbnail { position: relative; width: 100%; padding-top: 56.25%; background: #000; overflow: hidden; }
-.video-thumbnail img { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
-.video-duration { position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,0.7); color: white; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
-.video-info { padding: 12px; }
-.video-title { margin: 0 0 8px 0; font-size: 14px; color: #333; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.video-meta { display: flex; gap: 12px; font-size: 12px; color: #999; }
-.video-meta span { display: flex; align-items: center; gap: 4px; }
-
-/* 评论列表 */
-.comment-list { display: flex; flex-direction: column; gap: 12px; }
-.comment-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 16px; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); cursor: pointer; transition: background 0.3s; }
-.comment-item:hover { background: #f5f7fa; }
-.comment-content { flex: 1; }
-.comment-text { margin: 0 0 8px 0; color: #333; line-height: 1.6; }
-.comment-meta { display: flex; gap: 16px; font-size: 12px; color: #999; }
-.comment-video { color: #409EFF; }
-.comment-likes { display: flex; align-items: center; gap: 4px; }
-
-/* 账号设置样式 */
-.settings-form { max-width: 800px; margin: 0 auto; padding: 20px; }
-.form-tip { font-size: 12px; color: #999; margin-top: 4px; }
-
-.avatar-upload-section { display: flex; align-items: center; gap: 20px; }
-.avatar-preview { border: 2px solid #eee; }
-.avatar-actions { display: flex; flex-direction: column; gap: 8px; }
-
-.account-info { padding: 20px; }
-.info-item { display: flex; padding: 12px 0; border-bottom: 1px solid #eee; }
-.info-item:last-child { border-bottom: none; }
-.info-label { width: 120px; color: #666; font-weight: 500; }
-.info-value { flex: 1; color: #333; }
-
-/* 关注/粉丝列表样式 */
-.user-list {
-  max-height: 500px;
-  overflow-y: auto;
+/* 1. Banner */
+.profile-banner {
+  height: 240px;
+  background-image: url('https://picsum.photos/1920/300?blur=2'); /* 默认背景图 */
+  background-size: cover;
+  background-position: center;
+  position: relative;
+}
+.banner-mask {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 80px;
+  background: linear-gradient(to top, rgba(0,0,0,0.4), transparent);
 }
 
-.user-item {
+.main-container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 0 20px;
+  position: relative;
+  margin-top: -60px; /* 悬浮效果关键 */
+  z-index: 10;
+}
+
+/* 2. 用户卡片 */
+.user-info-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+}
+
+.info-left {
+  display: flex;
+  gap: 20px;
+}
+
+.avatar-wrapper {
+  position: relative;
+  margin-top: -40px; /* 头像上浮 */
+}
+.main-avatar {
+  border: 4px solid #fff;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  background: #fff;
+  font-size: 32px;
+}
+.vip-badge {
+  position: absolute;
+  bottom: 5px; right: 5px;
+  background: #FB7299;
+  color: #fff;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  border: 2px solid #fff;
+}
+
+.text-content {
+  padding-bottom: 5px;
+}
+.name-row {
   display: flex;
   align-items: center;
-  gap: 15px;
-  padding: 15px;
-  border-bottom: 1px solid #eee;
-  transition: background 0.2s;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.nickname {
+  font-size: 24px;
+  font-weight: bold;
+  color: #222;
+  margin: 0;
+}
+.level-tag {
+  background: #eee;
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #666;
+}
+.bio {
+  font-size: 14px;
+  color: #999;
+  max-width: 400px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0;
 }
 
-.user-item:hover {
-  background: #f5f7fa;
+.info-right {
+  display: flex;
+  align-items: center;
+  gap: 40px;
+}
+.stat-box {
+  text-align: center;
+  cursor: pointer;
+}
+.stat-box:hover .stat-num { color: #409EFF; }
+.stat-num { font-size: 20px; font-weight: bold; color: #222; }
+.stat-label { font-size: 12px; color: #999; margin-top: 4px; }
+
+.action-group {
+  display: flex;
+  gap: 10px;
+}
+.edit-btn {
+  padding: 10px 24px;
+  font-weight: 600;
 }
 
-.user-item:last-child {
+/* 3. 导航栏 */
+.nav-bar-sticky {
+  margin-top: 20px;
+  background: transparent;
+  border-bottom: 1px solid #e7e7e7;
+}
+.nav-list {
+  display: flex;
+  gap: 40px;
+}
+.nav-item {
+  font-size: 16px;
+  color: #666;
+  padding: 12px 0;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.3s;
+}
+.nav-item:hover { color: #409EFF; }
+.nav-item.active { color: #409EFF; font-weight: 600; }
+.nav-item.active .active-line {
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  background: #409EFF;
+  border-radius: 3px;
+}
+
+/* 4. 内容区 */
+.content-wrapper {
+  margin-top: 20px;
+  padding-bottom: 60px;
+}
+.view-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.view-header h2 { margin: 0; font-size: 20px; color: #222; font-weight: 500; }
+.sub-text { font-size: 13px; color: #999; margin-left: 10px; }
+.text-danger { color: #F56C6C; }
+
+/* 我的作品 - 列表布局样式 */
+.works-list-container {
+  background: #fff;
+  border-radius: 8px;
+}
+
+.work-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.work-item {
+  display: flex;
+  padding: 20px 0;
+  border-bottom: 1px solid #f0f0f0;
+  gap: 20px;
+  transition: background-color 0.2s;
+}
+
+.work-item:hover {
+  background-color: #fafafa;
+}
+
+.work-item:last-child {
   border-bottom: none;
 }
 
-.user-item .user-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.user-name {
-  font-size: 16px;
-  font-weight: 500;
-  color: #333;
-  margin-bottom: 5px;
-}
-
-.user-bio {
-  font-size: 13px;
-  color: #999;
+/* 左侧封面 */
+.work-cover {
+  width: 190px;
+  height: 107px; /* 16:9 比例 */
+  position: relative;
+  border-radius: 6px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+  background: #000;
 }
 
-.user-stats {
+.work-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s;
+}
+
+.work-cover:hover img {
+  transform: scale(1.05);
+}
+
+.work-cover .duration {
+  position: absolute; bottom: 6px; right: 6px;
+  background: rgba(0,0,0,0.6); color: #fff;
+  font-size: 12px; padding: 2px 4px; border-radius: 4px;
+}
+
+.work-cover .status-tag {
+  position: absolute; top: 6px; left: 6px;
+  font-size: 12px; padding: 2px 6px; border-radius: 4px; color: #fff;
+}
+.status-tag.success { background: #67C23A; }
+.status-tag.warning { background: #E6A23C; }
+.status-tag.error { background: #F56C6C; }
+
+/* 右侧详情 */
+.work-detail {
+  flex: 1;
   display: flex;
-  gap: 15px;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0; /* 防止文本溢出 */
+}
+
+.work-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.work-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #222;
+  margin: 0;
+  cursor: pointer;
+  line-height: 1.4;
+  /* 标题最多显示2行 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.work-title:hover {
+  color: #409EFF;
+}
+
+.action-icon {
+  font-size: 20px;
+  color: #999;
+  cursor: pointer;
+  padding: 4px;
+}
+.action-icon:hover {
+  color: #409EFF;
+}
+
+.work-desc {
   font-size: 13px;
   color: #666;
+  margin-top: 8px;
+  line-height: 1.5;
+  /* 描述最多显示2行 */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  flex: 1;
 }
 
-.empty-list {
-  text-align: center;
-  padding: 60px 20px;
+.work-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
   color: #999;
+  margin-top: 10px;
 }
 
-.empty-list i {
-  font-size: 48px;
-  margin-bottom: 15px;
-  display: block;
-  color: #ddd;
+.work-footer .stats span {
+  margin-left: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.empty-list p {
-  margin: 0;
-  font-size: 14px;
+.video-card {
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
 }
-
-.count-badge {
-  font-size: 14px;
-  color: #409EFF;
-  font-weight: normal;
-  margin-left: 8px;
+.video-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 20px rgba(0,0,0,0.1);
 }
+.card-cover {
+  width: 100%;
+  padding-top: 56.25%; /* 16:9 */
+  position: relative;
+  background: #000;
+}
+.card-cover img {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;
+}
+.duration {
+  position: absolute; bottom: 6px; right: 6px;
+  background: rgba(0,0,0,0.6); color: #fff;
+  font-size: 12px; padding: 2px 4px; border-radius: 4px;
+}
+.status-tag {
+  position: absolute; top: 6px; left: 6px;
+  font-size: 12px; padding: 2px 6px; border-radius: 4px; color: #fff;
+}
+.status-tag.success { background: #67C23A; }
+.status-tag.warning { background: #E6A23C; }
+.status-tag.error { background: #F56C6C; }
 
-/* 响应式适配 */
+.hover-overlay {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.3);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity 0.2s;
+}
+.hover-overlay.red { background: rgba(0,0,0,0.5); }
+.video-card:hover .hover-overlay { opacity: 1; }
+.hover-overlay i { font-size: 40px; color: #fff; }
+
+.card-info { padding: 12px; }
+.title {
+  margin: 0 0 8px 0; font-size: 14px; color: #222;
+  line-height: 20px; height: 40px;
+  overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.meta-row, .data-row {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 12px; color: #999;
+}
+.more-actions:hover { color: #409EFF; }
+
+/* 历史时间轴 */
+.history-timeline {
+  background: #fff; border-radius: 12px; padding: 20px;
+}
+.timeline-item {
+  display: flex; gap: 20px; padding: 15px 0; border-bottom: 1px solid #f0f0f0;
+}
+.item-card {
+  display: flex; gap: 15px; flex: 1;
+}
+.item-card .cover {
+  width: 160px; height: 90px; border-radius: 6px; overflow: hidden;
+}
+.item-card .cover img { width: 100%; height: 100%; object-fit: cover; }
+.item-card .detail { flex: 1; }
+.item-card h3 { margin: 0 0 8px 0; font-size: 16px; color: #222; cursor: pointer; }
+.item-card h3:hover { color: #409EFF; }
+.view-time { font-size: 12px; color: #999; }
+.author-row { font-size: 12px; color: #666; margin-top: 10px; }
+
+/* 收藏夹布局 */
+.fav-container { display: flex; gap: 20px; }
+.fav-menu { width: 220px; background: #fff; border-radius: 8px; padding: 15px 0; height: fit-content; }
+.menu-title { padding: 0 20px 10px; font-weight: 600; color: #999; font-size: 12px; }
+.menu-item {
+  padding: 12px 20px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; color: #333; font-size: 14px;
+}
+.menu-item:hover { background: #f1f2f3; }
+.menu-item.active { background: #409EFF; color: #fff; }
+.menu-item.disabled { color: #ccc; cursor: not-allowed; }
+.fav-body { flex: 1; }
+
+/* 评论记录 */
+.comment-timeline { background: #fff; padding: 20px; border-radius: 8px; }
+.comment-card-item {
+  padding: 20px 0; border-bottom: 1px solid #eee;
+}
+.comment-quote {
+  font-size: 13px; color: #999; margin-bottom: 8px;
+}
+.comment-content {
+  font-size: 15px; color: #222; line-height: 1.5;
+}
+.comment-footer {
+  margin-top: 8px; font-size: 12px; color: #999;
+}
+.delete-link {
+  margin-left: 15px; cursor: pointer; display: none;
+}
+.comment-card-item:hover .delete-link { display: inline-block; color: #F56C6C; }
+
+/* 上传弹窗样式优化 */
+.upload-row { display: flex; gap: 20px; margin-top: 10px; }
+.upload-box {
+  flex: 1; border: 2px dashed #d9d9d9; border-radius: 6px;
+  height: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  cursor: pointer; color: #8c939d; transition: all 0.3s;
+  background-size: cover; background-position: center;
+}
+.upload-box:hover { border-color: #409EFF; color: #409EFF; }
+.upload-box i { font-size: 28px; margin-bottom: 8px; }
+.upload-box.hasFile { border-style: solid; border-color: #67C23A; color: #67C23A; }
+
+.empty-placeholder {
+  grid-column: 1 / -1;
+  text-align: center; padding: 60px 0; color: #999;
+}
+.empty-img { width: 160px; margin-bottom: 20px; }
+
+/* 动画 */
+.fade-enter { animation: fadeIn 0.4s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* 响应式 */
 @media (max-width: 768px) {
-  .profile-header-enhanced { flex-direction: column; text-align: center; }
-  .stats-cards { flex-direction: column; }
-  .custom-tabs { overflow-x: auto; }
+  .user-info-card { flex-direction: column; align-items: flex-start; }
+  .info-right { margin-top: 20px; width: 100%; justify-content: space-between; }
+  .fav-container { flex-direction: column; }
+  .fav-menu { width: 100%; }
 }
 </style>

@@ -53,19 +53,19 @@
         WHERE is_deleted = 0
         <if test="keyword != null and keyword != ''">
             AND (
-                username LIKE CONCAT('%', #{keyword}, '%') 
-                OR (phone IS NOT NULL AND phone LIKE CONCAT('%', #{keyword}, '%'))
-                OR CAST(id AS CHAR) LIKE CONCAT('%', #{keyword}, '%')
+            username LIKE CONCAT('%', #{keyword}, '%')
+            OR (phone IS NOT NULL AND phone LIKE CONCAT('%', #{keyword}, '%'))
+            OR CAST(id AS CHAR) LIKE CONCAT('%', #{keyword}, '%')
             )
         </if>
         <if test="status != null and status != ''">
-            AND (status_str = #{status} OR 
-                 (status_str IS NULL AND status = CASE 
-                     WHEN #{status} = 'normal' THEN 1
-                     WHEN #{status} = 'frozen' THEN 0
-                     WHEN #{status} = 'muted' THEN 2
-                     ELSE 1
-                 END))
+            AND (status_str = #{status} OR
+            (status_str IS NULL AND status = CASE
+            WHEN #{status} = 'normal' THEN 1
+            WHEN #{status} = 'frozen' THEN 0
+            WHEN #{status} = 'muted' THEN 2
+            ELSE 1
+            END))
         </if>
         <if test="level != null and level != ''">
             AND level = #{level}
@@ -80,17 +80,27 @@
 
     <update id="updateById">
         UPDATE sys_user
-        SET username = #{username},
-            phone = #{phone},
-            nickname = #{nickname},
-            avatar_url = #{avatarUrl},
-            real_name = #{realName},
-            email = #{email},
-            gender = #{gender},
-            bio = #{bio},
-            status = #{status},
-            ip_address = #{ipAddress},
-            update_time = #{updateTime}
+        <set>
+            <if test="username != null">username = #{username},</if>
+            <if test="password != null">password = #{password},</if>
+            <if test="salt != null">salt = #{salt},</if>
+            <if test="phone != null">phone = #{phone},</if>
+            <if test="nickname != null">nickname = #{nickname},</if>
+            <if test="realName != null">real_name = #{realName},</if>
+            <if test="email != null">email = #{email},</if>
+            <if test="gender != null">gender = #{gender},</if>
+            <if test="bio != null">bio = #{bio},</if>
+            <if test="fansCount != null">fans_count = #{fansCount},</if>
+            <if test="followCount != null">follow_count = #{followCount},</if>
+            <if test="avatarUrl != null">avatar_url = #{avatarUrl},</if>
+            <if test="level != null">level = #{level},</if>
+            <if test="balance != null">balance = #{balance},</if>
+            <if test="points != null">points = #{points},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="statusStr != null">status_str = #{statusStr},</if>
+            <if test="ipAddress != null">ip_address = #{ipAddress},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+        </set>
         WHERE id = #{id}
     </update>
 

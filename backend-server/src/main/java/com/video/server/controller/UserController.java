@@ -5,6 +5,7 @@ import com.video.server.dto.PasswordChangeRequest;
 import com.video.server.dto.UserUpdateRequest;
 import com.video.server.entity.User;
 import com.video.server.entity.UserFollow;
+import com.video.server.dto.VideoDTO;
 import com.video.server.entity.Video;
 import com.video.server.entity.VideoComment;
 import com.video.server.exception.BusinessException;
@@ -15,7 +16,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.util.DigestUtils;
 import org.springframework.web.bind.annotation.*;
-
+import com.video.server.utils.TencentCosVideoUtil; // 确保引入
+import org.springframework.web.multipart.MultipartFile;
 import javax.servlet.http.HttpServletRequest;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -37,8 +39,8 @@ public class UserController {
     private final VideoPlayRecordService playRecordService;
     private final VideoInteractionService interactionService;
     private final VideoCommentService commentService;
-    private final VideoService videoService; // 新增注入：用于查询我的作品
-
+    private final VideoService videoService;
+    private final TencentCosVideoUtil tencentCosVideoUtil;
     /**
      * 获取当前用户信息
      */
@@ -65,8 +67,6 @@ public class UserController {
         if (request.getBio() != null) user.setBio(request.getBio());
         user.setUpdateTime(LocalDateTime.now());
         userMapper.updateById(user);
-        user.setPassword(null);
-        user.setSalt(null);
         return ResponseEntity.ok(ApiResponse.success(user));
     }
 
@@ -93,9 +93,23 @@ public class UserController {
 
     // 点赞记录
     @GetMapping("/likes")
-    public ResponseEntity<ApiResponse<List<Video>>> getLikes(@RequestParam(defaultValue = "1") Integer page, @RequestParam(defaultValue = "20") Integer pageSize, HttpServletRequest request) {
+    public ResponseEntity<ApiResponse<List<VideoDTO>>> getLikes(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "20") Integer pageSize,
+            HttpServletRequest request) {
         Long userId = getUserIdFromRequest(request);
-        List<Video> videos = interactionService.getLikedVideos(userId, pageSize);
+        List<VideoDTO> videos = interactionService.getLikedVideos(userId, pageSize);
+        return ResponseEntity.ok(ApiResponse.success(videos));
+    }
+
+    // 收藏记录
+    @GetMapping("/collects")
+    public ResponseEntity<ApiResponse<List<VideoDTO>>> getCollectedVideos(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "20") Integer pageSize,
+            HttpServletRequest request) {
+        Long userId = getUserIdFromRequest(request);
+        List<VideoDTO> videos = interactionService.getCollectedVideos(userId, pageSize);
         return ResponseEntity.ok(ApiResponse.success(videos));
     }
 
@@ -108,7 +122,7 @@ public class UserController {
     }
 
     /**
-     * 【新增】获取我的作品
+     * 获取我的作品
      */
     @GetMapping("/works")
     public ResponseEntity<ApiResponse<List<Video>>> getMyWorks(
@@ -237,5 +251,38 @@ public class UserController {
     private String encryptPassword(String password, String salt) {
         String saltedPassword = password + salt;
         return DigestUtils.md5DigestAsHex(saltedPassword.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * 【新增】删除单条播放历史
+     */
+    @DeleteMapping("/history/{videoId}")
+    public ResponseEntity<ApiResponse<Void>> deletePlayHistory(@PathVariable Long videoId, HttpServletRequest request) {
+        Long userId = getUserIdFromRequest(request);
+        playRecordService.deleteRecord(userId, videoId);
+        return ResponseEntity.ok(ApiResponse.success());
+    }
+
+    /**
+     * 【新增】清空播放历史
+     */
+    @DeleteMapping("/history")
+    public ResponseEntity<ApiResponse<Void>> clearPlayHistory(HttpServletRequest request) {
+        Long userId = getUserIdFromRequest(request);
+        playRecordService.clearHistory(userId);
+        return ResponseEntity.ok(ApiResponse.success());
+    }
+
+    /**
+     * 【新增】上传图片文件 (头像/封面)
+     */
+    @PostMapping("/upload/file")
+    public ResponseEntity<ApiResponse<String>> uploadFile(@RequestParam("file") MultipartFile file) {
+        if (file.isEmpty()) {
+            throw new BusinessException(400, "文件不能为空");
+        }
+        // 复用封面上传逻辑，或者您可以写一个 uploadImage 通用方法
+        String url = tencentCosVideoUtil.uploadCover(file);
+        return ResponseEntity.ok(ApiResponse.success(url));
     }
 }
