@@ -5,6 +5,9 @@ import org.apache.spark.ml.recommendation.ALS
 import org.apache.spark.sql.SparkSession
 import java.time.LocalDate
 import org.apache.spark.sql.functions.{avg, min, max}
+import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.hadoop.conf.Configuration
+import java.net.URI
 
 /**
  * Spark ALS 离线推荐训练主程序
@@ -12,6 +15,93 @@ import org.apache.spark.sql.functions.{avg, min, max}
  * 流程：读取HDFS日志 -> 解析 -> 聚合 -> 过滤 -> 训练 -> 评估 -> 存储
  */
 object ALSTrainer {
+
+  /**
+   * 验证HDFS路径是否存在并可读
+   * 修复：使用 URI 来正确获取 HDFS 文件系统，而不是默认的本地文件系统
+   */
+  private def validateHDFSDirectory(spark: SparkSession, path: String): Boolean = {
+    try {
+      val hadoopConf = spark.sparkContext.hadoopConfiguration
+      
+      // 从路径中提取 HDFS URI (例如: hdfs://localhost:9000)
+      val hdfsUri = if (path.startsWith("hdfs://")) {
+        val uri = new URI(path)
+        new URI(uri.getScheme, uri.getAuthority, null, null, null)
+      } else {
+        // 如果不是 hdfs:// 开头，尝试使用默认配置
+        val fsDefaultName = hadoopConf.get("fs.defaultFS", "file:///")
+        new URI(fsDefaultName)
+      }
+      
+      println(s"[DEBUG] 使用 HDFS URI: $hdfsUri")
+      
+      // 使用 URI 获取正确的文件系统（HDFS 而不是本地文件系统）
+      val fs = FileSystem.get(hdfsUri, hadoopConf)
+      
+      // 如果路径包含通配符，我们只需检查根目录是否存在
+      if (path.contains("*")) {
+        var basePath = path.substring(0, path.indexOf("*"))
+        // 确保路径以"/"结尾
+        if (!basePath.endsWith("/")) {
+          val lastSlash = basePath.lastIndexOf("/")
+          basePath = basePath.substring(0, lastSlash + 1)
+        }
+        
+        val hdfsPath = new Path(basePath)
+        
+        if (!fs.exists(hdfsPath)) {
+          println(s"[ERROR] HDFS基础路径不存在: $hdfsPath")
+          println(s"[SUGGESTION] 请确认HDFS服务已启动并创建相应目录")
+          fs.close()
+          return false
+        }
+        
+        println(s"[INFO] 通配符路径的基础目录存在: $basePath")
+        println(s"[INFO] 将尝试读取: $path")
+        fs.close()
+        return true
+      } else {
+        // 对于非通配符路径，检查具体路径
+        val hdfsPath = new Path(path.replaceAll("/[^/]*\\.json$", ""))
+        
+        if (!fs.exists(hdfsPath)) {
+          println(s"[ERROR] HDFS路径不存在: $hdfsPath")
+          fs.close()
+          return false
+        }
+
+        // 检查是否有可读的JSON文件
+        val jsonPattern = ".*\\.json$".r
+        val statuses = fs.listStatus(hdfsPath)
+        val jsonFiles = statuses.filter(status => 
+          jsonPattern.findFirstIn(status.getPath.getName).isDefined ||
+          status.getPath.getName.toLowerCase.endsWith(".json"))
+
+        if (jsonFiles.isEmpty) {
+          println(s"[ERROR] 在路径 $hdfsPath 下未找到JSON文件")
+          val allFiles = statuses.map(_.getPath.getName).mkString(", ")
+          if (allFiles.nonEmpty) {
+            println(s"[INFO] 该目录下的文件有: $allFiles")
+          }
+          fs.close()
+          return false
+        }
+
+        println(s"[INFO] 找到 ${jsonFiles.length} 个JSON文件在路径: $hdfsPath")
+        fs.close()
+        return true
+      }
+    } catch {
+      case e: Exception =>
+        println(s"[ERROR] 检查HDFS路径时出错: ${e.getMessage}")
+        // 打印堆栈跟踪以帮助调试
+        e.printStackTrace()
+        println("[SUGGESTION] 请检查HDFS服务是否正常运行，以及网络连接是否正常")
+        println("[SUGGESTION] 如果HDFS未启动，可以设置环境变量 SKIP_HDFS_VALIDATION=true 跳过验证")
+        false
+    }
+  }
 
   def main(args: Array[String]): Unit = {
     println("=" * 80)
@@ -24,7 +114,18 @@ object ALSTrainer {
       // 生产环境通常由 spark-submit 指定 master，这里保留 local[*] 方便调试
       .master("local[*]")
       .config("spark.sql.shuffle.partitions", "100")
+      // 配置 HDFS 相关设置，确保能正确连接到 HDFS
+      .config("spark.hadoop.fs.defaultFS", "hdfs://localhost:9000")
+      .config("spark.hadoop.dfs.client.use.datanode.hostname", "false")
+      .config("spark.hadoop.dfs.replication", "1")
       .getOrCreate()
+    
+    // 设置 Hadoop 配置，确保使用 HDFS 而不是本地文件系统
+    val hadoopConf = spark.sparkContext.hadoopConfiguration
+    if (!hadoopConf.get("fs.defaultFS", "").startsWith("hdfs://")) {
+      hadoopConf.set("fs.defaultFS", "hdfs://localhost:9000")
+      println("[INFO] 已设置 HDFS 默认文件系统: hdfs://localhost:9000")
+    }
 
     import spark.implicits._
 
@@ -55,6 +156,14 @@ object ALSTrainer {
     println(s"  - ALS 参数: rank=$rank, maxIter=$maxIter, regParam=$regParam, topN=$topN")
 
     try {
+      // 验证HDFS路径，但允许跳过验证（通过环境变量或配置）
+      val skipValidation = sys.env.getOrElse("SKIP_HDFS_VALIDATION", "false").toLowerCase == "true"
+      if (!skipValidation && !validateHDFSDirectory(spark, inputPath)) {
+        println(s"[ERROR] HDFS路径验证失败，请确保HDFS服务运行且路径正确！")
+        println(s"[INFO] 如需跳过验证，设置环境变量 SKIP_HDFS_VALIDATION=true")
+        return
+      }
+
       // ============================================
       // 3. 数据处理流程 (对应流程图 Step 2-6)
       // ============================================
@@ -63,6 +172,40 @@ object ALSTrainer {
       val rawRatings = DataProcessor.readAndParseBehaviorLogs(spark, inputPath)
 
       if (rawRatings.isEmpty) {
+        // 添加更详细的诊断信息
+        println(s"[ERROR] 在路径 $inputPath 下未找到任何数据")
+        
+        // 检查本地是否有数据文件
+        val localLogDir = new java.io.File("bigdata-engine/logs")
+        val localFiles = if (localLogDir.exists()) {
+          localLogDir.listFiles((_, name) => name.endsWith(".json"))
+        } else {
+          Array.empty[java.io.File]
+        }
+        
+        if (localFiles.nonEmpty) {
+          println(s"[INFO] 检测到本地有 ${localFiles.length} 个JSON文件在 bigdata-engine/logs 目录")
+          println("[SOLUTION] 请执行以下步骤:")
+          println("  1. 运行脚本上传本地文件到HDFS:")
+          println("     bigdata-engine\\scripts\\upload_local_logs_to_hdfs.bat")
+          println("  2. 或者使用本地文件路径运行（用于测试）:")
+          println("     spark-submit --class com.shortvideo.recommendation.als.ALSTrainer \\")
+          println("       target\\bigdata-engine-1.0-jar-with-dependencies.jar \\")
+          println("       file:///D:/study/clone/video-analysis-and-recommendation-system/bigdata-engine/logs/*.json")
+        } else {
+          println("[SOLUTION] 请检查以下几点:")
+          println("  1. HDFS服务是否已启动 (start-dfs.sh 或 start-dfs.cmd)")
+          println("  2. 目标路径是否存在")
+          println("  3. JSON文件是否存在于指定路径")
+          println("  4. 文件格式是否正确 (包含userId, videoId/mid, behaviorType字段)")
+          println("  5. 使用命令 'hdfs dfs -ls /short-video/behavior/logs/' 检查文件")
+          println("  6. 如果使用默认通配符路径，尝试提供具体日期路径，例如:")
+          println("     hdfs://localhost:9000/short-video/behavior/logs/2025-01-20/*.json")
+          println("  7. 或者先运行数据生成器生成数据:")
+          println("     spark-submit --class com.shortvideo.recommendation.datagenerator.DataGeneratorApp \\")
+          println("       target\\bigdata-engine-1.0-jar-with-dependencies.jar")
+        }
+        
         throw new RuntimeException(s"路径 $inputPath 下未找到有效行为数据！")
       }
 

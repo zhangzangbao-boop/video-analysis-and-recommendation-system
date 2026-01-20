@@ -15,6 +15,8 @@ object DataProcessor {
    * 支持两种格式：
    * 1. 字符串格式：play, like, collect, comment
    * 2. 整数格式：1=播放, 2=点赞, 3=收藏, 4=评论
+   * 
+   * 注意：其他行为类型（share, follow, unfollow等）不参与评分
    */
   private def getBehaviorWeight(behaviorType: Any): Float = {
     behaviorType match {
@@ -67,8 +69,49 @@ object DataProcessor {
       
       if (rawCount == 0) {
         println("[WARN] HDFS路径下没有数据文件")
+        // 尝试列出可能的文件结构以帮助调试
+        println(s"[DEBUG] 检查路径模式: $hdfsPath")
+        try {
+          val hadoopConf = spark.sparkContext.hadoopConfiguration
+          val fs = org.apache.hadoop.fs.FileSystem.get(hadoopConf)
+          
+          // 处理通配符路径
+          var basePath = hdfsPath
+          if (hdfsPath.contains("*")) {
+            basePath = hdfsPath.substring(0, hdfsPath.indexOf("*"))
+            if (!basePath.endsWith("/")) {
+              val lastSlash = basePath.lastIndexOf("/")
+              basePath = basePath.substring(0, lastSlash + 1)
+            }
+          } else {
+            basePath = basePath.replaceAll("/[^/]*\\.json$", "")
+          }
+          
+          val path = new org.apache.hadoop.fs.Path(basePath)
+          if (fs.exists(path)) {
+            val statuses = fs.listStatus(path)
+            println(s"[DEBUG] 父路径存在，子目录/文件数量: ${statuses.length}")
+            statuses.take(10).foreach(status => {
+              println(s"  - ${status.getPath.toString}")
+            })
+          } else {
+            println(s"[DEBUG] 父路径不存在: $path")
+          }
+        } catch {
+          case e: Exception => 
+            println(s"[DEBUG] 尝试列出目录时出现异常: ${e.getMessage}")
+            // 不中断处理，因为Spark可能仍然可以通过通配符找到数据
+        }
         return spark.emptyDataset[Rating]
       }
+
+      // 显示原始数据的架构，用于调试
+      println("[DEBUG] 原始数据Schema:")
+      rawDF.printSchema()
+
+      // 显示前几行数据示例
+      println("[DEBUG] 原始数据样本 (前5行):")
+      rawDF.show(5, truncate = false)
 
       // 2. 注册 UDF 处理行为权重（支持字符串和整数）
       val behaviorToWeightUDF = udf((behaviorType: Any) => {
@@ -138,6 +181,11 @@ object DataProcessor {
         println(s"  - 用户数: $userCount")
         println(s"  - 视频数: $movieCount")
         println(s"  - 评分记录数: $validCount")
+      } else {
+        println("[WARN] 解析后没有有效的评分记录，请检查数据格式是否符合预期:")
+        println("  - 必需字段: userId (用户ID), videoId/mid (视频ID), behaviorType (行为类型)")
+        println("  - 行为类型: play/1(播放=3.0), like/2(点赞=5.0), collect/3(收藏=4.0), comment/4(评论=4.0)")
+        println("  - 示例JSON格式: {\"userId\": 123, \"videoId\": 456, \"behaviorType\": \"play\", \"behaviorTime\": \"2025-01-20 10:30:00\"}")
       }
 
       ratings
