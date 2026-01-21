@@ -39,6 +39,9 @@ object RealtimeAnalysisApp {
 
       // 3. 创建 StreamingContext
       // 注意：batchDuration 在 SparkUtil 中默认为 10 秒
+      // 重要：Spark Streaming 开启 checkpoint 后，重启会从 checkpoint 恢复 Kafka offset；
+      // 如果 Kafka 没有新消息，则不会触发新的推荐写入（Redis/MySQL）。
+      // 若希望每次重启都从头消费，请清理 checkpoint 目录或更换 kafka.group.id。
       println("[初始化] 创建StreamingContext...")
       val ssc = SparkUtil.createStreamingContext(sparkConfig.appName)
 

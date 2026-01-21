@@ -257,77 +257,90 @@ object DataGeneratorApp {
   }
   
   /**
-   * 保存到本地日志目录和HDFS
+   * 保存到本地日志目录
+   * 同时保存到两个位置：
+   * 1. logs目录（单条文件形式） - 供Flume spooldir source收集到HDFS，用于离线分析
+   * 2. generated_logs.json（追加模式） - 供Flume exec source收集到Kafka，用于实时分析
    */
   private def saveToFlumeDirectory(logEntry: String): Unit = {
-    // 1. 先保存到本地目录
     try {
-
-      // 检查是否有参数指定生成到特定文件
-      val flumeMode = sys.props.getOrElse("flume.mode", "spooldir") // 默认使用spooldir模式
+      // 1. 保存到logs目录（单条文件形式，供离线分析使用）
+      saveToLogsDirectory(logEntry)
       
-      if (flumeMode == "exec") {
-        // exec模式：追加到一个单一文件
-        val writer = new BufferedWriter(new FileWriter("generated_logs.json", true)) // true表示追加模式
-        writer.write(logEntry)
-        writer.newLine() // 添加换行符以分隔记录
-        writer.close()
-      } else {
-        // spooldir模式：为每个日志条目创建唯一的临时文件，然后重命名以确保Flume能正确处理
-        // 确保目录存在
-        val logDir = new File("bigdata-engine/logs")
-        if (!logDir.exists()) {
-          logDir.mkdirs()
-        }
-        
-        val timestamp = System.currentTimeMillis()
-        val tempFileName = s"bigdata-engine/logs/temp_$timestamp.tmp"
-        val finalFileName = s"bigdata-engine/logs/user_behavior_${timestamp}.json"
-        
-        // 先写入临时文件
-        val tempWriter = new BufferedWriter(new FileWriter(tempFileName))
-        tempWriter.write(logEntry)
-        tempWriter.close()
-        
-        // 重命名文件，这样Flume的spooldir source能检测到新文件
-        val tempFile = new java.io.File(tempFileName)
-        val finalFile = new java.io.File(finalFileName)
-        if (tempFile.renameTo(finalFile)) {
-          println(s"[SUCCESS] 日志已保存到本地: ${finalFile.getAbsolutePath}")
-          
-          // 2. 同步到HDFS（不阻塞主流程）
-          try {
-            HDFSUtil.writeLogToHDFS(logEntry, Some(finalFile.getName))
-          } catch {
-            case ex: Exception =>
-              // HDFS同步失败不影响本地保存，只输出警告
-              // 异常已在HDFSUtil中处理，这里不再打印
-          }
-        } else {
-          println(s"警告: 文件重命名失败，文件可能已存在或路径不可访问: ${finalFile.getAbsolutePath}")
-        }
+      // 2. 追加到generated_logs.json（供实时分析使用）
+      saveToGeneratedLogsFile(logEntry)
+      
+    } catch {
+      case ex: Exception =>
+        println(s"保存日志失败: ${ex.getMessage}")
+        ex.printStackTrace()
+    }
+  }
+  
+  /**
+   * 保存到logs目录（单条文件形式）
+   * 供Flume spooldir source收集，最终保存到HDFS用于离线分析
+   */
+  private def saveToLogsDirectory(logEntry: String): Unit = {
+    try {
+      // 确保目录存在
+      val logDir = new File("bigdata-engine/logs")
+      if (!logDir.exists()) {
+        logDir.mkdirs()
       }
-
-      // 为每个日志条目创建唯一的临时文件，然后重命名以确保Flume能正确处理
+      
+      // 为每个日志条目创建唯一的文件
       val timestamp = System.currentTimeMillis()
-      val tempFileName = s"logs/temp_$timestamp.tmp"
-      val finalFileName = s"logs/user_behavior_${timestamp}.json"
-
+      val nanoTime = System.nanoTime() // 使用纳秒时间确保唯一性
+      val tempFileName = s"bigdata-engine/logs/temp_${timestamp}_${nanoTime}.tmp"
+      val finalFileName = s"bigdata-engine/logs/user_behavior_${timestamp}_${nanoTime}.json"
+      
       // 先写入临时文件
       val tempWriter = new BufferedWriter(new FileWriter(tempFileName))
       tempWriter.write(logEntry)
       tempWriter.close()
-
+      
       // 重命名文件，这样Flume的spooldir source能检测到新文件
       val tempFile = new java.io.File(tempFileName)
       val finalFile = new java.io.File(finalFileName)
-      tempFile.renameTo(finalFile)
-
-
+      if (tempFile.renameTo(finalFile)) {
+        // 静默保存，不打印日志以减少输出（可选：在debug模式下打印）
+        // println(s"[INFO] 日志已保存到logs目录: ${finalFile.getName}")
+      } else {
+        println(s"[WARN] 文件重命名失败: ${finalFile.getAbsolutePath}")
+      }
     } catch {
       case ex: Exception =>
-        println(s"保存到本地目录失败: ${ex.getMessage}")
-        ex.printStackTrace()
+        println(s"[ERROR] 保存到logs目录失败: ${ex.getMessage}")
+        throw ex
+    }
+  }
+  
+  /**
+   * 追加到generated_logs.json文件
+   * 供Flume exec source收集，可以发送到Kafka用于实时分析
+   */
+  private def saveToGeneratedLogsFile(logEntry: String): Unit = {
+    var writer: BufferedWriter = null
+    try {
+      // 追加模式写入generated_logs.json
+      writer = new BufferedWriter(new FileWriter("generated_logs.json", true)) // true表示追加模式
+      writer.write(logEntry)
+      writer.newLine() // 添加换行符以分隔记录
+      writer.flush() // 立即刷新，确保数据及时写入
+    } catch {
+      case ex: Exception =>
+        println(s"[ERROR] 追加到generated_logs.json失败: ${ex.getMessage}")
+        throw ex
+    } finally {
+      if (writer != null) {
+        try {
+          writer.close()
+        } catch {
+          case ex: Exception =>
+            println(s"[WARN] 关闭文件流失败: ${ex.getMessage}")
+        }
+      }
     }
   }
 }

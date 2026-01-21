@@ -22,7 +22,7 @@ object OfflineJob {
   // MySQL 连接配置（与 MySQLWriter 保持一致）
   private val JDBC_URL = "jdbc:mysql://localhost:3306/short_video_platform?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai"
   private val JDBC_USER = "root"
-  private val JDBC_PASSWORD = "123456"
+  private val JDBC_PASSWORD = "2468"
 
   def main(args: Array[String]): Unit = {
     val spark = SparkSession.builder()

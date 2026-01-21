@@ -1,7 +1,10 @@
 package com.shortvideo.recommendation.realtime.recommend
 
+import com.shortvideo.recommendation.common.config.DatabaseConfig
 import com.shortvideo.recommendation.common.entity.{Recommendation, UserBehavior}
 import com.shortvideo.recommendation.common.utils.RedisUtil
+
+import java.sql.{DriverManager, PreparedStatement, Timestamp}
 import com.shortvideo.recommendation.realtime.model.VideoInfoRow
 
 import org.apache.spark.rdd.RDD
@@ -18,6 +21,10 @@ object RealtimeRecommender {
 
   private val REDIS_HOT_KEY = "rec:video:hot"
 
+  private val REALTIME_RECOMMEND_TYPE = "REALTIME"
+  private val REALTIME_MODEL_ID = "realtime-hot"
+  private val REALTIME_REASON = "hot_candidates_filtered"
+
   def generateAndSave(
                        behaviors: RDD[UserBehavior],
                        videoMap: Map[Long, VideoInfoRow],
@@ -25,6 +32,7 @@ object RealtimeRecommender {
                        hotCandidateSize: Int = 200
                      ): Unit = {
     if (behaviors.isEmpty()) return
+
 
     // 1) 本批次每个用户已经互动过的视频集合（用于过滤）
     val userSeen: Map[Long, Set[Long]] =
@@ -74,6 +82,7 @@ object RealtimeRecommender {
 
       if (recs.nonEmpty) {
         RedisUtil.saveUserRecs(userId, recs)
+        saveRealtimeRecsToMySQL(userId, recs)
       }
     }
   }
@@ -89,6 +98,72 @@ object RealtimeRecommender {
 
   private def toLong(s: String): Option[Long] = {
     try Some(s.toLong) catch { case _: Exception => None }
+  }
+
+  /**
+   * 将实时推荐结果写入MySQL
+   * 使用 INSERT ... ON DUPLICATE KEY UPDATE 保证幂等性
+   */
+  private def saveRealtimeRecsToMySQL(userId: Long, recs: List[Recommendation]): Unit = {
+    var connection: java.sql.Connection = null
+    var pstmt: PreparedStatement = null
+
+    val sql =
+      """
+        |INSERT INTO recommendation_result
+        |(user_id, video_id, score, `rank`, `type`, reason, model_id, create_time, update_time)
+        |VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        |ON DUPLICATE KEY UPDATE
+        |score = VALUES(score),
+        |`rank` = VALUES(`rank`),
+        |reason = VALUES(reason),
+        |model_id = VALUES(model_id),
+        |update_time = VALUES(update_time)
+      """.stripMargin
+
+    try {
+      Class.forName("com.mysql.cj.jdbc.Driver")
+      connection = DriverManager.getConnection(DatabaseConfig.JDBC_URL, DatabaseConfig.JDBC_USER, DatabaseConfig.JDBC_PASSWORD)
+      connection.setAutoCommit(false)
+      pstmt = connection.prepareStatement(sql)
+
+      val currentTime = new Timestamp(System.currentTimeMillis())
+      var batchCount = 0
+
+      recs.zipWithIndex.foreach { case (rec, index) =>
+        val rank = index + 1
+        pstmt.setLong(1, rec.userId)
+        pstmt.setLong(2, rec.videoId)
+        pstmt.setDouble(3, rec.score)
+        pstmt.setInt(4, rank)
+        pstmt.setString(5, REALTIME_RECOMMEND_TYPE)
+        pstmt.setString(6, REALTIME_REASON)
+        pstmt.setString(7, REALTIME_MODEL_ID)
+        pstmt.setTimestamp(8, currentTime)
+        pstmt.setTimestamp(9, currentTime)
+
+        pstmt.addBatch()
+        batchCount += 1
+
+        if (batchCount >= 1000) {
+          pstmt.executeBatch()
+          connection.commit()
+          batchCount = 0
+        }
+      }
+
+      if (batchCount > 0) {
+        pstmt.executeBatch()
+        connection.commit()
+      }
+    } catch {
+      case e: Exception =>
+        println(s"[ERROR] 写入实时推荐结果到MySQL失败 for userId=$userId: ${e.getMessage}")
+        if (connection != null) connection.rollback()
+    } finally {
+      if (pstmt != null) pstmt.close()
+      if (connection != null) connection.close()
+    }
   }
 }
 
