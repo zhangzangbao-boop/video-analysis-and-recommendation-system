@@ -188,7 +188,8 @@ class LogGenerator {
       val userId = userIdRange(random.nextInt(numUsers))
       val videoId = if (random.nextDouble() < 0.4) {
         // 40%概率选择热门视频
-        popularVideos.toArray(random.nextInt(popularVideos.size))
+        val popularVideoArray = popularVideos.toArray
+        popularVideoArray(random.nextInt(popularVideoArray.length))
       } else {
         // 60%概率选择随机视频
         videoIdRange(random.nextInt(numVideos))
