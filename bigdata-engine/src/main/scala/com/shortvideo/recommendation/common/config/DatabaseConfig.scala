@@ -14,6 +14,6 @@ object DatabaseConfig {
 
   val JDBC_USER: String = "root"
 
-  val JDBC_PASSWORD: String = "2468"
+  val JDBC_PASSWORD: String = "041206"
 }
 

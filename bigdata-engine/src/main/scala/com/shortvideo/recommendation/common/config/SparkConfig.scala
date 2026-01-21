@@ -32,15 +32,20 @@ case class SparkConfig(
     configs += ("spark.streaming.blockInterval" -> s"${streamingBlockInterval}ms")
     configs += ("spark.streaming.kafka.maxRatePerPartition" -> streamingKafkaMaxRatePerPartition.toString)
 
+    // 线程池相关配置，防止RejectedExecutionException
+    configs += ("spark.executor.heartbeatInterval" -> "60s")
+    configs += ("spark.network.timeout" -> "300s")
+    configs += ("spark.sql.execution.arrow.pyspark.enabled" -> "false")
+    
     // 序列化配置
     configs += ("spark.serializer" -> "org.apache.spark.serializer.KryoSerializer")
     configs += ("spark.kryoserializer.buffer.max" -> "256m")
 
     // 动态分配配置
-    configs += ("spark.dynamicAllocation.enabled" -> "true")
-    configs += ("spark.dynamicAllocation.minExecutors" -> "1")
-    configs += ("spark.dynamicAllocation.maxExecutors" -> "10")
-    configs += ("spark.dynamicAllocation.initialExecutors" -> "1")
+    configs += ("spark.dynamicAllocation.enabled" -> "false")  // 禁用动态分配，避免executor频繁启停
+    // configs += ("spark.dynamicAllocation.minExecutors" -> "1")
+    // configs += ("spark.dynamicAllocation.maxExecutors" -> "10")
+    // configs += ("spark.dynamicAllocation.initialExecutors" -> "1")
 
     // SQL优化配置
     configs += ("spark.sql.adaptive.enabled" -> "true")
@@ -85,6 +90,9 @@ object SparkConfig {
     val config = SparkConfig()
     config.copy(
       appName = s"${config.appName}_Streaming",
+      executorMemory = ConfigUtils.getString("spark.executor.memory", "2g"),
+      executorCores = ConfigUtils.getInt("spark.executor.cores", 2),
+      driverMemory = ConfigUtils.getString("spark.driver.memory", "1g"),
       streamingBlockInterval = ConfigUtils.getInt("spark.streaming.blockInterval", 100),
       streamingKafkaMaxRatePerPartition = ConfigUtils.getInt("spark.streaming.kafka.maxRatePerPartition", 500)
     )

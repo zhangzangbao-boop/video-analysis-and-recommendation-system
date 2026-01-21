@@ -17,6 +17,29 @@ object DataGeneratorApp {
   
   def main(args: Array[String]): Unit = {
     println("=== 短视频推荐系统 - 数据生成器 ===")
+    
+    // 从数据库加载视频ID列表（在程序启动时加载一次）
+    println("[INFO] 正在从数据库加载视频ID列表...")
+    System.out.flush()
+    val videoIds = try {
+      VideoIdLoader.loadVideoIds()
+    } catch {
+      case e: Exception =>
+        println(s"[ERROR] 加载视频ID时发生异常: ${e.getMessage}")
+        e.printStackTrace()
+        Array.empty[Long]
+    }
+    
+    // 创建LogGenerator（使用数据库中的视频ID，如果加载失败则使用默认范围）
+    val logGenerator = if (videoIds.nonEmpty) {
+      println(s"[INFO] 使用数据库中的视频ID生成数据，共 ${videoIds.length} 个视频ID")
+      LogGenerator(videoIds)
+    } else {
+      println(s"[INFO] 使用默认模拟视频ID范围生成数据")
+      LogGenerator()
+    }
+    System.out.flush()
+    
     println("请选择数据生成模式:")
     println("1. 按数量生成 (指定生成数据条数)")
     println("2. 按时间生成 (指定生成持续时间)")
@@ -42,13 +65,13 @@ object DataGeneratorApp {
     
     try {
       choice match {
-        case "1" => generateByCount()
-        case "2" => generateByTime()
-        case "3" => generateRealTime()
-        case "4" => generateHighQualityData()
+        case "1" => generateByCount(logGenerator)
+        case "2" => generateByTime(logGenerator)
+        case "3" => generateRealTime(logGenerator)
+        case "4" => generateHighQualityData(logGenerator)
         case _ => 
           println("无效选择，使用默认模式: 按数量生成")
-          generateByCount()
+          generateByCount(logGenerator)
       }
     } finally {
       // 关闭HDFS连接
@@ -59,7 +82,7 @@ object DataGeneratorApp {
   /**
    * 按指定数量生成数据
    */
-  private def generateByCount(): Unit = {
+  private def generateByCount(generator: LogGenerator): Unit = {
     print("请输入要生成的数据条数: ")
     val countStr = StdIn.readLine().trim
     
@@ -71,13 +94,12 @@ object DataGeneratorApp {
       }
       
       println(s"开始生成 $count 条数据...")
-      val generator = LogGenerator()
       val startTime = System.currentTimeMillis()
       
       val behaviors = generator.generateUserBehaviors(count)
       
       // 输出到控制台或文件
-      outputBehaviors(behaviors, s"Generated $count records in ${System.currentTimeMillis() - startTime}ms")
+      outputBehaviors(behaviors, generator, s"Generated $count records in ${System.currentTimeMillis() - startTime}ms")
 
     } catch {
       case _: NumberFormatException =>
@@ -90,7 +112,7 @@ object DataGeneratorApp {
   /**
    * 按指定时间生成数据
    */
-  private def generateByTime(): Unit = {
+  private def generateByTime(generator: LogGenerator): Unit = {
     print("请输入生成持续时间 (秒): ")
     val timeStr = StdIn.readLine().trim
     
@@ -102,7 +124,6 @@ object DataGeneratorApp {
       }
       
       println(s"开始生成数据，持续 $seconds 秒...")
-      val generator = LogGenerator()
       val executor = Executors.newSingleThreadScheduledExecutor()
       
       var totalRecords = 0
@@ -114,7 +135,7 @@ object DataGeneratorApp {
         override def run(): Unit = {
           if (System.currentTimeMillis() < endTime) {
             val batch = generator.generateUserBehaviors(10) // 每秒生成10条
-            outputBehaviors(batch, s"Batch generated at ${new java.util.Date()}")
+            outputBehaviors(batch, generator, s"Batch generated at ${new java.util.Date()}")
             totalRecords += batch.size
             
             // 显示进度
@@ -145,11 +166,10 @@ object DataGeneratorApp {
   /**
    * 实时生成数据
    */
-  private def generateRealTime(): Unit = {
+  private def generateRealTime(generator: LogGenerator): Unit = {
     println("开始实时生成数据... (按 Ctrl+C 停止)")
     println("生成频率: 每秒5条记录")
     
-    val generator = LogGenerator()
     val executor = Executors.newSingleThreadScheduledExecutor()
     
     var totalRecords = 0
@@ -159,7 +179,7 @@ object DataGeneratorApp {
       override def run(): Unit = {
         try {
           val batch = generator.generateUserBehaviors(5) // 每秒生成5条
-          outputBehaviors(batch, "")
+          outputBehaviors(batch, generator, "")
           totalRecords += batch.size
           
           // 每10秒显示一次统计
@@ -195,7 +215,7 @@ object DataGeneratorApp {
   /**
    * 生成高质量数据集，专为ALS模型训练优化
    */
-  private def generateHighQualityData(): Unit = {
+  private def generateHighQualityData(generator: LogGenerator): Unit = {
     print("请输入要生成的高质量数据条数: ")
     val countStr = StdIn.readLine().trim
     
@@ -207,13 +227,12 @@ object DataGeneratorApp {
       }
       
       println(s"开始生成 $count 条高质量数据...")
-      val generator = LogGenerator()
       val startTime = System.currentTimeMillis()
       
       val behaviors = generator.generateHighQualityDataSet(count)
       
-      // 输出到2控制台或文件
-      outputBehaviors(behaviors, s"Generated $count high-quality records in ${System.currentTimeMillis() - startTime}ms")
+      // 输出到控制台或文件
+      outputBehaviors(behaviors, generator, s"Generated $count high-quality records in ${System.currentTimeMillis() - startTime}ms")
       
       // 输出统计信息
       val userStats = behaviors.groupBy(_.userId).mapValues(_.size).toMap
@@ -238,9 +257,7 @@ object DataGeneratorApp {
   /**
    * 输出行为数据
    */
-  private def outputBehaviors(behaviors: List[UserBehavior], description: String): Unit = {
-    val generator = LogGenerator()
-
+  private def outputBehaviors(behaviors: List[UserBehavior], generator: LogGenerator, description: String): Unit = {
     // 打印描述信息
     if (description.nonEmpty) {
       println(description)

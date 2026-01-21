@@ -6,8 +6,9 @@ import com.shortvideo.recommendation.common.utils.{ConfigUtils, KafkaUtil}
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 import org.apache.spark.sql.SparkSession
 
-// 明确导入同包中的 LogGenerator
+// 明确导入同包中的 LogGenerator 和 VideoIdLoader
 import com.shortvideo.recommendation.datagenerator.LogGenerator
+import com.shortvideo.recommendation.datagenerator.VideoIdLoader
 
 /**
  * 日志生产者 - 将模拟数据发送到Kafka
@@ -58,7 +59,14 @@ object LogProducer {
     val kafkaConfig = KafkaConfig()
     val topic = ConfigUtils.getString("kafka.topics.user-behavior", "shortvideo_user_behavior")
     
-    val logGenerator = LogGenerator()
+    // 从数据库加载视频ID列表
+    println("[INFO] 正在从数据库加载视频ID列表...")
+    val videoIds = VideoIdLoader.loadVideoIds()
+    val logGenerator = if (videoIds.nonEmpty) {
+      LogGenerator(videoIds)
+    } else {
+      LogGenerator() // 如果加载失败，使用默认范围
+    }
     val logProducer = new LogProducer(kafkaConfig, topic)
     
     val startTime = System.currentTimeMillis()
@@ -93,13 +101,43 @@ object LogProducer {
    * 发送固定数量的消息
    */
   def sendFixedCount(count: Int): Unit = {
+    println("[INFO] ====== 开始准备发送数据 ======")
     val kafkaConfig = KafkaConfig()
     val topic = ConfigUtils.getString("kafka.topics.user-behavior", "shortvideo_user_behavior")
+    println(s"[INFO] Kafka Topic: $topic")
     
-    val logGenerator = LogGenerator()
+    // 从数据库加载视频ID列表
+    println("[INFO] 正在从数据库加载视频ID列表...")
+    System.out.flush() // 确保日志立即输出
+    
+    val videoIds = try {
+      VideoIdLoader.loadVideoIds()
+    } catch {
+      case e: Exception =>
+        println(s"[ERROR] 加载视频ID时发生异常: ${e.getMessage}")
+        e.printStackTrace()
+        Array.empty[Long]
+    }
+    
+    println(s"[INFO] 视频ID加载完成，共 ${videoIds.length} 个视频ID")
+    System.out.flush()
+    
+    val logGenerator = if (videoIds.nonEmpty) {
+      println(s"[INFO] 使用数据库中的视频ID生成数据")
+      LogGenerator(videoIds)
+    } else {
+      println(s"[INFO] 使用默认模拟视频ID范围生成数据")
+      LogGenerator() // 如果加载失败，使用默认范围
+    }
+    
+    println(s"[INFO] 创建Kafka生产者...")
+    System.out.flush()
     val logProducer = new LogProducer(kafkaConfig, topic)
+    println(s"[INFO] Kafka生产者创建成功")
+    System.out.flush()
     
     println(s"[INFO] 开始发送 $count 条模拟数据到Kafka")
+    System.out.flush()
     
     try {
       for (i <- 1 to count) {
@@ -108,9 +146,13 @@ object LogProducer {
         
         logProducer.sendLog(jsonLog)
         
-        // 每发送100条打印一次进度
-        if (i % 100 == 0) {
+        // 每发送10条打印一次进度（对于小批量数据）
+        if (count <= 100 && i % 10 == 0) {
+          println(s"[INFO] 已发送 $i/$count 条消息")
+          System.out.flush()
+        } else if (i % 100 == 0) {
           println(s"[INFO] 已发送 $i 条消息")
+          System.out.flush()
         }
         
         // 添加短暂延迟以避免过快发送
@@ -130,7 +172,14 @@ object LogProducer {
    * 发送数据到HDFS（直接方式）
    */
   def sendDataToHDFS(count: Int): Unit = {
-    val logGenerator = LogGenerator()
+    // 从数据库加载视频ID列表
+    println("[INFO] 正在从数据库加载视频ID列表...")
+    val videoIds = VideoIdLoader.loadVideoIds()
+    val logGenerator = if (videoIds.nonEmpty) {
+      LogGenerator(videoIds)
+    } else {
+      LogGenerator() // 如果加载失败，使用默认范围
+    }
     val spark = SparkSession.builder()
       .appName("TestDataToHDFS")
       .master("local[*]")

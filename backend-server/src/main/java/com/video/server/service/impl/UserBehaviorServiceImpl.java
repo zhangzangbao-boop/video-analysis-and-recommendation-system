@@ -26,7 +26,8 @@ public class UserBehaviorServiceImpl implements UserBehaviorService {
     @Autowired(required = false)
     private KafkaTemplate<String, Object> kafkaTemplate;
     
-    private static final String KAFKA_TOPIC = "user-behavior-topic";
+    // 统一使用与实时分析应用相同的topic名称
+    private static final String KAFKA_TOPIC = "shortvideo_user_behavior";
     
     @Override
     public void recordBehavior(UserBehaviorRequest request) {

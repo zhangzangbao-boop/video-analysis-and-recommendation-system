@@ -21,3 +21,35 @@ frontend-web/npm-cache/
 # 系统文件
 .DS_Store
 Thumbs.db
+
+# 日志文件
+*.log
+*.log.*
+logs/
+**/logs/
+**/*.log
+
+# JSON数据文件（生成的测试数据、日志数据等）
+# 忽略所有JSON文件，但保留配置文件
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!tsconfig.*.json
+!**/tsconfig.json
+!**/package*.json
+!**/angular.json
+!**/.vscode/*.json
+!**/.idea/*.json
+
+# 明确忽略的数据和日志JSON文件
+generated_logs.json
+**/generated_logs.json
+**/logs/*.json
+**/logs/**/*.json
+bigdata-engine/logs/
+bigdata-engine/generated_logs.json
+**/user_behavior_*.json
+**/behavior_log_*.json
+**/temp_*.json
+**/temp_*.tmp
