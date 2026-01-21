@@ -1,143 +1,130 @@
 <template>
   <div class="profile-page">
     <div class="profile-banner">
-      <div class="banner-mask"></div>
+      <div class="banner-overlay"></div>
     </div>
 
     <div class="main-container">
-      <div class="user-info-card glass-effect">
-        <div class="info-left">
-          <div class="avatar-wrapper">
-            <el-avatar :size="96" :src="userInfo.avatarUrl || defaultAvatar" class="main-avatar">
-              {{ userInfo.username ? userInfo.username.charAt(0) : 'U' }}
-            </el-avatar>
-            <div class="vip-badge" v-if="userInfo.level > 2">PRO</div>
-          </div>
-          <div class="text-content">
-            <div class="name-row">
-              <h1 class="nickname">{{ userInfo.nickname || userInfo.username }}</h1>
-              <span class="level-tag">Lv.{{ userInfo.level || 1 }}</span>
+      
+      <div class="user-card-wrapper glass-effect slide-up">
+        <div class="user-header-row">
+          <div class="user-left">
+            <div class="avatar-box">
+              <el-avatar :size="90" :src="userInfo.avatarUrl || defaultAvatar" class="user-avatar">
+                {{ userInfo.username ? userInfo.username.charAt(0) : 'U' }}
+              </el-avatar>
+              <div class="level-badge" v-if="userInfo.level">Lv.{{ userInfo.level }}</div>
             </div>
-            <p class="bio" :title="userInfo.bio">{{ userInfo.bio || '这个人很神秘，什么都没写...' }}</p>
+            <div class="user-texts">
+              <div class="name-line">
+                <h1 class="nickname">{{ userInfo.nickname || userInfo.username }}</h1>
+                <span class="id-tag" v-if="userInfo.id">UID: {{ userInfo.id }}</span>
+              </div>
+              <p class="bio-text" :title="userInfo.bio">
+                <i class="el-icon-edit-outline"></i>
+                {{ userInfo.bio || '这个人很懒，什么都没有写...' }}
+              </p>
+            </div>
           </div>
-        </div>
 
-        <div class="info-right">
-          <div class="stat-box" @click="showFollowingList = true">
-            <div class="stat-num">{{ userInfo.followCount || 0 }}</div>
-            <div class="stat-label">关注</div>
-          </div>
-          <div class="stat-box" @click="showFansList = true">
-            <div class="stat-num">{{ userInfo.fansCount || 0 }}</div>
-            <div class="stat-label">粉丝</div>
-          </div>
-          <div class="action-group">
-            <el-button type="primary" round class="edit-btn" @click="openEditProfile">编辑资料</el-button>
-            <el-button icon="el-icon-setting" circle class="setting-btn" @click="openAccountSettings"></el-button>
+          <div class="user-right">
+            <div class="data-group">
+              <div class="data-item" @click="showFollowingList = true">
+                <div class="num">{{ formatNumber(userInfo.followCount) }}</div>
+                <div class="label">关注</div>
+              </div>
+              <div class="divider"></div>
+              <div class="data-item" @click="showFansList = true">
+                <div class="num">{{ formatNumber(userInfo.fansCount) }}</div>
+                <div class="label">粉丝</div>
+              </div>
+              <div class="divider"></div>
+              <div class="data-item">
+                <div class="num">{{ formatNumber(userInfo.likeCount || 0) }}</div>
+                <div class="label">获赞</div>
+              </div>
+            </div>
+            <div class="btn-group">
+              <el-button type="primary" round class="custom-btn primary" @click="openEditProfile">
+                编辑资料
+              </el-button>
+              <el-button round class="custom-btn icon-only" icon="el-icon-setting" @click="openAccountSettings"></el-button>
+            </div>
           </div>
         </div>
       </div>
 
-      <div class="nav-bar-sticky">
-        <div class="nav-list">
-          <div
-              v-for="tab in tabs"
-              :key="tab.key"
-              class="nav-item"
-              :class="{ active: currentTab === tab.key }"
-              @click="switchTab(tab.key)"
+      <div class="nav-bar-wrapper">
+        <div class="nav-pills">
+          <div 
+            v-for="tab in tabs" 
+            :key="tab.key"
+            class="nav-pill-item"
+            :class="{ active: currentTab === tab.key }"
+            @click="switchTab(tab.key)"
           >
-            <i :class="tab.icon"></i> {{ tab.label }}
-            <span class="active-line"></span>
+            <i :class="tab.icon"></i>
+            <span>{{ tab.label }}</span>
           </div>
         </div>
       </div>
 
-      <div class="content-wrapper fade-enter">
-
-        <div v-show="currentTab === 'works'" class="tab-view">
-          <div class="view-header">
-            <div class="header-left">
-              <h2>我的作品</h2>
-              <span class="sub-text">共 {{ worksTotal }} 个视频</span>
+      <div class="content-area fade-in">
+        
+        <div v-show="currentTab === 'works'" class="tab-panel">
+          <div class="panel-header">
+            <div class="ph-left">
+              <h3>我的作品</h3>
+              <span class="count-badge" v-if="worksTotal > 0">{{ worksTotal }}</span>
             </div>
-            <el-button type="primary" icon="el-icon-upload2" round @click="openUploadDialog">投稿视频</el-button>
+            <el-button type="primary" icon="el-icon-upload" round size="medium" @click="openUploadDialog" class="upload-btn">
+              发布新作品
+            </el-button>
           </div>
 
-          <div v-loading="loadingWorks" class="works-list-container">
-            <div v-if="myWorksList.length === 0" class="empty-placeholder">
-              <i class="el-icon-folder-opened" style="font-size: 60px; color: #e0e0e0; margin-bottom: 20px;"></i>
-              <p>空空如也，去投个稿吧~</p>
+          <div v-loading="loadingWorks" class="works-container">
+            <div v-if="myWorksList.length === 0" class="empty-state">
+              <img src="https://img.icons8.com/clouds/200/000000/video.png" alt="No Videos"/>
+              <p>暂无作品，快去分享你的第一个视频吧！</p>
+              <el-button type="text" @click="openUploadDialog">立即投稿</el-button>
             </div>
 
-            <div v-else class="work-list">
-              <div v-for="item in myWorksList" :key="item.id" class="work-item">
-                <div class="work-cover" @click="goToVideo(item.id)">
-                  <img :src="item.coverUrl" loading="lazy" />
-                  <span class="duration">{{ formatDuration(item.duration) }}</span>
-
-                  <div class="status-tag success" v-if="item.status === 'PASSED'">已发布</div>
-                  <div class="status-tag warning" v-else-if="item.status === 'PENDING'">审核中</div>
-                  <div class="status-tag error" v-else-if="item.status === 'REJECTED'">已驳回</div>
+            <div v-else class="works-grid">
+              <div v-for="item in myWorksList" :key="item.id" class="work-card" @click="goToVideo(item.id)">
+                <div class="work-cover-box">
+                  <img :src="item.coverUrl" class="cover-img" loading="lazy" />
+                  <div class="duration-tag">{{ formatDuration(item.duration) }}</div>
+                  
+                  <div class="status-badge processing" v-if="item.status === 'PENDING'">
+                    <i class="el-icon-loading"></i> 审核中
+                  </div>
+                  <div class="status-badge rejected" v-else-if="item.status === 'REJECTED'">
+                    <i class="el-icon-warning-outline"></i> 已驳回
+                  </div>
+                  
+                  <div class="play-overlay">
+                    <i class="el-icon-caret-right"></i>
+                  </div>
                 </div>
 
-                <div class="work-detail">
-                  <div class="work-top">
-                    <h3 class="work-title" @click="goToVideo(item.id)" :title="item.title">{{ item.title }}</h3>
-                    <div class="work-actions" @click.stop>
-                      <el-dropdown trigger="hover" placement="bottom-end" @command="(cmd) => handleWorkCommand(cmd, item)">
-                        <i class="el-icon-more action-icon"></i>
-                        <el-dropdown-menu slot="dropdown">
-                          <el-dropdown-item command="edit" icon="el-icon-edit">编辑</el-dropdown-item>
-                          <el-dropdown-item command="delete" icon="el-icon-delete" style="color: #F56C6C">删除</el-dropdown-item>
-                        </el-dropdown-menu>
-                      </el-dropdown>
+                <div class="work-info-box">
+                  <h3 class="work-title" :title="item.title">{{ item.title }}</h3>
+                  
+                  <div class="work-meta-row">
+                    <div class="wm-left">
+                      <span class="stat"><i class="el-icon-video-play"></i> {{ formatNumber(item.playCount) }}</span>
+                      <span class="stat"><i class="el-icon-chat-square"></i> {{ formatNumber(item.commentCount) }}</span>
                     </div>
+                    <span class="wm-time">{{ formatTimeAgo(item.createTime) }}</span>
                   </div>
 
-                  <div class="work-desc">{{ item.description || '暂无简介' }}</div>
-
-                  <div class="work-footer">
-                    <span class="time">{{ formatTime(item.createTime) }}</span>
-                    <div class="stats">
-                      <span><i class="el-icon-video-play"></i> {{ formatNumber(item.playCount) }}</span>
-                      <span><i class="el-icon-chat-round"></i> {{ formatNumber(item.commentCount) }}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        </div>
-
-        <div v-show="currentTab === 'history'" class="tab-view">
-          <div class="view-header">
-            <h2>历史记录</h2>
-            <el-button type="text" icon="el-icon-delete" @click="clearHistory" class="text-danger">清空历史</el-button>
-          </div>
-
-          <div v-loading="loadingHistory" class="history-timeline">
-            <div v-if="playHistoryList.length === 0" class="empty-placeholder">
-              <p>暂无观看记录</p>
-            </div>
-
-            <div v-else class="timeline-list">
-              <div v-for="item in playHistoryList" :key="item.id" class="timeline-item">
-                <div class="time-node"></div>
-                <div class="item-card">
-                  <div class="cover" @click="goToVideo(item.id)">
-                    <img :src="item.coverUrl" />
-                  </div>
-                  <div class="detail">
-                    <h3 @click="goToVideo(item.id)">{{ item.title }}</h3>
-                    <p class="view-time">观看于 {{ formatTime(item.createTime) }}</p>
-                    <div class="author-row">
-                      UP: {{ item.authorName || '未知' }}
-                    </div>
-                  </div>
-                  <div class="actions">
-                    <el-button icon="el-icon-delete" circle size="mini" @click="deleteHistoryItem(item)"></el-button>
+                  <div class="work-actions" @click.stop>
+                     <el-tooltip content="编辑" placement="top">
+                        <i class="el-icon-edit action-btn" @click="handleWorkCommand('edit', item)"></i>
+                     </el-tooltip>
+                     <el-tooltip content="删除" placement="top">
+                        <i class="el-icon-delete action-btn delete" @click="handleWorkCommand('delete', item)"></i>
+                     </el-tooltip>
                   </div>
                 </div>
               </div>
@@ -145,37 +132,69 @@
           </div>
         </div>
 
-        <div v-show="currentTab === 'favorites'" class="tab-view">
-          <div class="fav-container">
-            <div class="fav-menu">
-              <div class="menu-title">我的收藏</div>
-              <div class="menu-item active">
-                <i class="el-icon-folder-opened"></i> 默认收藏夹
-                <span class="count">{{ collectedVideos.length }}</span>
+        <div v-show="currentTab === 'history'" class="tab-panel">
+          <div class="panel-header">
+            <h3>播放历史</h3>
+            <el-button type="text" icon="el-icon-delete" class="clear-btn" @click="clearHistory">清空历史</el-button>
+          </div>
+
+          <div v-loading="loadingHistory" class="history-grid-wrapper">
+            <div v-if="playHistoryList.length === 0" class="empty-state">
+              <i class="el-icon-time" style="font-size: 48px; color: #ddd; margin-bottom: 10px;"></i>
+              <p>最近没有观看记录哦</p>
+            </div>
+            
+            <div v-else class="history-grid">
+              <div v-for="item in playHistoryList" :key="item.id" class="history-card">
+                <div class="h-cover" @click="goToVideo(item.id)">
+                  <img :src="item.coverUrl" />
+                  <div class="h-progress-bar" style="width: 100%"></div> 
+                </div>
+                <div class="h-info">
+                  <h4 class="h-title" :title="item.title" @click="goToVideo(item.id)">{{ item.title }}</h4>
+                  <div class="h-meta">
+                    <span class="up-name">UP: {{ item.authorName || '未知' }}</span>
+                    <i class="el-icon-close del-icon" @click.stop="deleteHistoryItem(item)" title="删除该条"></i>
+                  </div>
+                  <div class="h-time">观看于 {{ formatTime(item.createTime) }}</div>
+                </div>
               </div>
-              <div class="menu-item disabled">
-                <i class="el-icon-lock"></i> 私密收藏
+            </div>
+          </div>
+        </div>
+
+        <div v-show="currentTab === 'favorites'" class="tab-panel">
+          <div class="fav-layout">
+            <div class="fav-sidebar">
+              <div class="sidebar-title">我的收藏夹</div>
+              <div class="folder-item active">
+                <i class="el-icon-star-on"></i>
+                <span>默认收藏夹</span>
+                <span class="num">{{ collectedVideos.length }}</span>
+              </div>
+              <div class="folder-item locked">
+                <i class="el-icon-lock"></i>
+                <span>私密收藏</span>
                 <i class="el-icon-lock lock-icon"></i>
               </div>
             </div>
 
-            <div class="fav-body">
-              <div v-loading="loadingCollects" class="video-grid-modern compact">
-                <div v-if="collectedVideos.length === 0" class="empty-placeholder">
-                  <p>还没收藏过视频哦</p>
-                </div>
-                <div v-else v-for="item in collectedVideos" :key="item.id" class="video-card" @click="goToVideo(item.id)">
-                  <div class="card-cover">
+            <div class="fav-content" v-loading="loadingCollects">
+              <div v-if="collectedVideos.length === 0" class="empty-state mini">
+                <p>收藏夹是空的</p>
+              </div>
+              
+              <div v-else class="video-grid-cards">
+                <div v-for="item in collectedVideos" :key="item.id" class="grid-video-card" @click="goToVideo(item.id)">
+                  <div class="g-cover">
                     <img :src="item.coverUrl" />
-                    <div class="hover-overlay red">
-                      <el-button type="danger" round size="mini" @click.stop="cancelCollect(item)">取消收藏</el-button>
+                    <div class="hover-mask">
+                      <el-button type="danger" circle icon="el-icon-delete" size="small" @click.stop="cancelCollect(item)" title="取消收藏"></el-button>
                     </div>
                   </div>
-                  <div class="card-info">
-                    <h3 class="title">{{ item.title }}</h3>
-                    <div class="data-row">
-                      <span>UP: {{ item.authorName || '未知' }}</span>
-                    </div>
+                  <div class="g-info">
+                    <h4 class="g-title">{{ item.title }}</h4>
+                    <div class="g-author">@{{ item.authorName || '未知用户' }}</div>
                   </div>
                 </div>
               </div>
@@ -183,154 +202,129 @@
           </div>
         </div>
 
-        <div v-show="currentTab === 'interactions'" class="tab-view">
-          <div class="fav-container">
-
-            <div class="fav-menu">
-              <div class="menu-title">互动中心</div>
-
-              <div
-                  class="menu-item"
-                  :class="{ active: interactionSubTab === 'likes' }"
-                  @click="interactionSubTab = 'likes'"
-              >
-                <div style="display: flex; align-items: center; gap: 8px;">
-                  <i class="el-icon-thumb"></i> 点赞视频
-                </div>
-                <span class="count" v-if="likedVideos.length">{{ likedVideos.length }}</span>
+        <div v-show="currentTab === 'interactions'" class="tab-panel">
+          <div class="interaction-layout">
+            <div class="sub-nav">
+              <div class="sub-nav-item" :class="{active: interactionSubTab === 'likes'}" @click="interactionSubTab = 'likes'">
+                我点赞的
               </div>
-
-              <div
-                  class="menu-item"
-                  :class="{ active: interactionSubTab === 'comments' }"
-                  @click="interactionSubTab = 'comments'"
-              >
-                <div style="display: flex; align-items: center; gap: 8px;">
-                  <i class="el-icon-chat-line-square"></i> 我的评论
-                </div>
-                <span class="count" v-if="myComments.length">{{ myComments.length }}</span>
+              <div class="sub-nav-item" :class="{active: interactionSubTab === 'comments'}" @click="interactionSubTab = 'comments'">
+                我的评论
               </div>
             </div>
 
-            <div class="fav-body">
-
-              <div class="fav-content-header">
-                <div class="fav-title">
-                  {{ interactionSubTab === 'likes' ? '我点赞的视频' : '我发布的评论' }}
-                </div>
-              </div>
-
+            <div class="interaction-content">
               <div v-if="interactionSubTab === 'likes'" v-loading="loadingLikes">
-                <div v-if="likedVideos.length === 0" class="empty-placeholder">
-                  <p>暂无点赞</p>
-                </div>
-                <div v-else class="video-grid-modern">
-                  <div v-for="item in likedVideos" :key="item.id" class="video-card" @click="goToVideo(item.id)">
-                    <div class="card-cover">
+                <div v-if="likedVideos.length === 0" class="empty-state mini"><p>还没有点赞过视频</p></div>
+                <div v-else class="video-grid-cards">
+                  <div v-for="item in likedVideos" :key="item.id" class="grid-video-card" @click="goToVideo(item.id)">
+                    <div class="g-cover">
                       <img :src="item.coverUrl" />
-                      <div class="like-badge"><i class="el-icon-thumb"></i> 已赞</div>
-                      <div class="hover-overlay red">
-                        <el-button type="danger" round size="mini" @click.stop="cancelLike(item)">取消点赞</el-button>
-                      </div>
+                      <div class="liked-mark"><i class="el-icon-thumb"></i></div>
                     </div>
-                    <div class="card-info">
-                      <h3 class="title">{{ item.title }}</h3>
-                      <div class="data-row">
-                        <span>UP: {{ item.authorName || '未知' }}</span>
-                      </div>
+                    <div class="g-info">
+                      <h4 class="g-title">{{ item.title }}</h4>
+                      <div class="g-author">UP: {{ item.authorName }}</div>
                     </div>
                   </div>
                 </div>
               </div>
 
               <div v-if="interactionSubTab === 'comments'" v-loading="loadingComments">
-                <div v-if="myComments.length === 0" class="empty-placeholder">
-                  <p>暂无评论</p>
-                </div>
-                <div v-else class="comment-timeline">
-                  <div v-for="item in myComments" :key="item.id" class="comment-card-item">
-                    <div class="comment-main">
-                      <div class="comment-quote">
-                        评论了视频: <strong class="target-link" @click="goToVideo(item.videoId)">{{ getVideoTitle(item.videoId) }}</strong>
+                <div v-if="myComments.length === 0" class="empty-state mini"><p>还没有发表过评论</p></div>
+                <div v-else class="comments-list-box">
+                  <div v-for="item in myComments" :key="item.id" class="my-comment-row">
+                    <div class="comment-left-icon"><i class="el-icon-chat-dot-round"></i></div>
+                    <div class="comment-right-body">
+                      <div class="c-target">
+                        评论了视频 <span class="v-link" @click="goToVideo(item.videoId)">《{{ getVideoTitle(item.videoId) }}》</span>
                       </div>
-                      <div class="comment-content">
-                        {{ item.content }}
-                      </div>
-                      <div class="comment-footer">
-                        {{ formatTime(item.createTime) }}
-                        <span class="delete-link" @click="deleteMyComment(item)">删除</span>
+                      <div class="c-content">"{{ item.content }}"</div>
+                      <div class="c-meta">
+                        <span>{{ formatTime(item.createTime) }}</span>
+                        <span class="c-del" @click="deleteMyComment(item)">删除</span>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-
             </div>
           </div>
         </div>
-      </div>
 
-    <el-dialog title="发布作品" :visible.sync="showUploadDialog" width="600px" custom-class="modern-dialog">
+      </div> </div> <el-dialog title="发布新作品" :visible.sync="showUploadDialog" width="600px" custom-class="custom-dialog">
       <el-form ref="uploadForm" :model="uploadForm" label-position="top">
+        <el-form-item label="视频标题" required>
+          <el-input v-model="uploadForm.title" placeholder="取个吸引人的标题，更容易上热门哦" maxlength="50" show-word-limit></el-input>
+        </el-form-item>
+        
         <el-row :gutter="20">
-          <el-col :span="16">
-            <el-form-item label="标题">
-              <el-input v-model="uploadForm.title" placeholder="取个吸引人的标题吧"></el-input>
-            </el-form-item>
-          </el-col>
-          <el-col :span="8">
-            <el-form-item label="分区">
-              <el-select v-model="uploadForm.categoryId" placeholder="选择分区">
+          <el-col :span="12">
+            <el-form-item label="视频分区" required>
+              <el-select v-model="uploadForm.categoryId" placeholder="请选择分区" style="width: 100%">
                 <el-option v-for="c in categories" :key="c.id" :label="c.name" :value="c.id"></el-option>
               </el-select>
             </el-form-item>
           </el-col>
         </el-row>
 
-        <el-form-item label="简介">
-          <el-input type="textarea" :rows="3" v-model="uploadForm.description" placeholder="简单介绍一下视频内容..."></el-input>
+        <el-form-item label="视频简介">
+          <el-input type="textarea" :rows="4" v-model="uploadForm.description" placeholder="简单介绍一下视频内容..."></el-input>
         </el-form-item>
 
-        <div class="upload-row">
-          <div class="upload-box video-uploader" @click="triggerFileInput" :class="{hasFile: !!uploadForm.videoFile}">
-            <i class="el-icon-video-camera-solid" v-if="!uploadForm.videoFile"></i>
-            <div class="upload-text" v-if="!uploadForm.videoFile">上传视频文件</div>
-            <div class="file-name" v-else>
-              <i class="el-icon-check"></i> {{ uploadForm.videoFile.name }}
+        <div class="upload-area-group">
+          <div class="upload-box main-upload" :class="{filled: !!uploadForm.videoFile}" @click="triggerFileInput">
+            <div v-if="!uploadForm.videoFile" class="box-content">
+              <i class="el-icon-upload-placeholder el-icon-video-camera"></i>
+              <div class="text">上传视频文件</div>
+              <div class="sub-text">支持 MP4 格式</div>
+            </div>
+            <div v-else class="box-content filled">
+              <i class="el-icon-success" style="color: #67C23A; font-size: 32px"></i>
+              <div class="text">{{ uploadForm.videoFile.name }}</div>
+              <div class="sub-text">点击更换</div>
             </div>
             <input type="file" ref="fileInput" accept="video/mp4" hidden @change="handleFileSelect">
           </div>
 
-          <div class="upload-box cover-uploader" @click="triggerCoverInput" :style="coverStyle">
-            <i class="el-icon-picture" v-if="!uploadForm.coverPreview"></i>
-            <div class="upload-text" v-if="!uploadForm.coverPreview">上传封面</div>
+          <div class="upload-box cover-upload" :style="coverStyle" @click="triggerCoverInput">
+            <div v-if="!uploadForm.coverPreview" class="box-content">
+              <i class="el-icon-picture-outline"></i>
+              <div class="text">上传封面</div>
+            </div>
             <input type="file" ref="coverInput" accept="image/*" hidden @change="handleCoverSelect">
           </div>
         </div>
       </el-form>
       <div slot="footer">
-        <el-button @click="showUploadDialog = false">取消</el-button>
-        <el-button type="primary" :loading="uploading" @click="submitUpload">立即发布</el-button>
+        <el-button @click="showUploadDialog = false" plain>取消</el-button>
+        <el-button type="primary" :loading="uploading" @click="submitUpload">确认发布</el-button>
       </div>
     </el-dialog>
 
-    <el-dialog title="编辑个人资料" :visible.sync="showEditDialog" width="500px" custom-class="modern-dialog">
-      <div class="edit-avatar-center">
-        <el-avatar :size="80" :src="editForm.avatarUrl || userInfo.avatarUrl || defaultAvatar"></el-avatar>
-        <el-button type="text" @click="$refs.avatarInput.click()">更换头像</el-button>
-        <input type="file" ref="avatarInput" hidden accept="image/*" @change="handleAvatarSelect">
+    <el-dialog title="编辑个人资料" :visible.sync="showEditDialog" width="480px" custom-class="custom-dialog">
+      <div class="edit-profile-form">
+        <div class="avatar-edit-area">
+          <div class="avatar-preview" @click="$refs.avatarInput.click()">
+             <el-avatar :size="80" :src="editForm.avatarUrl || userInfo.avatarUrl || defaultAvatar"></el-avatar>
+             <div class="overlay"><i class="el-icon-camera"></i></div>
+          </div>
+          <span class="tip">点击更换头像</span>
+          <input type="file" ref="avatarInput" hidden accept="image/*" @change="handleAvatarSelect">
+        </div>
+        
+        <el-form :model="editForm" label-position="top" size="small">
+          <el-form-item label="昵称">
+            <el-input v-model="editForm.nickname" maxlength="20" show-word-limit></el-input>
+          </el-form-item>
+          <el-form-item label="个性签名">
+            <el-input type="textarea" v-model="editForm.bio" :rows="3" maxlength="100" show-word-limit></el-input>
+          </el-form-item>
+        </el-form>
       </div>
-      <el-form :model="editForm" label-width="60px">
-        <el-form-item label="昵称">
-          <el-input v-model="editForm.nickname"></el-input>
-        </el-form-item>
-        <el-form-item label="简介">
-          <el-input type="textarea" v-model="editForm.bio" :rows="3"></el-input>
-        </el-form-item>
-      </el-form>
       <div slot="footer">
         <el-button @click="showEditDialog = false">取消</el-button>
-        <el-button type="primary" @click="saveProfile">保存</el-button>
+        <el-button type="primary" @click="saveProfile">保存修改</el-button>
       </div>
     </el-dialog>
 
@@ -349,10 +343,10 @@ export default {
 
       currentTab: 'works',
       tabs: [
-        { key: 'works', label: '我的作品', icon: 'el-icon-video-camera' },
+        { key: 'works', label: '我的作品', icon: 'el-icon-video-camera-solid' },
         { key: 'history', label: '播放历史', icon: 'el-icon-time' },
-        { key: 'favorites', label: '收藏夹', icon: 'el-icon-star-off' },
-        { key: 'interactions', label: '互动记录', icon: 'el-icon-chat-dot-square' }
+        { key: 'favorites', label: '我的收藏', icon: 'el-icon-star-on' },
+        { key: 'interactions', label: '互动中心', icon: 'el-icon-chat-dot-square' }
       ],
       interactionSubTab: 'likes',
 
@@ -377,7 +371,7 @@ export default {
       showEditDialog: false,
       uploading: false,
       uploadForm: { title: '', description: '', categoryId: null, videoFile: null, coverFile: null, coverPreview: null },
-      editForm: { nickname: '', bio: '', avatarUrl: '' },
+      editForm: { nickname: '', bio: '', avatarUrl: '', avatarFile: null },
       categories: [],
 
       // Follow Lists
@@ -387,7 +381,7 @@ export default {
   },
   computed: {
     coverStyle() {
-      return this.uploadForm.coverPreview ? { backgroundImage: `url(${this.uploadForm.coverPreview})`, backgroundSize: 'cover' } : {}
+      return this.uploadForm.coverPreview ? { backgroundImage: `url(${this.uploadForm.coverPreview})`, backgroundSize: 'cover', borderStyle: 'solid', borderColor: '#409EFF' } : {}
     }
   },
   created() {
@@ -404,7 +398,6 @@ export default {
       const res = await userVideoApi.getCurrentUser()
       if (res.code === 200) {
         this.userInfo = res.data
-        // 初始化编辑表单
         this.editForm.nickname = res.data.nickname
         this.editForm.bio = res.data.bio
         this.editForm.avatarUrl = res.data.avatarUrl
@@ -439,7 +432,6 @@ export default {
     },
     async loadFavorites() {
       this.loadingCollects = true
-      // 兼容处理：如果没有后端接口，置空防止报错
       try {
         const res = await userVideoApi.getCollectedVideos(1, 20)
         this.collectedVideos = (res && res.data && (res.data.list || res.data)) || []
@@ -463,54 +455,55 @@ export default {
     // --- Actions ---
     handleWorkCommand(cmd, item) {
       if(cmd === 'delete') {
-        this.$confirm('确定删除作品?','提示',{type:'warning'}).then(async () => {
+        this.$confirm('确定要删除这个作品吗? 删除后无法恢复。','提示',{type:'warning'}).then(async () => {
           await userVideoApi.deleteMyVideo(item.id)
           this.$message.success('已删除')
           this.loadMyWorks()
         })
+      } else if (cmd === 'edit') {
+        this.$message.info('编辑功能开发中...')
       }
     },
     async cancelCollect(item) {
       await userVideoApi.uncollectVideo(item.id)
-      this.$message.success('取消收藏')
+      this.$message.success('已移出收藏夹')
       this.loadFavorites()
     },
     async cancelLike(item) {
       await userVideoApi.unlikeVideo(item.id)
       this.loadLikes()
     },
-    // 【修改】删除单条历史
     async deleteHistoryItem(item) {
-      this.$confirm('确认删除这条记录?', '提示', { type: 'warning' }).then(async () => {
+      this.$confirm('删除这条观看记录?', '提示', { type: 'warning' }).then(async () => {
         try {
-          await userVideoApi.deletePlayHistoryItem(item.id) // 传入 videoId
+          await userVideoApi.deletePlayHistoryItem(item.id)
           this.playHistoryList = this.playHistoryList.filter(i => i.id !== item.id)
           this.$message.success('已删除')
-        } catch (e) {
-          console.warn(e)
-        }
+        } catch (e) { console.warn(e) }
       })
     },
-
-    // 【修改】清空历史
     async clearHistory() {
       this.$confirm('确定清空所有播放历史?', '提示', { type: 'warning' }).then(async () => {
         try {
           await userVideoApi.clearPlayHistory()
           this.playHistoryList = []
           this.$message.success('历史已清空')
-        } catch (e) {
-          console.warn('清空失败', e)
-        }
+        } catch (e) { console.warn('清空失败', e) }
       })
     },
     async deleteMyComment(item) {
-      await userVideoApi.deleteComment(item.id)
-      this.loadComments()
+      this.$confirm('确定删除这条评论?', '提示', {type: 'warning'}).then(async () => {
+        await userVideoApi.deleteComment(item.id)
+        this.$message.success('已删除')
+        this.loadComments()
+      })
     },
 
     // --- Upload ---
-    openUploadDialog() { this.showUploadDialog = true },
+    openUploadDialog() { 
+      this.uploadForm = { title: '', description: '', categoryId: null, videoFile: null, coverFile: null, coverPreview: null }
+      this.showUploadDialog = true 
+    },
     triggerFileInput() { this.$refs.fileInput.click() },
     triggerCoverInput() { this.$refs.coverInput.click() },
     handleFileSelect(e) { this.uploadForm.videoFile = e.target.files[0] },
@@ -522,7 +515,7 @@ export default {
       }
     },
     async submitUpload() {
-      if(!this.uploadForm.title || !this.uploadForm.videoFile) return this.$message.warning('请填写标题并选择视频')
+      if(!this.uploadForm.title || !this.uploadForm.videoFile) return this.$message.warning('请填写标题并选择视频文件')
       this.uploading = true
       try {
         const fd = new FormData()
@@ -533,65 +526,57 @@ export default {
         if(this.uploadForm.coverFile) fd.append('coverFile', this.uploadForm.coverFile)
 
         await userVideoApi.uploadVideo(fd)
-        this.$message.success('投稿成功！请等待审核通过后显示')
+        this.$message.success('投稿成功！视频审核中...')
         this.showUploadDialog = false
-        // 修改：强制刷新列表
         if (this.currentTab === 'works') {
           this.loadMyWorks()
         } else {
           this.switchTab('works')
         }
-      } catch(e) { this.$message.error('上传失败') }
+      } catch(e) { this.$message.error('上传失败，请重试') }
       finally { this.uploading = false }
     },
 
-// --- Edit Profile ---
+    // --- Edit Profile ---
     openEditProfile() {
       this.showEditDialog = true
-      // 每次打开时重置头像文件
       this.editForm.avatarFile = null
+      this.editForm.nickname = this.userInfo.nickname
+      this.editForm.bio = this.userInfo.bio
+      this.editForm.avatarUrl = this.userInfo.avatarUrl
     },
 
     handleAvatarSelect(e) {
       const file = e.target.files[0]
       if(file) {
-        // 保存文件对象用于上传
         this.editForm.avatarFile = file
         const reader = new FileReader()
-        reader.onload = (ev) => { this.editForm.avatarUrl = ev.target.result } // 仅用于预览
+        reader.onload = (ev) => { this.editForm.avatarUrl = ev.target.result }
         reader.readAsDataURL(file)
       }
     },
 
-    // 【修改】保存资料（含头像上传）
     async saveProfile() {
-      this.uploading = true
       try {
-        // 1. 如果选择了新头像，先上传头像
         if (this.editForm.avatarFile) {
           const res = await userVideoApi.uploadFile(this.editForm.avatarFile)
           if (res.code === 200) {
-            this.editForm.avatarUrl = res.data // 获取后端返回的云存储 URL
+            this.editForm.avatarUrl = res.data
           }
         }
-
-        // 2. 更新资料
         await userVideoApi.updateProfile({
           nickname: this.editForm.nickname,
           bio: this.editForm.bio,
-          avatarUrl: this.editForm.avatarUrl // 传入新的 URL
+          avatarUrl: this.editForm.avatarUrl
         })
-
         this.$message.success('资料已更新')
         this.showEditDialog = false
-        this.loadUserInfo() // 刷新页面信息
+        this.loadUserInfo()
       } catch (e) {
         this.$message.error('保存失败')
-      } finally {
-        this.uploading = false
       }
     },
-    openAccountSettings() { this.$message.info('账号设置开发中...') },
+    openAccountSettings() { this.$message.info('账号安全设置功能开发中...') },
 
     // --- Utils ---
     goToVideo(id) { this.$router.push(`/main/video/${id}`) },
@@ -604,9 +589,15 @@ export default {
       const m = Math.floor(s/60); const sec=Math.floor(s%60)
       return `${m}:${sec<10?'0'+sec:sec}`
     },
-    formatNumber(n) { return n > 10000 ? (n/10000).toFixed(1)+'w' : n || 0 },
+    formatNumber(n) { 
+      if (!n) return 0
+      return n > 10000 ? (n/10000).toFixed(1)+'w' : n 
+    },
     formatTime(t) { return t ? t.replace('T', ' ').substring(0,16) : '' },
-    formatTimeAgo(t) { return this.formatTime(t).split(' ')[0] },
+    formatTimeAgo(t) {
+      // 简单的时间格式化，可根据需求改为几小时前等逻辑
+      return t ? t.split('T')[0] : '刚刚'
+    },
     async loadVideoTitles() {
       const ids = [...new Set(this.myComments.map(c => c.videoId))]
       for(let id of ids) {
@@ -614,10 +605,7 @@ export default {
           try {
             const res = await userVideoApi.getVideoById(id)
             this.$set(this.videoTitleCache, id, res.data.title)
-          } catch(e) {
-            // 【修复】添加日志，解决 no-empty 报错
-            console.warn('获取视频标题失败', e)
-          }
+          } catch(e) { console.warn('获取视频标题失败', e) }
         }
       }
     },
@@ -627,444 +615,458 @@ export default {
 </script>
 
 <style scoped>
-/* * 现代极简设计 CSS
- * 核心：去边框、大阴影、圆角、留白
- */
+/* ================= 全局样式变量 ================= */
+:root {
+  --primary-color: #409EFF;
+  --bg-gradient: linear-gradient(135deg, #f5f7fa 0%, #e4e7ed 100%);
+  --card-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: 1px solid rgba(255, 255, 255, 0.6);
+  --shadow-sm: 0 4px 12px rgba(0,0,0,0.05);
+  --shadow-hover: 0 8px 24px rgba(0,0,0,0.12);
+}
 
 .profile-page {
   min-height: 100vh;
-  background: #f6f7f8;
+  background: #f6f8fa;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  padding-bottom: 50px;
 }
 
-/* 1. Banner */
+/* ================= 1. Banner (美化版) ================= */
 .profile-banner {
-  height: 240px;
-  background-image: url('https://picsum.photos/1920/300?blur=2'); /* 默认背景图 */
-  background-size: cover;
-  background-position: center;
+  height: 320px;
+  /* 使用渐变色作为背景，避免空白 */
+  background: linear-gradient(120deg, #a1c4fd 0%, #c2e9fb 100%);
   position: relative;
-}
-.banner-mask {
-  position: absolute;
-  bottom: 0; left: 0; right: 0;
-  height: 80px;
-  background: linear-gradient(to top, rgba(0,0,0,0.4), transparent);
+  overflow: hidden;
 }
 
+/* 增加一点装饰性纹理（可选），让背景不那么单调 */
+.profile-banner::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image: url('https://picsum.photos/1920/400?blur=4'); /* 使用随机图作为纹理 */
+  opacity: 0.3; /* 降低透明度，让底色透出来 */
+  mix-blend-mode: overlay;
+}
+
+.banner-overlay {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  /* 底部渐变遮罩，为了让内容区过渡自然 */
+  background: linear-gradient(to bottom, rgba(0,0,0,0) 60%, rgba(246, 248, 250, 1) 100%);
+  z-index: 1;
+}
+
+/* ================= 2. 主容器 ================= */
 .main-container {
-  max-width: 1100px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 0 20px;
   position: relative;
-  margin-top: -60px; /* 悬浮效果关键 */
   z-index: 10;
+  margin-top: -80px; /* 上浮与 Banner 重叠 */
 }
 
-/* 2. 用户卡片 */
-.user-info-card {
-  background: #fff;
-  border-radius: 12px;
-  padding: 24px;
+/* 个人信息卡片 (Glassmorphism) */
+.user-card-wrapper {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 20px;
+  padding: 30px 40px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.08);
+  display: flex;
+  flex-direction: column;
+}
+
+.user-header-row {
   display: flex;
   justify-content: space-between;
-  align-items: flex-end;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  align-items: center;
 }
 
-.info-left {
+.user-left {
   display: flex;
-  gap: 20px;
+  gap: 25px;
+  align-items: center;
 }
 
-.avatar-wrapper {
+.avatar-box {
   position: relative;
-  margin-top: -40px; /* 头像上浮 */
 }
-.main-avatar {
+.user-avatar {
   border: 4px solid #fff;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
   background: #fff;
-  font-size: 32px;
+  font-size: 36px;
+  font-weight: bold;
+  color: #409EFF;
 }
-.vip-badge {
+.level-badge {
   position: absolute;
-  bottom: 5px; right: 5px;
-  background: #FB7299;
+  bottom: 0; right: -5px;
+  background: linear-gradient(45deg, #f6d365 0%, #fda085 100%);
   color: #fff;
-  font-size: 10px;
-  padding: 2px 6px;
+  font-size: 11px;
+  padding: 2px 8px;
   border-radius: 10px;
   border: 2px solid #fff;
+  font-weight: bold;
 }
 
-.text-content {
-  padding-bottom: 5px;
-}
-.name-row {
+.name-line {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   margin-bottom: 8px;
 }
 .nickname {
-  font-size: 24px;
-  font-weight: bold;
-  color: #222;
   margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  color: #333;
 }
-.level-tag {
-  background: #eee;
+.id-tag {
   font-size: 12px;
+  background: rgba(0,0,0,0.05);
+  color: #888;
   padding: 2px 6px;
   border-radius: 4px;
-  color: #666;
-}
-.bio {
-  font-size: 14px;
-  color: #999;
-  max-width: 400px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0;
 }
 
-.info-right {
+.bio-text {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+  max-width: 500px;
+  line-height: 1.5;
   display: flex;
   align-items: center;
-  gap: 40px;
+  gap: 6px;
 }
-.stat-box {
+
+.user-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 15px;
+}
+
+.data-group {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.data-item {
   text-align: center;
   cursor: pointer;
+  transition: transform 0.2s;
 }
-.stat-box:hover .stat-num { color: #409EFF; }
-.stat-num { font-size: 20px; font-weight: bold; color: #222; }
-.stat-label { font-size: 12px; color: #999; margin-top: 4px; }
+.data-item:hover { transform: translateY(-2px); }
+.data-item .num { font-size: 22px; font-weight: 700; color: #333; }
+.data-item .label { font-size: 12px; color: #999; margin-top: 2px; }
+.divider { width: 1px; height: 20px; background: #ddd; }
 
-.action-group {
+.btn-group {
   display: flex;
   gap: 10px;
 }
-.edit-btn {
-  padding: 10px 24px;
+.custom-btn {
   font-weight: 600;
+  border: none;
+  box-shadow: 0 4px 10px rgba(64, 158, 255, 0.2);
+  transition: all 0.3s;
 }
+.custom-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(64, 158, 255, 0.3); }
+.custom-btn.icon-only {
+  width: 40px; height: 40px; padding: 0;
+  background: #f0f2f5; color: #606266; box-shadow: none;
+}
+.custom-btn.icon-only:hover { background: #e6e8eb; }
 
-/* 3. 导航栏 */
-.nav-bar-sticky {
-  margin-top: 20px;
-  background: transparent;
-  border-bottom: 1px solid #e7e7e7;
-}
-.nav-list {
+/* ================= 3. 导航栏 (胶囊式) ================= */
+.nav-bar-wrapper {
+  margin-top: 30px;
   display: flex;
-  gap: 40px;
-}
-.nav-item {
-  font-size: 16px;
-  color: #666;
-  padding: 12px 0;
-  cursor: pointer;
-  position: relative;
-  transition: color 0.3s;
-}
-.nav-item:hover { color: #409EFF; }
-.nav-item.active { color: #409EFF; font-weight: 600; }
-.nav-item.active .active-line {
-  position: absolute;
-  bottom: -1px;
-  left: 0;
-  width: 100%;
-  height: 3px;
-  background: #409EFF;
-  border-radius: 3px;
+  justify-content: center;
 }
 
-/* 4. 内容区 */
-.content-wrapper {
-  margin-top: 20px;
-  padding-bottom: 60px;
+.nav-pills {
+  background: #fff;
+  padding: 6px;
+  border-radius: 50px;
+  display: inline-flex;
+  gap: 5px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
 }
-.view-header {
+
+.nav-pill-item {
+  padding: 10px 24px;
+  border-radius: 30px;
+  font-size: 15px;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+.nav-pill-item:hover { background: #f5f7fa; color: #333; }
+.nav-pill-item.active {
+  background: #409EFF;
+  color: #fff;
+  box-shadow: 0 4px 10px rgba(64, 158, 255, 0.3);
+}
+
+/* ================= 4. 内容区 ================= */
+.content-area { margin-top: 25px; min-height: 400px; }
+
+.panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+  padding: 0 10px;
 }
-.view-header h2 { margin: 0; font-size: 20px; color: #222; font-weight: 500; }
-.sub-text { font-size: 13px; color: #999; margin-left: 10px; }
-.text-danger { color: #F56C6C; }
-
-/* 我的作品 - 列表布局样式 */
-.works-list-container {
-  background: #fff;
-  border-radius: 8px;
+.panel-header h3 { margin: 0; font-size: 20px; font-weight: 600; color: #333; }
+.count-badge {
+  background: #f0f2f5; color: #999; padding: 2px 8px;
+  border-radius: 10px; font-size: 12px; margin-left: 8px;
 }
 
-.work-list {
+/* 空状态 */
+.empty-state {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 0;
+  color: #999;
 }
+.empty-state img { width: 120px; margin-bottom: 15px; opacity: 0.8; }
+.empty-state.mini { padding: 30px 0; }
 
-.work-item {
-  display: flex;
-  padding: 20px 0;
-  border-bottom: 1px solid #f0f0f0;
+/* =================== 我的作品 Grid 样式 (新) =================== */
+.works-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); /* 网格自适应 */
   gap: 20px;
-  transition: background-color 0.2s;
 }
 
-.work-item:hover {
-  background-color: #fafafa;
-}
-
-.work-item:last-child {
-  border-bottom: none;
-}
-
-/* 左侧封面 */
-.work-cover {
-  width: 190px;
-  height: 107px; /* 16:9 比例 */
-  position: relative;
-  border-radius: 6px;
+.work-card {
+  background: #fff;
+  border-radius: 10px;
   overflow: hidden;
+  border: 1px solid #eee;
   cursor: pointer;
-  flex-shrink: 0;
-  background: #000;
-}
-
-.work-cover img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 0.3s;
-}
-
-.work-cover:hover img {
-  transform: scale(1.05);
-}
-
-.work-cover .duration {
-  position: absolute; bottom: 6px; right: 6px;
-  background: rgba(0,0,0,0.6); color: #fff;
-  font-size: 12px; padding: 2px 4px; border-radius: 4px;
-}
-
-.work-cover .status-tag {
-  position: absolute; top: 6px; left: 6px;
-  font-size: 12px; padding: 2px 6px; border-radius: 4px; color: #fff;
-}
-.status-tag.success { background: #67C23A; }
-.status-tag.warning { background: #E6A23C; }
-.status-tag.error { background: #F56C6C; }
-
-/* 右侧详情 */
-.work-detail {
-  flex: 1;
+  transition: all 0.3s;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  min-width: 0; /* 防止文本溢出 */
 }
 
-.work-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+.work-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.08);
+  border-color: #ecf5ff;
 }
 
-.work-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #222;
-  margin: 0;
-  cursor: pointer;
-  line-height: 1.4;
-  /* 标题最多显示2行 */
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.work-title:hover {
-  color: #409EFF;
-}
-
-.action-icon {
-  font-size: 20px;
-  color: #999;
-  cursor: pointer;
-  padding: 4px;
-}
-.action-icon:hover {
-  color: #409EFF;
-}
-
-.work-desc {
-  font-size: 13px;
-  color: #666;
-  margin-top: 8px;
-  line-height: 1.5;
-  /* 描述最多显示2行 */
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  flex: 1;
-}
-
-.work-footer {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 12px;
-  color: #999;
-  margin-top: 10px;
-}
-
-.work-footer .stats span {
-  margin-left: 20px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.video-card {
-  background: #fff;
-  border-radius: 8px;
-  overflow: hidden;
-  cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-.video-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 20px rgba(0,0,0,0.1);
-}
-.card-cover {
+.work-cover-box {
   width: 100%;
   padding-top: 56.25%; /* 16:9 */
   position: relative;
   background: #000;
 }
-.card-cover img {
+
+.cover-img {
   position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;
+  transition: transform 0.5s;
 }
-.duration {
+
+.work-card:hover .cover-img { transform: scale(1.05); }
+
+.duration-tag {
   position: absolute; bottom: 6px; right: 6px;
-  background: rgba(0,0,0,0.6); color: #fff;
-  font-size: 12px; padding: 2px 4px; border-radius: 4px;
+  background: rgba(0,0,0,0.7); color: #fff; font-size: 12px;
+  padding: 2px 6px; border-radius: 4px;
 }
-.status-tag {
+
+.status-badge {
   position: absolute; top: 6px; left: 6px;
-  font-size: 12px; padding: 2px 6px; border-radius: 4px; color: #fff;
+  font-size: 12px; padding: 3px 8px; border-radius: 4px;
+  color: #fff; font-weight: 500; display: flex; align-items: center; gap: 4px;
 }
-.status-tag.success { background: #67C23A; }
-.status-tag.warning { background: #E6A23C; }
-.status-tag.error { background: #F56C6C; }
+.status-badge.processing { background: rgba(230, 162, 60, 0.9); }
+.status-badge.rejected { background: rgba(245, 108, 108, 0.9); }
 
-.hover-overlay {
+.play-overlay {
   position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-  background: rgba(0,0,0,0.3);
+  background: rgba(0,0,0,0.2);
   display: flex; align-items: center; justify-content: center;
-  opacity: 0; transition: opacity 0.2s;
+  opacity: 0; transition: opacity 0.3s;
 }
-.hover-overlay.red { background: rgba(0,0,0,0.5); }
-.video-card:hover .hover-overlay { opacity: 1; }
-.hover-overlay i { font-size: 40px; color: #fff; }
+.work-card:hover .play-overlay { opacity: 1; }
+.play-overlay i { font-size: 40px; color: #fff; }
 
-.card-info { padding: 12px; }
-.title {
-  margin: 0 0 8px 0; font-size: 14px; color: #222;
-  line-height: 20px; height: 40px;
+.work-info-box {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex: 1;
+}
+
+.work-title {
+  margin: 0 0 10px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #333;
+  line-height: 1.4;
+  height: 42px; /* 限制两行高度 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.work-meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #999;
+}
+.wm-left { display: flex; gap: 10px; }
+.stat { display: flex; align-items: center; gap: 4px; }
+.work-actions {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #f5f5f5;
+  display: flex;
+  justify-content: flex-end;
+  gap: 15px;
+  opacity: 0; /* 默认隐藏操作栏 */
+  transition: opacity 0.2s;
+}
+.work-card:hover .work-actions { opacity: 1; } /* 悬浮显示 */
+
+.action-btn { font-size: 16px; color: #999; cursor: pointer; transition: color 0.2s; }
+.action-btn:hover { color: #409EFF; }
+.action-btn.delete:hover { color: #F56C6C; }
+
+/* =================== 其他 Grid 样式 =================== */
+
+/* 历史记录网格 */
+.history-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px;
+}
+.history-card {
+  background: #fff; border-radius: 10px; overflow: hidden;
+  transition: all 0.3s; cursor: pointer; border: 1px solid #eee;
+}
+.history-card:hover { transform: translateY(-4px); box-shadow: 0 8px 20px rgba(0,0,0,0.08); }
+.h-cover { height: 124px; position: relative; background: #000; }
+.h-cover img { width: 100%; height: 100%; object-fit: cover; }
+.h-progress-bar { height: 2px; background: #F56C6C; position: absolute; bottom: 0; left: 0; }
+.h-info { padding: 10px; }
+.h-title {
+  margin: 0 0 6px 0; font-size: 14px; color: #333; height: 40px;
   overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
 }
-.meta-row, .data-row {
-  display: flex; justify-content: space-between; align-items: center;
-  font-size: 12px; color: #999;
-}
-.more-actions:hover { color: #409EFF; }
-
-/* 历史时间轴 */
-.history-timeline {
-  background: #fff; border-radius: 12px; padding: 20px;
-}
-.timeline-item {
-  display: flex; gap: 20px; padding: 15px 0; border-bottom: 1px solid #f0f0f0;
-}
-.item-card {
-  display: flex; gap: 15px; flex: 1;
-}
-.item-card .cover {
-  width: 160px; height: 90px; border-radius: 6px; overflow: hidden;
-}
-.item-card .cover img { width: 100%; height: 100%; object-fit: cover; }
-.item-card .detail { flex: 1; }
-.item-card h3 { margin: 0 0 8px 0; font-size: 16px; color: #222; cursor: pointer; }
-.item-card h3:hover { color: #409EFF; }
-.view-time { font-size: 12px; color: #999; }
-.author-row { font-size: 12px; color: #666; margin-top: 10px; }
+.h-meta { display: flex; justify-content: space-between; font-size: 12px; color: #999; }
+.del-icon { cursor: pointer; } .del-icon:hover { color: #F56C6C; }
+.h-time { font-size: 11px; color: #bbb; margin-top: 6px; }
 
 /* 收藏夹布局 */
-.fav-container { display: flex; gap: 20px; }
-.fav-menu { width: 220px; background: #fff; border-radius: 8px; padding: 15px 0; height: fit-content; }
-.menu-title { padding: 0 20px 10px; font-weight: 600; color: #999; font-size: 12px; }
-.menu-item {
-  padding: 12px 20px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; color: #333; font-size: 14px;
+.fav-layout { display: flex; gap: 20px; }
+.fav-sidebar {
+  width: 240px; background: #fff; border-radius: 12px; padding: 20px 0;
+  box-shadow: var(--shadow-sm); height: fit-content;
 }
-.menu-item:hover { background: #f1f2f3; }
-.menu-item.active { background: #409EFF; color: #fff; }
-.menu-item.disabled { color: #ccc; cursor: not-allowed; }
-.fav-body { flex: 1; }
+.sidebar-title { padding: 0 20px 15px; font-weight: 600; color: #666; font-size: 14px; border-bottom: 1px solid #f0f0f0; margin-bottom: 10px; }
+.folder-item {
+  padding: 12px 20px; display: flex; align-items: center; gap: 10px; cursor: pointer;
+  color: #333; font-size: 14px; border-left: 3px solid transparent;
+}
+.folder-item:hover { background: #f9f9f9; }
+.folder-item.active { background: #e6f7ff; color: #409EFF; border-left-color: #409EFF; }
+.folder-item.locked { color: #ccc; cursor: not-allowed; }
+.lock-icon { margin-left: auto; font-size: 12px; }
 
-/* 评论记录 */
-.comment-timeline { background: #fff; padding: 20px; border-radius: 8px; }
-.comment-card-item {
-  padding: 20px 0; border-bottom: 1px solid #eee;
+.fav-content { flex: 1; }
+.video-grid-cards {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px;
 }
-.comment-quote {
-  font-size: 13px; color: #999; margin-bottom: 8px;
+.grid-video-card {
+  background: #fff; border-radius: 8px; overflow: hidden; cursor: pointer;
+  transition: all 0.3s; border: 1px solid #eee;
 }
-.comment-content {
-  font-size: 15px; color: #222; line-height: 1.5;
+.grid-video-card:hover { transform: translateY(-4px); box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
+.g-cover { height: 112px; position: relative; background: #000; }
+.g-cover img { width: 100%; height: 100%; object-fit: cover; }
+.hover-mask {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity 0.2s;
 }
-.comment-footer {
-  margin-top: 8px; font-size: 12px; color: #999;
+.grid-video-card:hover .hover-mask { opacity: 1; }
+.g-info { padding: 10px; }
+.g-title {
+  margin: 0 0 6px 0; font-size: 13px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.delete-link {
-  margin-left: 15px; cursor: pointer; display: none;
+.g-author { font-size: 12px; color: #999; }
+.liked-mark {
+  position: absolute; top: 5px; right: 5px; color: #fff; background: #F56C6C;
+  padding: 2px 6px; border-radius: 4px; font-size: 12px;
 }
-.comment-card-item:hover .delete-link { display: inline-block; color: #F56C6C; }
 
-/* 上传弹窗样式优化 */
-.upload-row { display: flex; gap: 20px; margin-top: 10px; }
+/* 互动记录 */
+.interaction-layout { background: #fff; padding: 20px; border-radius: 12px; min-height: 400px; }
+.sub-nav { display: flex; gap: 30px; border-bottom: 1px solid #eee; margin-bottom: 20px; }
+.sub-nav-item {
+  padding-bottom: 10px; cursor: pointer; color: #666; font-weight: 500; border-bottom: 2px solid transparent;
+}
+.sub-nav-item.active { color: #409EFF; border-bottom-color: #409EFF; }
+
+.comments-list-box { display: flex; flex-direction: column; gap: 20px; }
+.my-comment-row { display: flex; gap: 15px; padding-bottom: 15px; border-bottom: 1px solid #f5f5f5; }
+.comment-left-icon i { font-size: 20px; color: #ccc; }
+.comment-right-body { flex: 1; }
+.c-target { font-size: 13px; color: #666; margin-bottom: 6px; }
+.v-link { color: #409EFF; cursor: pointer; }
+.c-content { font-size: 14px; color: #333; line-height: 1.5; background: #f9f9f9; padding: 10px; border-radius: 6px; }
+.c-meta { font-size: 12px; color: #bbb; margin-top: 6px; display: flex; justify-content: space-between; }
+.c-del { cursor: pointer; } .c-del:hover { color: #F56C6C; }
+
+/* 弹窗上传框 */
+.upload-area-group { display: flex; gap: 15px; margin-top: 10px; }
 .upload-box {
-  flex: 1; border: 2px dashed #d9d9d9; border-radius: 6px;
-  height: 120px; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  cursor: pointer; color: #8c939d; transition: all 0.3s;
-  background-size: cover; background-position: center;
+  border: 2px dashed #d9d9d9; border-radius: 8px; height: 140px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.3s; background: #fafafa;
 }
-.upload-box:hover { border-color: #409EFF; color: #409EFF; }
-.upload-box i { font-size: 28px; margin-bottom: 8px; }
-.upload-box.hasFile { border-style: solid; border-color: #67C23A; color: #67C23A; }
+.upload-box:hover { border-color: #409EFF; background: #ecf5ff; }
+.upload-box.main-upload { flex: 2; }
+.upload-box.cover-upload { flex: 1; background-size: cover; background-position: center; }
+.box-content { text-align: center; color: #909399; }
+.box-content i { font-size: 32px; margin-bottom: 8px; }
+.box-content.filled .text { color: #67C23A; font-weight: 600; margin-top: 5px; }
 
-.empty-placeholder {
-  grid-column: 1 / -1;
-  text-align: center; padding: 60px 0; color: #999;
-}
-.empty-img { width: 160px; margin-bottom: 20px; }
-
-/* 动画 */
-.fade-enter { animation: fadeIn 0.4s ease; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+/* 动画类 */
+.slide-up { animation: slideUp 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.fade-in { animation: fadeIn 0.8s ease; }
+@keyframes slideUp { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 /* 响应式 */
 @media (max-width: 768px) {
-  .user-info-card { flex-direction: column; align-items: flex-start; }
-  .info-right { margin-top: 20px; width: 100%; justify-content: space-between; }
-  .fav-container { flex-direction: column; }
-  .fav-menu { width: 100%; }
+  .user-header-row { flex-direction: column; align-items: flex-start; gap: 20px; }
+  .user-right { width: 100%; align-items: flex-start; flex-direction: row; justify-content: space-between; }
+  .fav-layout { flex-direction: column; }
+  .fav-sidebar { width: 100%; }
 }
 </style>
