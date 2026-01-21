@@ -4,9 +4,11 @@
     <el-header class="main-header">
       <!-- 左侧：标题 + 导航菜单 -->
       <div class="header-left-section">
-        <h2 class="logo-text">短视频推荐系统</h2>
-        
-        <!-- 水平导航菜单 - 靠左 -->
+        <div class="logo-wrapper" @click="$router.push('/main/video')">
+          <img src="@/logo/logo.png" class="logo-img" alt="logo">
+          <h2 class="logo-text">推刻</h2>
+        </div>
+
         <div class="horizontal-nav">
           <div 
             v-for="menu in menuItems"
@@ -158,14 +160,22 @@ export default {
         cancelButtonText: '取消',
         type: 'warning'
       }).then(() => {
+        // 1. 清除 localStorage (持久化存储)
         localStorage.removeItem('userToken');
         localStorage.removeItem('username');
         localStorage.removeItem('userId');
         localStorage.removeItem('userAvatar');
-        // 刷新页面，状态变回游客
-        location.reload(); 
+        localStorage.removeItem('userRole');
+
+        // 2. 【新增】清除 sessionStorage (会话存储，路由守卫主要检查这里)
+        sessionStorage.clear(); // 或者逐个移除: sessionStorage.removeItem('userToken')...
+
+        this.$message.success('已退出登录');
+
+        // 3. 【修改】跳转回登录页(即游客首页)
+        this.$router.push('/login');
       }).catch(() => {
-        // 用户点击取消，什么都不做，直接关闭弹窗
+        // 取消操作
       });
     },
     handleSearch() {
@@ -214,7 +224,7 @@ export default {
   z-index: 1000;
 }
 
-/* 左侧区域：标题 + 导航 */
+/* 左侧区域 */
 .header-left-section {
   display: flex;
   align-items: center;
@@ -222,6 +232,26 @@ export default {
   flex: 0 0 auto;
 }
 
+/* --- 新增：Logo 容器 --- */
+.logo-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px; /* 图片和文字之间的间距 */
+  cursor: pointer;
+  transition: opacity 0.3s;
+}
+.logo-wrapper:hover {
+  opacity: 0.9;
+}
+
+/* --- 新增：Logo 图片 --- */
+.logo-img {
+  height: 40px; /* 根据导航栏高度适当调整 */
+  width: auto;
+  object-fit: contain;
+}
+
+/* .logo-text 保持原有样式，颜色继承自 header 的白色 */
 .logo-text {
   margin: 0;
   font-size: 24px;

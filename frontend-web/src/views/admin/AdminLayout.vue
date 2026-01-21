@@ -92,8 +92,25 @@ export default {
     },
     handleCommand(cmd) {
       if (cmd === 'logout') {
-        localStorage.removeItem('adminToken');
-        this.$router.push('/login');
+        // 1. 【新增】确认弹窗 (可选，体验更好)
+        this.$confirm('确定要退出管理后台吗？', '提示', {
+          type: 'warning'
+        }).then(() => {
+          // 2. 清除所有可能的 Token 和角色信息
+          // (注意：Login.vue 中管理员登录也写入了 userToken，所以这里要一并清除)
+          localStorage.removeItem('adminToken'); // 清除旧逻辑残留
+          localStorage.removeItem('userToken');  // 清除当前逻辑 Token
+          localStorage.removeItem('userRole');   // 清除角色
+          localStorage.removeItem('username');
+
+          // 3. 【新增】清除 sessionStorage
+          sessionStorage.clear();
+
+          this.$message.success('已退出后台');
+
+          // 4. 跳转回登录页
+          this.$router.push('/login');
+        }).catch(() => {});
       } else if (cmd === 'password') {
         this.pwdDialogVisible = true;
       }

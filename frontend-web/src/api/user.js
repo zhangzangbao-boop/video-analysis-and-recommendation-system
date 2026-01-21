@@ -35,6 +35,7 @@ export const userVideoApi = {
     })
   },
 
+
   // 上传视频
   uploadVideo(formData) {
     return request({
@@ -255,4 +256,6 @@ export const userVideoApi = {
       params: { keyword, categoryId, page, pageSize }
     })
   }
+
+
 }
