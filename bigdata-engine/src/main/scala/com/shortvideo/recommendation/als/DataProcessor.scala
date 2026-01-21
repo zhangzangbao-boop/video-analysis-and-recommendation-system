@@ -329,10 +329,16 @@ object DataProcessor {
     val aggregated = ratings
       .groupByKey(r => (r.userId, r.movieId))
       .mapGroups { case ((uid, mid), iter) =>
-        val maxRating = iter.map(_.rating).max
-        // 保留最新的时间戳
-        val maxTimestamp = iter.map(_.timestamp).max
-        Rating(uid, mid, maxRating, maxTimestamp)
+        val ratingsList = iter.toList
+        if (ratingsList.nonEmpty) {
+          val maxRating = ratingsList.map(_.rating).max
+          // 保留最新的时间戳
+          val maxTimestamp = ratingsList.map(_.timestamp).max
+          Rating(uid, mid, maxRating, maxTimestamp)
+        } else {
+          // 如果没有评分记录，返回默认值
+          Rating(uid, mid, 0.0f, System.currentTimeMillis())
+        }
       }
     
     val afterCount = aggregated.count()

@@ -151,7 +151,7 @@ class LogGenerator {
     // 首先为每个用户生成至少5个行为（确保满足用户行为阈值）
     for (userId <- 1 to numUsers) {
       for (i <- 1 to 5) {  // 每个用户至少5个行为
-        val videoId = videoIdRange(random.nextInt(numVideos))
+        val videoId = videoIdRange(random.nextInt(numVideos)).toLong
         val behaviorType = behaviorTypes(random.nextInt(behaviorTypes.length))
         val duration = behaviorType match {
           case "play" => random.nextInt(180) + 10
@@ -169,7 +169,46 @@ class LogGenerator {
 
         behaviors += UserBehavior(
           userId = userId.toLong,
-          videoId = videoId.toLong,
+          videoId = videoId,  // videoId已经是Long类型
+          behaviorType = behaviorType,
+          behaviorTime = currentTime,
+          duration = duration,
+          deviceInfo = deviceInfo,
+          networkType = networkType,
+          ipAddress = ipAddress,
+          location = location,
+          extraInfo = s"""{"platform":"mobile","version":"1.0.${random.nextInt(100)}"}"""
+        )
+      }
+    }
+
+    // 识别当前最活跃的视频（已有互动最多的视频）
+    val videoInteractionCount = behaviors.groupBy(_.videoId).mapValues(_.size).toMap
+    val leastInteractedVideos = videoIdRange.take(numVideos).map(_.toLong).filterNot(videoInteractionCount.contains(_)).toSet ++
+                               videoInteractionCount.filter(_._2 < 5).keySet.map(_.asInstanceOf[Long])
+    
+    // 确保每个视频至少有5次互动
+    for (videoId <- leastInteractedVideos) {
+      for (i <- 1 to 5) {
+        val userId = userIdRange(random.nextInt(numUsers))
+        val behaviorType = behaviorTypes(random.nextInt(behaviorTypes.length))
+        val duration = behaviorType match {
+          case "play" => random.nextInt(180) + 10
+          case "like" => 5
+          case "collect" => 8
+          case "comment" => 25
+          case _ => random.nextInt(60)
+        }
+
+        val deviceInfo = deviceInfos(random.nextInt(deviceInfos.length))
+        val networkType = networkTypes(random.nextInt(networkTypes.length))
+        val ipAddress = generateIpAddress()
+        val location = generateLocation()
+        val currentTime = new Timestamp(System.currentTimeMillis() - random.nextInt(86400000 * 3))
+
+        behaviors += UserBehavior(
+          userId = userId.toLong,
+          videoId = videoId,  // videoId已经是Long类型，不需要转换
           behaviorType = behaviorType,
           behaviorTime = currentTime,
           duration = duration,
@@ -183,15 +222,15 @@ class LogGenerator {
     }
 
     // 为某些热门视频额外添加互动（确保满足视频互动阈值）
-    val popularVideos = (1 to 5).map(v => videoIdRange(random.nextInt(numVideos))).toSet
-    for (_ <- 1 to (totalRecords - behaviors.length)) {
+    val popularVideos = (1 to 5).map(v => videoIdRange(random.nextInt(numVideos)).toLong).toSet
+    for (_ <- 1 to math.max(0, totalRecords - behaviors.length)) {
       val userId = userIdRange(random.nextInt(numUsers))
       val videoId = if (random.nextDouble() < 0.4) {
         // 40%概率选择热门视频
-        popularVideos.toArray(random.nextInt(popularVideos.size))
+        popularVideos.toArray.apply(random.nextInt(popularVideos.size))
       } else {
         // 60%概率选择随机视频
-        videoIdRange(random.nextInt(numVideos))
+        videoIdRange(random.nextInt(numVideos)).toLong
       }
 
       val behaviorType = behaviorTypes(random.nextInt(behaviorTypes.length))
@@ -211,7 +250,7 @@ class LogGenerator {
 
       behaviors += UserBehavior(
         userId = userId.toLong,
-        videoId = videoId.toLong,
+        videoId = videoId,  // videoId已经是Long类型
         behaviorType = behaviorType,
         behaviorTime = currentTime,
         duration = duration,

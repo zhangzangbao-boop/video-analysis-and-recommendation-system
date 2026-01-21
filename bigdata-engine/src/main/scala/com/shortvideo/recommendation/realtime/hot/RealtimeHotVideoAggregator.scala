@@ -69,7 +69,7 @@ object RealtimeHotVideoAggregator {
                 }
 
                 // 设置过期（每个分区都设置一次也无妨；也可做采样设置）
-                jedis.expire(HOT_KEY, expireSeconds.toInt)
+                jedis.expire(HOT_KEY, expireSeconds:Long)
 
                 // 裁剪：只保留 topLimit（按分数从高到低），删除低分尾部
                 val size = jedis.zcard(HOT_KEY)
