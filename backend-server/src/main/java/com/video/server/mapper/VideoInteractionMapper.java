@@ -41,4 +41,5 @@ public interface VideoInteractionMapper {
      * 查询点赞视频列表 (修改返回类型为 VideoDTO)
      */
     List<VideoDTO> selectLikedVideos(@Param("userId") Long userId, @Param("limit") Integer limit);
+    List<VideoInteraction> selectByUserId(@Param("userId") Long userId);
 }

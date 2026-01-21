@@ -63,8 +63,16 @@ public class UserController {
         if (request.getAvatarUrl() != null) user.setAvatarUrl(request.getAvatarUrl());
         if (request.getRealName() != null) user.setRealName(request.getRealName());
         if (request.getEmail() != null) user.setEmail(request.getEmail());
-        if (request.getGender() != null) user.setGender(request.getGender());
-        if (request.getBio() != null) user.setBio(request.getBio());
+        if (request.getGender() != null) {
+            if (request.getGender() == 1) {
+                user.setGender("male");
+            } else if (request.getGender() == 0) {
+                user.setGender("female");
+            } else {
+                user.setGender("secret"); // 或者其他默认值
+            }
+        }        if (request.getBio() != null) user.setBio(request.getBio());
+        if (request.getPhone() != null) user.setPhone(request.getPhone());
         user.setUpdateTime(LocalDateTime.now());
         userMapper.updateById(user);
         return ResponseEntity.ok(ApiResponse.success(user));
