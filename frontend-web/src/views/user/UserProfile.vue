@@ -5,7 +5,7 @@
     </div>
 
     <div class="main-container">
-      
+
       <div class="user-card-wrapper glass-effect slide-up">
         <div class="user-header-row">
           <div class="user-left">
@@ -18,6 +18,8 @@
             <div class="user-texts">
               <div class="name-line">
                 <h1 class="nickname">{{ userInfo.nickname || userInfo.username }}</h1>
+                <i v-if="userInfo.gender === 1" class="el-icon-male" style="color: #409EFF; font-size: 18px; margin-left: 5px;"></i>
+                <i v-else-if="userInfo.gender === 0" class="el-icon-female" style="color: #F56C6C; font-size: 18px; margin-left: 5px;"></i>
                 <span class="id-tag" v-if="userInfo.id">UID: {{ userInfo.id }}</span>
               </div>
               <p class="bio-text" :title="userInfo.bio">
@@ -56,12 +58,12 @@
 
       <div class="nav-bar-wrapper">
         <div class="nav-pills">
-          <div 
-            v-for="tab in tabs" 
-            :key="tab.key"
-            class="nav-pill-item"
-            :class="{ active: currentTab === tab.key }"
-            @click="switchTab(tab.key)"
+          <div
+              v-for="tab in tabs"
+              :key="tab.key"
+              class="nav-pill-item"
+              :class="{ active: currentTab === tab.key }"
+              @click="switchTab(tab.key)"
           >
             <i :class="tab.icon"></i>
             <span>{{ tab.label }}</span>
@@ -70,7 +72,7 @@
       </div>
 
       <div class="content-area fade-in">
-        
+
         <div v-show="currentTab === 'works'" class="tab-panel">
           <div class="panel-header">
             <div class="ph-left">
@@ -94,14 +96,14 @@
                 <div class="work-cover-box">
                   <img :src="item.coverUrl" class="cover-img" loading="lazy" />
                   <div class="duration-tag">{{ formatDuration(item.duration) }}</div>
-                  
+
                   <div class="status-badge processing" v-if="item.status === 'PENDING'">
                     <i class="el-icon-loading"></i> 审核中
                   </div>
                   <div class="status-badge rejected" v-else-if="item.status === 'REJECTED'">
                     <i class="el-icon-warning-outline"></i> 已驳回
                   </div>
-                  
+
                   <div class="play-overlay">
                     <i class="el-icon-caret-right"></i>
                   </div>
@@ -109,7 +111,7 @@
 
                 <div class="work-info-box">
                   <h3 class="work-title" :title="item.title">{{ item.title }}</h3>
-                  
+
                   <div class="work-meta-row">
                     <div class="wm-left">
                       <span class="stat"><i class="el-icon-video-play"></i> {{ formatNumber(item.playCount) }}</span>
@@ -118,48 +120,13 @@
                     <span class="wm-time">{{ formatTimeAgo(item.createTime) }}</span>
                   </div>
 
-                  <div class="work-desc">{{ item.description || '暂无简介' }}</div>
-
-                  <div class="work-footer">
-                    <span class="time">{{ formatTime(item.createTime) }}</span>
-                    <div class="stats">
-                      <span><i class="el-icon-video-play"></i> {{ formatNumber(item.playCount) }}</span>
-                      <span><i class="el-icon-chat-round"></i> {{ formatNumber(item.commentCount) }}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div v-show="currentTab === 'history'" class="tab-view">
-          <div class="view-header">
-            <h2>历史记录</h2>
-            <el-button type="text" icon="el-icon-delete" @click="clearHistory" class="text-danger">清空历史</el-button>
-          </div>
-
-          <div v-loading="loadingHistory" class="history-timeline">
-            <div v-if="playHistoryList.length === 0" class="empty-placeholder">
-              <p>暂无观看记录</p>
-            </div>
-
-            <div v-else class="timeline-list">
-              <div v-for="item in playHistoryList" :key="item.id" class="timeline-item">
-                <div class="time-node"></div>
-                <div class="item-card">
-                  <div class="cover" @click="goToVideo(item.id)">
-                    <img :src="item.coverUrl" />
-                  </div>
-                  <div class="detail">
-                    <h3 @click="goToVideo(item.id)">{{ item.title }}</h3>
-                    <p class="view-time">观看于 {{ formatTime(item.createTime) }}</p>
-                    <div class="author-row">
-                      UP: {{ item.authorName || '未知' }}
-                    </div>
-                  </div>
-                  <div class="actions">
-                    <el-button icon="el-icon-delete" circle size="mini" @click="deleteHistoryItem(item)"></el-button>
+                  <div class="work-actions" @click.stop>
+                    <el-tooltip content="编辑" placement="top">
+                      <i class="el-icon-edit action-btn" @click="handleWorkCommand('edit', item)"></i>
+                    </el-tooltip>
+                    <el-tooltip content="删除" placement="top">
+                      <i class="el-icon-delete action-btn delete" @click="handleWorkCommand('delete', item)"></i>
+                    </el-tooltip>
                   </div>
                 </div>
               </div>
@@ -178,12 +145,12 @@
               <i class="el-icon-time" style="font-size: 48px; color: #ddd; margin-bottom: 10px;"></i>
               <p>最近没有观看记录哦</p>
             </div>
-            
+
             <div v-else class="history-grid">
               <div v-for="item in playHistoryList" :key="item.id" class="history-card">
                 <div class="h-cover" @click="goToVideo(item.id)">
                   <img :src="item.coverUrl" />
-                  <div class="h-progress-bar" style="width: 100%"></div> 
+                  <div class="h-progress-bar" style="width: 100%"></div>
                 </div>
                 <div class="h-info">
                   <h4 class="h-title" :title="item.title" @click="goToVideo(item.id)">{{ item.title }}</h4>
@@ -218,7 +185,7 @@
               <div v-if="collectedVideos.length === 0" class="empty-state mini">
                 <p>收藏夹是空的</p>
               </div>
-              
+
               <div v-else class="video-grid-cards">
                 <div v-for="item in collectedVideos" :key="item.id" class="grid-video-card" @click="goToVideo(item.id)">
                   <div class="g-cover">
@@ -286,15 +253,16 @@
             </div>
           </div>
         </div>
+
       </div>
     </div>
 
-      </div> </div> <el-dialog title="发布新作品" :visible.sync="showUploadDialog" width="600px" custom-class="custom-dialog">
+    <el-dialog title="发布新作品" :visible.sync="showUploadDialog" width="600px" custom-class="custom-dialog">
       <el-form ref="uploadForm" :model="uploadForm" label-position="top">
         <el-form-item label="视频标题" required>
           <el-input v-model="uploadForm.title" placeholder="取个吸引人的标题，更容易上热门哦" maxlength="50" show-word-limit></el-input>
         </el-form-item>
-        
+
         <el-row :gutter="20">
           <el-col :span="12">
             <el-form-item label="视频分区" required>
@@ -341,45 +309,39 @@
 
     <el-dialog title="编辑个人资料" :visible.sync="showEditDialog" width="480px" custom-class="custom-dialog">
       <div class="edit-profile-form">
-        <div class="avatar-edit-area">
-          <div class="avatar-preview" @click="$refs.avatarInput.click()">
-             <el-avatar :size="80" :src="editForm.avatarUrl || userInfo.avatarUrl || defaultAvatar"></el-avatar>
-             <div class="overlay"><i class="el-icon-camera"></i></div>
+        <div class="edit-avatar-center">
+          <div class="avatar-edit-area">
+            <div class="avatar-preview" @click="$refs.avatarInput.click()">
+              <el-avatar :size="80" :src="editForm.avatarUrl || userInfo.avatarUrl || defaultAvatar"></el-avatar>
+              <div class="overlay"><i class="el-icon-camera"></i></div>
+            </div>
+            <span class="tip" style="margin-top:5px; font-size:12px; color:#999">点击更换头像</span>
+            <input type="file" ref="avatarInput" hidden accept="image/*" @change="handleAvatarSelect">
           </div>
-          <span class="tip">点击更换头像</span>
-          <input type="file" ref="avatarInput" hidden accept="image/*" @change="handleAvatarSelect">
         </div>
-        
-        <el-form :model="editForm" label-position="top" size="small">
+
+        <el-form :model="editForm" label-width="80px" size="small">
           <el-form-item label="昵称">
             <el-input v-model="editForm.nickname" maxlength="20" show-word-limit></el-input>
+          </el-form-item>
+          <el-form-item label="性别">
+            <el-radio-group v-model="editForm.gender">
+              <el-radio :label="1">男</el-radio>
+              <el-radio :label="0">女</el-radio>
+              <el-radio :label="2">保密</el-radio>
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item label="真实姓名">
+            <el-input v-model="editForm.realName" placeholder="实名认证使用的姓名"></el-input>
           </el-form-item>
           <el-form-item label="个性签名">
             <el-input type="textarea" v-model="editForm.bio" :rows="3" maxlength="100" show-word-limit></el-input>
           </el-form-item>
         </el-form>
       </div>
-      <el-form :model="editForm" label-width="80px">
-        <el-form-item label="昵称">
-          <el-input v-model="editForm.nickname"></el-input>
-        </el-form-item>
-        <el-form-item label="真实姓名">
-          <el-input v-model="editForm.realName" placeholder="实名认证使用的姓名"></el-input>
-        </el-form-item>
-        <el-form-item label="性别">
-          <el-radio-group v-model="editForm.gender">
-            <el-radio :label="1">男</el-radio>
-            <el-radio :label="0">女</el-radio>
-            <el-radio :label="2">保密</el-radio>
-          </el-radio-group>
-        </el-form-item>
-        <el-form-item label="简介">
-          <el-input type="textarea" v-model="editForm.bio" :rows="3"></el-input>
-        </el-form-item>
-      </el-form>
       <div slot="footer">
         <el-button @click="showEditDialog = false">取消</el-button>
-        <el-button type="primary" @click="saveProfile" :loading="uploading">保存</el-button>
+        <el-button type="primary" @click="saveProfile" :loading="uploading">保存修改</el-button>
       </div>
     </el-dialog>
 
@@ -430,6 +392,7 @@ import { userVideoApi } from '@/api/user'
 export default {
   name: 'UserProfile',
   data() {
+    // 密码校验逻辑 (来自HEAD)
     const validatePass = (rule, value, callback) => {
       if (value === '') callback(new Error('请输入密码'));
       else {
@@ -481,7 +444,11 @@ export default {
 
       // Forms
       uploadForm: { title: '', description: '', categoryId: null, videoFile: null, coverFile: null, coverPreview: null },
-      editForm: { nickname: '', bio: '', avatarUrl: '', gender: 2, realName: '' },
+
+      // 融合 EditForm: 包含 Team 的头像逻辑和 HEAD 的性别/真名逻辑
+      editForm: { nickname: '', bio: '', avatarUrl: '', avatarFile: null, gender: 2, realName: '' },
+
+      // 融合 AccountForm (来自HEAD)
       accountForm: { username: '', phone: '', email: '' },
       pwdForm: { oldPassword: '', newPassword: '', confirmPassword: '' },
 
@@ -517,11 +484,12 @@ export default {
       const res = await userVideoApi.getCurrentUser()
       if (res.code === 200) {
         this.userInfo = res.data
+        // 回填表单数据
         this.editForm.nickname = res.data.nickname
         this.editForm.bio = res.data.bio
         this.editForm.avatarUrl = res.data.avatarUrl
-        this.editForm.gender = res.data.gender
-        this.editForm.realName = res.data.realName
+        this.editForm.gender = res.data.gender !== undefined ? res.data.gender : 2
+        this.editForm.realName = res.data.realName || ''
       }
     },
     switchTab(key) {
@@ -621,9 +589,9 @@ export default {
     },
 
     // --- Upload ---
-    openUploadDialog() { 
+    openUploadDialog() {
       this.uploadForm = { title: '', description: '', categoryId: null, videoFile: null, coverFile: null, coverPreview: null }
-      this.showUploadDialog = true 
+      this.showUploadDialog = true
     },
     triggerFileInput() { this.$refs.fileInput.click() },
     triggerCoverInput() { this.$refs.coverInput.click() },
@@ -665,6 +633,8 @@ export default {
       this.editForm.nickname = this.userInfo.nickname
       this.editForm.bio = this.userInfo.bio
       this.editForm.avatarUrl = this.userInfo.avatarUrl
+      this.editForm.gender = this.userInfo.gender
+      this.editForm.realName = this.userInfo.realName
     },
 
     handleAvatarSelect(e) {
@@ -678,13 +648,16 @@ export default {
     },
 
     async saveProfile() {
+      this.uploading = true;
       try {
+        // 先处理头像上传
         if (this.editForm.avatarFile) {
           const res = await userVideoApi.uploadFile(this.editForm.avatarFile)
           if (res.code === 200) {
             this.editForm.avatarUrl = res.data
           }
         }
+        // 更新资料 (融合逻辑：包括性别和真实姓名)
         await userVideoApi.updateProfile({
           nickname: this.editForm.nickname,
           bio: this.editForm.bio,
@@ -697,10 +670,12 @@ export default {
         this.loadUserInfo()
       } catch (e) {
         this.$message.error('保存失败')
+      } finally {
+        this.uploading = false;
       }
     },
 
-    // --- Account Settings ---
+    // --- Account Settings (融合逻辑：保留你的 HEAD 逻辑) ---
     openAccountSettings() {
       this.showAccountDialog = true
       this.accountActiveTab = 'info'
@@ -758,13 +733,12 @@ export default {
       const m = Math.floor(s/60); const sec=Math.floor(s%60)
       return `${m}:${sec<10?'0'+sec:sec}`
     },
-    formatNumber(n) { 
+    formatNumber(n) {
       if (!n) return 0
-      return n > 10000 ? (n/10000).toFixed(1)+'w' : n 
+      return n > 10000 ? (n/10000).toFixed(1)+'w' : n
     },
     formatTime(t) { return t ? t.replace('T', ' ').substring(0,16) : '' },
     formatTimeAgo(t) {
-      // 简单的时间格式化，可根据需求改为几小时前等逻辑
       return t ? t.split('T')[0] : '刚刚'
     },
     async loadVideoTitles() {
@@ -774,9 +748,7 @@ export default {
           try {
             const res = await userVideoApi.getVideoById(id)
             this.$set(this.videoTitleCache, id, res.data.title)
-          } catch(e) {
-            console.warn('获取视频标题失败', e)
-          }
+          } catch(e) { console.warn('获取视频标题失败', e) }
         }
       }
     },
@@ -806,26 +778,23 @@ export default {
 /* ================= 1. Banner (美化版) ================= */
 .profile-banner {
   height: 320px;
-  /* 使用渐变色作为背景，避免空白 */
   background: linear-gradient(120deg, #a1c4fd 0%, #c2e9fb 100%);
   position: relative;
   overflow: hidden;
 }
 
-/* 增加一点装饰性纹理（可选），让背景不那么单调 */
 .profile-banner::after {
   content: '';
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
-  background-image: url('https://picsum.photos/1920/400?blur=4'); /* 使用随机图作为纹理 */
-  opacity: 0.3; /* 降低透明度，让底色透出来 */
+  background-image: url('https://picsum.photos/1920/400?blur=4');
+  opacity: 0.3;
   mix-blend-mode: overlay;
 }
 
 .banner-overlay {
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
-  /* 底部渐变遮罩，为了让内容区过渡自然 */
   background: linear-gradient(to bottom, rgba(0,0,0,0) 60%, rgba(246, 248, 250, 1) 100%);
   z-index: 1;
 }
@@ -957,6 +926,31 @@ export default {
   background: #f0f2f5; color: #606266; box-shadow: none;
 }
 .custom-btn.icon-only:hover { background: #e6e8eb; }
+
+.edit-avatar-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.avatar-edit-area {
+  position: relative;
+  cursor: pointer;
+}
+.avatar-preview {
+  position: relative;
+  width: 80px; height: 80px;
+  border-radius: 50%;
+  overflow: hidden;
+}
+.avatar-preview .overlay {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.4);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity 0.3s;
+}
+.avatar-preview:hover .overlay { opacity: 1; }
+.avatar-preview .overlay i { color: #fff; font-size: 24px; }
 
 /* ================= 3. 导航栏 (胶囊式) ================= */
 .nav-bar-wrapper {
