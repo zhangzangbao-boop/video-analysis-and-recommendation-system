@@ -88,4 +88,9 @@ public interface VideoService {
      * 获取分类列表
      */
     List<VideoCategory> getCategories();
+
+    /**
+     * 【新增】更新视频信息（编辑功能）
+     */
+    void updateVideo(Long videoId, String title, String description, Integer categoryId, String tags, String coverUrl);
 }

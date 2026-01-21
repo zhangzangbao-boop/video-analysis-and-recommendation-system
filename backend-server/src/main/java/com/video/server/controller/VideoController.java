@@ -133,6 +133,34 @@ public class VideoController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
+    /**
+     * 【新增】更新视频信息（编辑功能）
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<Void>> updateVideo(
+            @PathVariable Long id,
+            @RequestBody java.util.Map<String, Object> updateData,
+            HttpServletRequest request) {
+        // 验证视频是否存在
+        Video video = videoService.getVideoById(id);
+        if (video == null) {
+            return ResponseEntity.ok(ApiResponse.fail(404, "视频不存在"));
+        }
+        
+        // 提取更新字段
+        String title = updateData.containsKey("title") ? (String) updateData.get("title") : null;
+        String description = updateData.containsKey("description") ? (String) updateData.get("description") : null;
+        Integer categoryId = updateData.containsKey("categoryId") ? 
+            (updateData.get("categoryId") instanceof Integer ? (Integer) updateData.get("categoryId") : 
+             Integer.valueOf(updateData.get("categoryId").toString())) : null;
+        String tags = updateData.containsKey("tags") ? (String) updateData.get("tags") : null;
+        String coverUrl = updateData.containsKey("coverUrl") ? (String) updateData.get("coverUrl") : null;
+        
+        // 调用服务层更新
+        videoService.updateVideo(id, title, description, categoryId, tags, coverUrl);
+        return ResponseEntity.ok(ApiResponse.success());
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteMyVideo(@PathVariable Long id, HttpServletRequest request) {
         videoService.deleteVideo(id);

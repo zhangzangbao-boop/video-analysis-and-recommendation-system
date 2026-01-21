@@ -92,7 +92,7 @@
             </div>
 
             <div v-else class="works-grid">
-              <div v-for="item in myWorksList" :key="item.id" class="work-card" @click="goToVideo(item.id)">
+              <div v-for="item in myWorksList" :key="item.id" class="work-card" @click="handleVideoClick(item)">
                 <div class="work-cover-box">
                   <img :src="item.coverUrl" class="cover-img" loading="lazy" />
                   <div class="duration-tag">{{ formatDuration(item.duration) }}</div>
@@ -139,13 +139,11 @@
             <h3>播放历史</h3>
             <el-button type="text" icon="el-icon-delete" class="clear-btn" @click="clearHistory">清空历史</el-button>
           </div>
-
           <div v-loading="loadingHistory" class="history-grid-wrapper">
             <div v-if="playHistoryList.length === 0" class="empty-state">
               <i class="el-icon-time" style="font-size: 48px; color: #ddd; margin-bottom: 10px;"></i>
               <p>最近没有观看记录哦</p>
             </div>
-
             <div v-else class="history-grid">
               <div v-for="item in playHistoryList" :key="item.id" class="history-card">
                 <div class="h-cover" @click="goToVideo(item.id)">
@@ -180,12 +178,10 @@
                 <i class="el-icon-lock lock-icon"></i>
               </div>
             </div>
-
             <div class="fav-content" v-loading="loadingCollects">
               <div v-if="collectedVideos.length === 0" class="empty-state mini">
                 <p>收藏夹是空的</p>
               </div>
-
               <div v-else class="video-grid-cards">
                 <div v-for="item in collectedVideos" :key="item.id" class="grid-video-card" @click="goToVideo(item.id)">
                   <div class="g-cover">
@@ -214,7 +210,6 @@
                 我的评论
               </div>
             </div>
-
             <div class="interaction-content">
               <div v-if="interactionSubTab === 'likes'" v-loading="loadingLikes">
                 <div v-if="likedVideos.length === 0" class="empty-state mini"><p>还没有点赞过视频</p></div>
@@ -231,7 +226,6 @@
                   </div>
                 </div>
               </div>
-
               <div v-if="interactionSubTab === 'comments'" v-loading="loadingComments">
                 <div v-if="myComments.length === 0" class="empty-state mini"><p>还没有发表过评论</p></div>
                 <div v-else class="comments-list-box">
@@ -257,7 +251,12 @@
       </div>
     </div>
 
-    <el-dialog title="发布新作品" :visible.sync="showUploadDialog" width="600px" custom-class="custom-dialog">
+    <el-dialog
+        :title="isEditMode ? '编辑作品' : '发布新作品'"
+        :visible.sync="showUploadDialog"
+        width="600px"
+        custom-class="custom-dialog"
+    >
       <el-form ref="uploadForm" :model="uploadForm" label-position="top">
         <el-form-item label="视频标题" required>
           <el-input v-model="uploadForm.title" placeholder="取个吸引人的标题，更容易上热门哦" maxlength="50" show-word-limit></el-input>
@@ -271,6 +270,11 @@
               </el-select>
             </el-form-item>
           </el-col>
+          <el-col :span="12">
+            <el-form-item label="视频标签">
+              <el-input v-model="uploadForm.tags" placeholder="例如: 搞笑,生活 (用逗号分隔)" maxlength="50"></el-input>
+            </el-form-item>
+          </el-col>
         </el-row>
 
         <el-form-item label="视频简介">
@@ -278,24 +282,25 @@
         </el-form-item>
 
         <div class="upload-area-group">
-          <div class="upload-box main-upload" :class="{filled: !!uploadForm.videoFile}" @click="triggerFileInput">
-            <div v-if="!uploadForm.videoFile" class="box-content">
+          <div class="upload-box main-upload" :class="{filled: !!uploadForm.videoFile || isEditMode}" @click="triggerFileInput" v-loading="generatingCover" element-loading-text="生成封面中...">
+            <div v-if="!uploadForm.videoFile && !isEditMode" class="box-content">
               <i class="el-icon-upload-placeholder el-icon-video-camera"></i>
               <div class="text">上传视频文件</div>
               <div class="sub-text">支持 MP4 格式</div>
             </div>
             <div v-else class="box-content filled">
               <i class="el-icon-success" style="color: #67C23A; font-size: 32px"></i>
-              <div class="text">{{ uploadForm.videoFile.name }}</div>
-              <div class="sub-text">点击更换</div>
+              <div class="text">{{ isEditMode ? '视频文件已存在' : uploadForm.videoFile.name }}</div>
+              <div class="sub-text">{{ isEditMode ? '（编辑模式暂不支持更换视频源）' : '点击更换' }}</div>
             </div>
-            <input type="file" ref="fileInput" accept="video/mp4" hidden @change="handleFileSelect">
+            <input type="file" ref="fileInput" accept="video/mp4" hidden @change="handleFileSelect" :disabled="isEditMode">
           </div>
 
           <div class="upload-box cover-upload" :style="coverStyle" @click="triggerCoverInput">
             <div v-if="!uploadForm.coverPreview" class="box-content">
               <i class="el-icon-picture-outline"></i>
               <div class="text">上传封面</div>
+              <div class="sub-text" style="font-size: 12px; margin-top: 4px">(可选)自动截取</div>
             </div>
             <input type="file" ref="coverInput" accept="image/*" hidden @change="handleCoverSelect">
           </div>
@@ -303,7 +308,9 @@
       </el-form>
       <div slot="footer">
         <el-button @click="showUploadDialog = false" plain>取消</el-button>
-        <el-button type="primary" :loading="uploading" @click="submitUpload">确认发布</el-button>
+        <el-button type="primary" :loading="uploading || generatingCover" @click="submitUpload">
+          {{ isEditMode ? '保存修改' : '确认发布' }}
+        </el-button>
       </div>
     </el-dialog>
 
@@ -388,11 +395,12 @@
 
 <script>
 import { userVideoApi } from '@/api/user'
+// 引入 request 用于直接调用更新接口
+import request from '@/utils/request'
 
 export default {
   name: 'UserProfile',
   data() {
-    // 密码校验逻辑 (来自HEAD)
     const validatePass = (rule, value, callback) => {
       if (value === '') callback(new Error('请输入密码'));
       else {
@@ -441,14 +449,17 @@ export default {
       showAccountDialog: false,
       accountActiveTab: 'info',
       uploading: false,
+      generatingCover: false,
+
+      // 编辑模式
+      isEditMode: false,
+      currentEditId: null,
 
       // Forms
-      uploadForm: { title: '', description: '', categoryId: null, videoFile: null, coverFile: null, coverPreview: null },
+      // 包含 tags
+      uploadForm: { title: '', description: '', categoryId: null, tags: '', videoFile: null, coverFile: null, coverPreview: null },
 
-      // 融合 EditForm: 包含 Team 的头像逻辑和 HEAD 的性别/真名逻辑
       editForm: { nickname: '', bio: '', avatarUrl: '', avatarFile: null, gender: 2, realName: '' },
-
-      // 融合 AccountForm (来自HEAD)
       accountForm: { username: '', phone: '', email: '' },
       pwdForm: { oldPassword: '', newPassword: '', confirmPassword: '' },
 
@@ -459,8 +470,6 @@ export default {
       },
 
       categories: [],
-
-      // Follow Lists
       showFollowingList: false,
       showFansList: false
     }
@@ -484,7 +493,6 @@ export default {
       const res = await userVideoApi.getCurrentUser()
       if (res.code === 200) {
         this.userInfo = res.data
-        // 回填表单数据
         this.editForm.nickname = res.data.nickname
         this.editForm.bio = res.data.bio
         this.editForm.avatarUrl = res.data.avatarUrl
@@ -550,7 +558,22 @@ export default {
           this.loadMyWorks()
         })
       } else if (cmd === 'edit') {
-        this.$message.info('编辑功能开发中...')
+        // 进入编辑模式
+        this.isEditMode = true;
+        this.currentEditId = item.id;
+
+        // 回填数据
+        this.uploadForm = {
+          title: item.title,
+          description: item.description,
+          categoryId: item.categoryId,
+          tags: item.tags || '',
+          videoFile: null,
+          coverFile: null,
+          coverPreview: item.coverUrl
+        };
+
+        this.showUploadDialog = true;
       }
     },
     async cancelCollect(item) {
@@ -588,14 +611,27 @@ export default {
       })
     },
 
-    // --- Upload ---
+    // --- Upload / Edit Logic ---
     openUploadDialog() {
-      this.uploadForm = { title: '', description: '', categoryId: null, videoFile: null, coverFile: null, coverPreview: null }
+      this.isEditMode = false;
+      this.currentEditId = null;
+      this.uploadForm = { title: '', description: '', categoryId: null, tags: '', videoFile: null, coverFile: null, coverPreview: null }
       this.showUploadDialog = true
     },
     triggerFileInput() { this.$refs.fileInput.click() },
     triggerCoverInput() { this.$refs.coverInput.click() },
-    handleFileSelect(e) { this.uploadForm.videoFile = e.target.files[0] },
+
+    handleFileSelect(e) {
+      const file = e.target.files[0]
+      if (file) {
+        this.uploadForm.videoFile = file
+        // 仅在发布模式且无封面时自动截取
+        if (!this.isEditMode && !this.uploadForm.coverFile) {
+          this.generateVideoCover(file)
+        }
+      }
+    },
+
     handleCoverSelect(e) {
       const file = e.target.files[0]
       if(file) {
@@ -603,27 +639,104 @@ export default {
         this.uploadForm.coverPreview = URL.createObjectURL(file)
       }
     },
+
+    generateVideoCover(file) {
+      this.generatingCover = true
+      const video = document.createElement('video')
+      const url = URL.createObjectURL(file)
+
+      video.src = url
+      video.crossOrigin = 'anonymous'
+      video.muted = true
+      video.currentTime = 1
+
+      video.onloadeddata = () => {
+        if (video.duration < 1) video.currentTime = 0
+      }
+
+      video.onseeked = () => {
+        const canvas = document.createElement('canvas')
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const coverFile = new File([blob], 'auto_cover.jpg', { type: 'image/jpeg' })
+            if (!this.uploadForm.coverFile) {
+              this.uploadForm.coverFile = coverFile
+              this.uploadForm.coverPreview = URL.createObjectURL(blob)
+            }
+          }
+          URL.revokeObjectURL(url)
+          this.generatingCover = false
+        }, 'image/jpeg', 0.8)
+      }
+
+      video.onerror = () => {
+        console.warn('自动截取封面失败')
+        URL.revokeObjectURL(url)
+        this.generatingCover = false
+      }
+    },
+
     async submitUpload() {
-      if(!this.uploadForm.title || !this.uploadForm.videoFile) return this.$message.warning('请填写标题并选择视频文件')
+      if(!this.uploadForm.title) return this.$message.warning('请填写标题')
+      // 编辑模式下可以不选新视频文件
+      if(!this.isEditMode && !this.uploadForm.videoFile) return this.$message.warning('请选择视频文件')
+
       this.uploading = true
       try {
-        const fd = new FormData()
-        fd.append('file', this.uploadForm.videoFile)
-        fd.append('title', this.uploadForm.title)
-        fd.append('categoryId', this.uploadForm.categoryId || 1)
-        if(this.uploadForm.description) fd.append('description', this.uploadForm.description)
-        if(this.uploadForm.coverFile) fd.append('coverFile', this.uploadForm.coverFile)
+        if (this.isEditMode) {
+          // === 编辑模式 ===
+          const updateData = {
+            title: this.uploadForm.title,
+            description: this.uploadForm.description,
+            categoryId: this.uploadForm.categoryId,
+            tags: this.uploadForm.tags,
+            coverUrl: this.uploadForm.coverPreview
+          };
 
-        await userVideoApi.uploadVideo(fd)
-        this.$message.success('投稿成功！视频审核中...')
+          // 如果有新封面，先上传
+          if (this.uploadForm.coverFile) {
+            const res = await userVideoApi.uploadFile(this.uploadForm.coverFile);
+            if(res.code === 200) updateData.coverUrl = res.data;
+          }
+
+          // 更新接口
+          await request({
+            url: `/api/v1/video/${this.currentEditId}`,
+            method: 'put',
+            data: updateData
+          });
+          this.$message.success('修改成功，视频已重新提交审核');
+        } else {
+          // === 发布模式 ===
+          const fd = new FormData()
+          fd.append('file', this.uploadForm.videoFile)
+          fd.append('title', this.uploadForm.title)
+          fd.append('categoryId', this.uploadForm.categoryId || 1)
+          if(this.uploadForm.tags) fd.append('tags', this.uploadForm.tags)
+          if(this.uploadForm.description) fd.append('description', this.uploadForm.description)
+          if(this.uploadForm.coverFile) fd.append('coverFile', this.uploadForm.coverFile)
+
+          await userVideoApi.uploadVideo(fd)
+          this.$message.success('投稿成功！视频审核中...')
+        }
+
         this.showUploadDialog = false
         if (this.currentTab === 'works') {
           this.loadMyWorks()
         } else {
           this.switchTab('works')
         }
-      } catch(e) { this.$message.error('上传失败，请重试') }
-      finally { this.uploading = false }
+      } catch(e) {
+        console.error(e)
+        this.$message.error('操作失败，请重试')
+      } finally {
+        this.uploading = false
+      }
     },
 
     // --- Edit Profile ---
@@ -650,14 +763,12 @@ export default {
     async saveProfile() {
       this.uploading = true;
       try {
-        // 先处理头像上传
         if (this.editForm.avatarFile) {
           const res = await userVideoApi.uploadFile(this.editForm.avatarFile)
           if (res.code === 200) {
             this.editForm.avatarUrl = res.data
           }
         }
-        // 更新资料 (融合逻辑：包括性别和真实姓名)
         await userVideoApi.updateProfile({
           nickname: this.editForm.nickname,
           bio: this.editForm.bio,
@@ -675,15 +786,13 @@ export default {
       }
     },
 
-    // --- Account Settings (融合逻辑：保留你的 HEAD 逻辑) ---
+    // --- Account Settings ---
     openAccountSettings() {
       this.showAccountDialog = true
       this.accountActiveTab = 'info'
-      // 回显数据
       this.accountForm.username = this.userInfo.username
       this.accountForm.phone = this.userInfo.phone
       this.accountForm.email = this.userInfo.email
-      // 重置密码表单
       this.pwdForm = { oldPassword: '', newPassword: '', confirmPassword: '' }
       if(this.$refs.pwdForm) this.$refs.pwdForm.resetFields()
     },
@@ -692,15 +801,13 @@ export default {
       this.uploading = true
       try {
         if (this.accountActiveTab === 'info') {
-          // 更新基本账号信息 (手机/邮箱)
           await userVideoApi.updateProfile({
             phone: this.accountForm.phone,
             email: this.accountForm.email
           })
           this.$message.success('账号信息已更新')
-          this.loadUserInfo() // 刷新全局信息
+          this.loadUserInfo()
         } else {
-          // 修改密码
           this.$refs.pwdForm.validate(async valid => {
             if (valid) {
               await userVideoApi.changePassword({
@@ -723,7 +830,50 @@ export default {
     },
 
     // --- Utils ---
-    goToVideo(id) { this.$router.push(`/main/video/${id}`) },
+    handleVideoClick(item) {
+      // 【修复】处理视频点击：已审核的视频正常跳转，未审核的视频预览
+      if (item.status === 'PASSED') {
+        // 审核通过：正常跳转
+        this.goToVideo(item.id)
+      } else {
+        // 未审核或已驳回：预览模式
+        this.previewVideo(item)
+      }
+    },
+    goToVideo(id) {
+      // 【修复】确保ID以字符串形式传递，避免Long类型精度丢失
+      this.$router.push(`/main/video/${String(id)}`)
+    },
+    previewVideo(item) {
+      // 【新增】预览未审核视频 - 使用弹窗组件
+      this.$msgbox({
+        title: '视频预览',
+        message: this.$createElement('div', {
+          style: { padding: '20px', textAlign: 'center' }
+        }, [
+          this.$createElement('h3', { style: { marginBottom: '15px' } }, item.title || '无标题'),
+          this.$createElement('p', { style: { color: '#666', marginBottom: '15px' } }, item.description || '暂无简介'),
+          item.videoUrl ? this.$createElement('video', {
+            attrs: {
+              controls: true,
+              src: item.videoUrl
+            },
+            style: {
+              maxWidth: '100%',
+              maxHeight: '400px',
+              borderRadius: '8px',
+              marginTop: '15px'
+            }
+          }, '您的浏览器不支持视频播放') : this.$createElement('p', { style: { color: '#999', marginTop: '15px' } }, '视频文件加载中...'),
+          this.$createElement('p', {
+            style: { color: '#999', fontSize: '12px', marginTop: '15px' }
+          }, `状态：${item.status === 'PENDING' ? '审核中' : item.status === 'REJECTED' ? '已驳回' : '未知'}`)
+        ]),
+        showCancelButton: false,
+        confirmButtonText: '关闭',
+        customClass: 'video-preview-dialog'
+      })
+    },
     async loadCategories() {
       const res = await userVideoApi.getCategories()
       this.categories = res.data || []

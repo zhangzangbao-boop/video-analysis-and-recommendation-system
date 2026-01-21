@@ -195,6 +195,29 @@ public class VideoServiceImpl implements VideoService {
         return categoryMapper.selectAll();
     }
 
+    /**
+     * 【新增】更新视频信息（编辑功能）
+     */
+    @Override
+    @Transactional
+    public void updateVideo(Long videoId, String title, String description, Integer categoryId, String tags, String coverUrl) {
+        Video video = videoMapper.selectById(videoId);
+        if (video == null) {
+            throw new RuntimeException("视频不存在");
+        }
+        
+        // 更新字段
+        if (title != null) video.setTitle(title);
+        if (description != null) video.setDescription(description);
+        if (categoryId != null) video.setCategoryId(categoryId);
+        if (tags != null) video.setTags(tags);
+        if (coverUrl != null) video.setCoverUrl(coverUrl);
+        video.setUpdateTime(LocalDateTime.now());
+        
+        // 执行更新
+        videoMapper.updateById(video);
+    }
+
     @Override
     public List<Video> searchVideos(String keyword, Integer categoryId, Integer page, Integer pageSize) {
         int offset = (page - 1) * pageSize;

@@ -223,7 +223,8 @@ export default {
   mounted() {
     const videoId = this.$route.params.id
     if (videoId) {
-      this.loadVideoById(parseInt(videoId))
+      // 【修复】直接使用字符串ID，避免parseInt导致Long类型精度丢失
+      this.loadVideoById(videoId)
     } else {
       this.loadInitialVideo()
     }
@@ -234,7 +235,8 @@ export default {
     '$route'(to, from) {
       const videoId = to.params.id
       if (videoId && videoId !== from.params.id) {
-        this.loadVideoById(parseInt(videoId))
+        // 【修复】直接使用字符串ID，避免parseInt导致Long类型精度丢失
+        this.loadVideoById(videoId)
       }
     }
   },
@@ -251,9 +253,18 @@ export default {
     async loadVideoById(videoId) {
       this.loading = true
       try {
-        const videoRes = await userVideoApi.getVideoById(videoId)
+        // 【修复】videoId 可能是字符串（Long类型序列化），直接传递即可
+        const videoRes = await userVideoApi.getVideoById(String(videoId))
         if (videoRes && videoRes.data) {
-          this.currentVideo = this.convertVideoData(videoRes.data)
+          const video = videoRes.data
+          
+          // 【新增】检查视频状态：未审核的视频显示提示但仍可预览
+          if (video.status === 'PENDING' || video.status === 'REJECTED') {
+            const statusText = video.status === 'PENDING' ? '审核中' : '已驳回'
+            this.$message.warning(`该视频状态：${statusText}，仅限预览`)
+          }
+          
+          this.currentVideo = this.convertVideoData(video)
           this.startBehaviorTracking()
 
           const recommendRes = await userVideoApi.getRecommendVideos(
@@ -262,7 +273,7 @@ export default {
           )
           if (recommendRes && recommendRes.data && recommendRes.data.length > 0) {
             this.recommendedVideos = recommendRes.data
-                .filter(v => v.id !== videoId)
+                .filter(v => String(v.id) !== String(videoId))
                 .map(v => this.convertVideoData(v))
           }
           await this.loadHotRanking()

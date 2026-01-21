@@ -45,9 +45,12 @@
             <if test="title != null">title = #{title},</if>
             <if test="description != null">description = #{description},</if>
             <if test="coverUrl != null">cover_url = #{coverUrl},</if>
+            <if test="categoryId != null">category_id = #{categoryId},</if>
+            <if test="tags != null">tags = #{tags},</if>
             <if test="playCount != null">view_count = #{playCount},</if>
             <if test="likeCount != null">like_count = #{likeCount},</if>
             <if test="commentCount != null">comment_count = #{commentCount},</if>
+            update_time = NOW()
         </set>
         WHERE id = #{id}
     </update>
