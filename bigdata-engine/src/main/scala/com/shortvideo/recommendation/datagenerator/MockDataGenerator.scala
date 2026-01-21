@@ -159,8 +159,19 @@ object MockDataGenerator {
       writer.close()
     }
     
-    println(s"[INFO] 成功生成 $count 条高质量训练数据到文件: $filePath")
+    println(s"[INFO] 成功生成 ${behaviors.length} 条高质量训练数据到文件: $filePath")
     println(s"[INFO] 数据特点: 增强了用户行为重复度和视频互动频率，更适合ALS模型训练")
+    
+    // 输出统计信息
+    val userStats = behaviors.groupBy(_.userId).mapValues(_.size).toMap
+    val videoStats = behaviors.groupBy(_.videoId).mapValues(_.size).toMap
+    val minUserBehaviors = userStats.values.min
+    val minVideoBehaviors = videoStats.values.min
+    val avgUserBehaviors = userStats.values.sum.toDouble / userStats.size
+    val avgVideoBehaviors = videoStats.values.sum.toDouble / videoStats.size
+    
+    println(s"[STATS] 用户行为统计 - 最少: $minUserBehaviors, 平均: ${avgUserBehaviors.formatted("%.2f")}, 总用户: ${userStats.size}")
+    println(s"[STATS] 视频互动统计 - 最少: $minVideoBehaviors, 平均: ${avgVideoBehaviors.formatted("%.2f")}, 总视频: ${videoStats.size}")
   }
   
   /**
