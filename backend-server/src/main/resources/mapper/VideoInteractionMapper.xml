@@ -10,40 +10,48 @@
         <result column="create_time" property="createTime"/>
     </resultMap>
 
+    <resultMap id="VideoResultMap" type="com.video.server.dto.VideoDTO">
+        <id column="id" property="id"/>
+        <result column="title" property="title"/>
+        <result column="description" property="description"/>
+        <result column="user_id" property="authorId"/>
+
+        <result column="author_name" property="authorName"/>
+
+        <result column="cover_url" property="coverUrl"/>
+        <result column="video_url" property="videoUrl"/>
+        <result column="category_id" property="categoryId"/>
+        <result column="duration" property="duration"/>
+        <result column="view_count" property="playCount"/>
+        <result column="like_count" property="likeCount"/>
+        <result column="comment_count" property="commentCount"/>
+        <result column="share_count" property="shareCount"/>
+        <result column="status" property="status" typeHandler="com.video.server.config.VideoStatusTypeHandler"/>
+        <result column="audit_msg" property="auditMsg"/>
+        <result column="is_hot" property="isHot"/>
+        <result column="tags" property="tags"/>
+        <result column="is_deleted" property="isDeleted"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
     <sql id="Base_Column_List">
         id, user_id, video_id, type, create_time
     </sql>
 
     <select id="selectByCondition" resultMap="BaseResultMap">
-        SELECT
-        <include refid="Base_Column_List"/>
-        FROM video_interaction
+        SELECT <include refid="Base_Column_List"/> FROM video_interaction
         WHERE 1=1
-        <if test="startTime != null">
-            AND create_time &gt;= #{startTime}
-        </if>
-        <if test="endTime != null">
-            AND create_time &lt;= #{endTime}
-        </if>
-        <if test="lastId != null">
-            AND id &gt; #{lastId}
-        </if>
+        <if test="startTime != null">AND create_time &gt;= #{startTime}</if>
+        <if test="endTime != null">AND create_time &lt;= #{endTime}</if>
+        <if test="lastId != null">AND id &gt; #{lastId}</if>
         ORDER BY id ASC
-        <if test="limit != null">
-            LIMIT #{limit}
-        </if>
+        <if test="limit != null">LIMIT #{limit}</if>
     </select>
 
     <select id="countByCondition" resultType="java.lang.Long">
-        SELECT COUNT(*)
-        FROM video_interaction
-        WHERE 1=1
-        <if test="startTime != null">
-            AND create_time &gt;= #{startTime}
-        </if>
-        <if test="endTime != null">
-            AND create_time &lt;= #{endTime}
-        </if>
+        SELECT COUNT(*) FROM video_interaction WHERE 1=1
+        <if test="startTime != null">AND create_time &gt;= #{startTime}</if>
+        <if test="endTime != null">AND create_time &lt;= #{endTime}</if>
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
@@ -57,22 +65,47 @@
     </delete>
 
     <select id="selectByUserIdAndVideoIdAndType" resultMap="BaseResultMap">
-        SELECT
-        <include refid="Base_Column_List"/>
+        SELECT <include refid="Base_Column_List"/>
         FROM video_interaction
         WHERE user_id = #{userId} AND video_id = #{videoId} AND type = #{type}
         LIMIT 1
     </select>
 
     <select id="selectLikesByUserId" resultMap="BaseResultMap">
-        SELECT
-        <include refid="Base_Column_List"/>
+        SELECT <include refid="Base_Column_List"/>
         FROM video_interaction
         WHERE user_id = #{userId} AND type = 1
         ORDER BY create_time DESC
-        <if test="limit != null">
+        <if test="limit != null">LIMIT #{limit}</if>
+    </select>
+
+    <select id="selectCollectedVideos" resultMap="VideoResultMap">
+        SELECT
+            v.id, v.title, v.description, v.user_id, u.nickname AS author_name,
+            v.cover_url, v.video_url, v.category_id, v.duration, v.view_count,
+            v.like_count, v.comment_count, v.share_count, v.status, v.audit_msg,
+            v.is_hot, v.tags, v.is_deleted, v.create_time, v.update_time
+        FROM video_interaction i
+                 JOIN video_info v ON i.video_id = v.id
+                 LEFT JOIN sys_user u ON v.user_id = u.id  WHERE i.user_id = #{userId}
+                                                             AND i.type = 2  AND v.is_deleted = 0
+        ORDER BY i.create_time DESC
             LIMIT #{limit}
-        </if>
+    </select>
+
+    <select id="selectLikedVideos" resultMap="VideoResultMap">
+        SELECT
+            v.id, v.title, v.description, v.user_id, u.nickname AS author_name,
+            v.cover_url, v.video_url, v.category_id, v.duration, v.view_count,
+            v.like_count, v.comment_count, v.share_count, v.status, v.audit_msg,
+            v.is_hot, v.tags, v.is_deleted, v.create_time, v.update_time
+        FROM video_interaction i
+                 JOIN video_info v ON i.video_id = v.id
+                 LEFT JOIN sys_user u ON v.user_id = u.id
+        WHERE i.user_id = #{userId}
+          AND i.type = 1  AND v.is_deleted = 0
+        ORDER BY i.create_time DESC
+            LIMIT #{limit}
     </select>
 
 </mapper>

@@ -157,7 +157,8 @@
     <select id="selectByAuthorId" resultMap="BaseResultMap">
         SELECT <include refid="Base_Column_List"/>
         FROM video_info
-        WHERE user_id = #{authorId} AND status = 1 AND is_deleted = 0
+        WHERE user_id = #{authorId}
+        AND is_deleted = 0
         ORDER BY create_time DESC
         LIMIT #{limit}
     </select>

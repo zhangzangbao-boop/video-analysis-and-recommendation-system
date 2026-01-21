@@ -65,7 +65,17 @@ public interface VideoPlayRecordMapper {
      * @return 播放记录
      */
     VideoPlayRecord selectByUserIdAndVideoId(@Param("userId") Long userId, @Param("videoId") Long videoId);
-    
+
+    /**
+     * 【新增】删除单条历史
+     */
+    int deleteByUserIdAndVideoId(@Param("userId") Long userId, @Param("videoId") Long videoId);
+
+    /**
+     * 【新增】清空用户历史
+     */
+    int deleteByUserId(@Param("userId") Long userId);
+
     /**
      * 更新播放记录
      * @param record 播放记录
