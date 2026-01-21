@@ -1,165 +1,222 @@
 package com.video.server.service.impl;
 
 import com.video.server.dto.PageResponse;
+import com.video.server.dto.UserActivityDTO;
 import com.video.server.dto.UserCreateRequest;
 import com.video.server.dto.UserListRequest;
+import com.video.server.dto.VideoDTO;
 import com.video.server.entity.User;
+import com.video.server.entity.Video;
+import com.video.server.entity.VideoComment;
 import com.video.server.exception.BusinessException;
-import com.video.server.mapper.UserMapper;
+import com.video.server.mapper.*;
 import com.video.server.service.UserService;
-import lombok.RequiredArgsConstructor;
+import com.video.server.utils.IdGenerator;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
+import org.springframework.util.StringUtils;
 
+import java.math.BigDecimal; // 【关键】导入 BigDecimal
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * 用户服务实现类
- */
 @Service
-@RequiredArgsConstructor
 public class UserServiceImpl implements UserService {
-    
-    private final UserMapper userMapper;
-    
-    // 默认重置密码
-    private static final String DEFAULT_PASSWORD = "123456";
-    
+
+    @Autowired private UserMapper userMapper;
+    @Autowired private VideoMapper videoMapper;
+    @Autowired private VideoInteractionMapper interactionMapper;
+    @Autowired private VideoCommentMapper commentMapper;
+
+    @Override
+    public User getUserById(Long id) {
+        return userMapper.selectById(id);
+    }
+
+    @Override
+    public User getUserByUsername(String username) {
+        return userMapper.selectByUsername(username);
+    }
+
+    @Override
+    public void createUser(UserCreateRequest request) {
+        if (getUserByUsername(request.getUsername()) != null) {
+            throw new BusinessException(400, "用户名已存在");
+        }
+
+        User user = new User();
+        user.setId(IdGenerator.generateId());
+        user.setUsername(request.getUsername());
+
+        String salt = UUID.randomUUID().toString().replace("-", "");
+        user.setSalt(salt);
+        user.setPassword(encryptPassword(request.getPassword(), salt));
+
+        user.setNickname(StringUtils.hasText(request.getNickname()) ? request.getNickname() : "用户" + user.getId());
+        user.setPhone(request.getPhone());
+        user.setEmail(request.getEmail());
+        user.setCreateTime(LocalDateTime.now());
+        user.setUpdateTime(LocalDateTime.now());
+        user.setStatus(1);
+        user.setStatusStr("normal");
+
+        // 【修复】double 无法直接转 BigDecimal，需使用 BigDecimal.ZERO 或 new BigDecimal
+        user.setBalance(BigDecimal.ZERO);
+        user.setPoints(0);
+        user.setLevel(1);
+
+        userMapper.insert(user);
+    }
+
     @Override
     public PageResponse<User> getUserList(UserListRequest request) {
-        try {
-            // 计算偏移量
-            int offset = (request.getPage() - 1) * request.getPageSize();
-            
-            // 查询列表
-            List<User> list = userMapper.selectByCondition(
+        // 调用 Mapper (参数顺序必须匹配 UserMapper.java)
+        List<User> list = userMapper.selectByCondition(
                 request.getKeyword(),
                 request.getStatus(),
                 request.getLevel()
-            );
-            
-            // 防止空指针
-            if (list == null) {
-                list = new java.util.ArrayList<>();
-            }
-            
-            // 手动分页（实际应该在SQL中分页）
-            long total = list.size();
-            int start = Math.min(offset, list.size());
-            int end = Math.min(start + request.getPageSize(), list.size());
-            
-            List<User> pagedList;
-            if (start >= end || list.isEmpty()) {
-                pagedList = new java.util.ArrayList<>();
-            } else {
-                pagedList = list.subList(start, end);
-            }
-            
-            return new PageResponse<>(pagedList, total, request.getPage(), request.getPageSize());
-        } catch (Exception e) {
-            // 记录详细错误信息
-            System.err.println("获取用户列表失败: " + e.getMessage());
-            e.printStackTrace();
-            throw new RuntimeException("获取用户列表失败: " + e.getMessage(), e);
-        }
+        );
+
+        // 【新增】获取总数
+        Long total = userMapper.countByCondition(
+                request.getKeyword(),
+                request.getStatus(),
+                request.getLevel()
+        );
+
+        // 如果 total 为 null (空表)，处理为 0
+        if (total == null) total = 0L;
+
+        return PageResponse.of(list, total, request.getPage(), request.getPageSize());
     }
-    
+
     @Override
-    public User getUserById(Long userId) {
-        return userMapper.selectById(userId);
+    public void updateUserStatus(Long userId, String status) {
+        User user = userMapper.selectById(userId);
+        if (user == null) throw new BusinessException(404, "用户不存在");
+
+        user.setStatusStr(status);
+        if ("normal".equals(status)) user.setStatus(1);
+        else if ("frozen".equals(status)) user.setStatus(0);
+        else if ("muted".equals(status)) user.setStatus(2);
+
+        user.setUpdateTime(LocalDateTime.now());
+        userMapper.updateById(user);
     }
-    
-    @Override
-    public void updateUserStatus(Long userId, Integer status) {
-        userMapper.updateStatusById(userId, status);
-        // 同时更新status_str字段
-        String statusStr = convertStatusToStr(status);
-        userMapper.updateStatusStrById(userId, statusStr);
-    }
-    
-    @Override
-    public void updateUserStatusByStr(Long userId, String statusStr) {
-        Integer status = convertStrToStatus(statusStr);
-        updateUserStatus(userId, status);
-    }
-    
-    /**
-     * 将状态整数转换为字符串
-     */
-    private String convertStatusToStr(Integer status) {
-        if (status == null) return "normal";
-        switch (status) {
-            case 0: return "frozen";
-            case 2: return "muted";
-            case 1:
-            default: return "normal";
-        }
-    }
-    
-    /**
-     * 将状态字符串转换为整数
-     */
-    private Integer convertStrToStatus(String statusStr) {
-        if (statusStr == null) return 1;
-        switch (statusStr.toLowerCase()) {
-            case "frozen": return 0;
-            case "muted": return 2;
-            case "normal":
-            default: return 1;
-        }
-    }
-    
+
     @Override
     public void resetPassword(Long userId) {
-        // 生成新盐值
-        String salt = UUID.randomUUID().toString().replace("-", "");
-        // 加密密码
-        String encryptedPassword = encryptPassword(DEFAULT_PASSWORD, salt);
-        // 更新密码
-        userMapper.updatePasswordById(userId, encryptedPassword, salt);
-    }
-    
-    @Override
-    public User createUser(UserCreateRequest request) {
-        // 检查用户名是否已存在
-        User existing = userMapper.selectByUsername(request.getUsername());
-        if (existing != null) {
-            throw new BusinessException(400, "用户名已存在");
-        }
-        
-        // 创建用户
-        User user = new User();
-        user.setUsername(request.getUsername());
-        user.setPhone(request.getPhone());
-        user.setNickname(request.getNickname() != null ? request.getNickname() : request.getUsername());
-        user.setEmail(request.getEmail());
-        user.setStatus(1); // 默认正常状态
-        user.setStatusStr("normal");
-        user.setIsDeleted(0);
-        user.setLevel(1); // 默认等级1
-        user.setBalance(new java.math.BigDecimal("0.00"));
-        user.setPoints(0);
-        user.setFansCount(0);
-        user.setFollowCount(0);
-        user.setCreateTime(LocalDateTime.now());
+        User user = userMapper.selectById(userId);
+        if (user == null) throw new BusinessException(404, "用户不存在");
+
+        String newSalt = UUID.randomUUID().toString().replace("-", "");
+        user.setSalt(newSalt);
+        user.setPassword(encryptPassword("123456", newSalt));
         user.setUpdateTime(LocalDateTime.now());
-        
-        // 加密密码
-        String salt = UUID.randomUUID().toString().replace("-", "");
-        String encryptedPassword = encryptPassword(request.getPassword(), salt);
-        user.setPassword(encryptedPassword);
-        user.setSalt(salt);
-        
-        userMapper.insert(user);
-        return user;
+        userMapper.updateById(user);
     }
-    
-    /**
-     * 加密密码
-     */
+
+    @Override
+    public List<UserActivityDTO> getUserActivities(Long userId) {
+        List<UserActivityDTO> list = new ArrayList<>();
+        DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+        // 1. 注册动态
+        User user = userMapper.selectById(userId);
+        if (user != null && user.getCreateTime() != null) {
+            list.add(new UserActivityDTO(
+                    dtf.format(user.getCreateTime()),
+                    "注册成为新用户",
+                    "#909399",
+                    "register",
+                    user.getCreateTime().toEpochSecond(ZoneOffset.of("+8"))
+            ));
+        }
+
+        // 2. 发布动态
+        try {
+            List<Video> videos = videoMapper.selectListByUserId(userId);
+            if (videos != null) {
+                for (Video v : videos) {
+                    if (v.getCreateTime() == null) continue;
+                    list.add(new UserActivityDTO(
+                            dtf.format(v.getCreateTime()),
+                            "发布了视频《" + v.getTitle() + "》",
+                            "#409EFF",
+                            "publish",
+                            v.getCreateTime().toEpochSecond(ZoneOffset.of("+8"))
+                    ));
+                }
+            }
+        } catch (Exception e) {}
+
+        // 3. 点赞动态
+        try {
+            List<VideoDTO> likes = interactionMapper.selectLikedVideos(userId, 10);
+            if (likes != null) {
+                for (VideoDTO v : likes) {
+                    list.add(new UserActivityDTO(
+                            "近期",
+                            "点赞了视频《" + v.getTitle() + "》",
+                            "#F56C6C",
+                            "like",
+                            System.currentTimeMillis() / 1000
+                    ));
+                }
+            }
+        } catch (Exception e) {}
+
+        // 4. 收藏动态
+        try {
+            List<VideoDTO> collects = interactionMapper.selectCollectedVideos(userId, 10);
+            if (collects != null) {
+                for (VideoDTO v : collects) {
+                    list.add(new UserActivityDTO(
+                            "近期",
+                            "收藏了视频《" + v.getTitle() + "》",
+                            "#E6A23C",
+                            "collect",
+                            System.currentTimeMillis() / 1000
+                    ));
+                }
+            }
+        } catch (Exception e) {}
+
+        // 5. 评论动态
+        try {
+            List<VideoComment> comments = commentMapper.selectByUserId(userId, 10);
+            if (comments != null) {
+                for (VideoComment c : comments) {
+                    Video video = videoMapper.selectById(c.getVideoId());
+                    String title = (video != null) ? video.getTitle() : "未知视频";
+                    String content = c.getContent();
+                    if (content != null && content.length() > 10) content = content.substring(0, 10) + "...";
+
+                    list.add(new UserActivityDTO(
+                            dtf.format(c.getCreateTime()),
+                            "评论了视频《" + title + "》: " + content,
+                            "#67C23A",
+                            "comment",
+                            c.getCreateTime().toEpochSecond(ZoneOffset.of("+8"))
+                    ));
+                }
+            }
+        } catch (Exception e) {}
+
+        Collections.sort(list);
+        if (list.size() > 20) {
+            return list.subList(0, 20);
+        }
+        return list;
+    }
+
     private String encryptPassword(String password, String salt) {
         String saltedPassword = password + salt;
         return DigestUtils.md5DigestAsHex(saltedPassword.getBytes(StandardCharsets.UTF_8));

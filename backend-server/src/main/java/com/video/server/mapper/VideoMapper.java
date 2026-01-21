@@ -70,4 +70,6 @@ public interface VideoMapper extends BaseMapper<Video> {
                              @Param("categoryId") Integer categoryId,
                              @Param("offset") Integer offset,
                              @Param("limit") Integer limit);
+    // 添加接口
+    List<Video> selectListByUserId(@Param("userId") Long userId);
 }

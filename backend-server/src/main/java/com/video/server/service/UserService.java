@@ -1,52 +1,49 @@
 package com.video.server.service;
 
 import com.video.server.dto.PageResponse;
+import com.video.server.dto.UserCreateRequest;
 import com.video.server.dto.UserListRequest;
 import com.video.server.entity.User;
+import com.video.server.dto.UserActivityDTO;
+import java.util.List;
 
-/**
- * 用户服务接口
- */
 public interface UserService {
-    
+
     /**
-     * 获取用户列表（分页）
-     * @param request 查询请求
-     * @return 分页结果
+     * 获取用户列表
      */
     PageResponse<User> getUserList(UserListRequest request);
-    
+
     /**
-     * 根据ID获取用户详情
-     * @param userId 用户ID
-     * @return 用户信息
+     * 获取用户详情
      */
     User getUserById(Long userId);
-    
+
+    /**
+     * 根据用户名查询
+     */
+    User getUserByUsername(String username);
+
     /**
      * 更新用户状态
      * @param userId 用户ID
-     * @param status 状态（1-正常，0-冻结，2-禁言）
+     * @param status 状态字符串 (normal, frozen, muted)
      */
-    void updateUserStatus(Long userId, Integer status);
-    
+    void updateUserStatus(Long userId, String status);
+
     /**
-     * 更新用户状态（通过状态字符串）
-     * @param userId 用户ID
-     * @param statusStr 状态字符串（normal/frozen/muted）
-     */
-    void updateUserStatusByStr(Long userId, String statusStr);
-    
-    /**
-     * 重置用户密码
-     * @param userId 用户ID
+     * 重置密码
      */
     void resetPassword(Long userId);
-    
+
     /**
      * 创建用户
-     * @param request 创建用户请求
-     * @return 创建的用户信息
+     * (修改为 void 返回类型，匹配实现类)
      */
-    User createUser(com.video.server.dto.UserCreateRequest request);
+    void createUser(UserCreateRequest request);
+
+    /**
+     * 获取用户动态画像
+     */
+    List<UserActivityDTO> getUserActivities(Long userId);
 }

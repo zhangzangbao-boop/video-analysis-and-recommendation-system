@@ -17,6 +17,8 @@
             <div class="name-row">
               <h1 class="nickname">{{ userInfo.nickname || userInfo.username }}</h1>
               <span class="level-tag">Lv.{{ userInfo.level || 1 }}</span>
+              <i v-if="userInfo.gender === 1" class="el-icon-male" style="color: #409EFF; font-size: 16px; margin-left: 5px;"></i>
+              <i v-else-if="userInfo.gender === 0" class="el-icon-female" style="color: #F56C6C; font-size: 16px; margin-left: 5px;"></i>
             </div>
             <p class="bio" :title="userInfo.bio">{{ userInfo.bio || '这个人很神秘，什么都没写...' }}</p>
           </div>
@@ -108,7 +110,6 @@
               </div>
             </div>
           </div>
-        </div>
         </div>
 
         <div v-show="currentTab === 'history'" class="tab-view">
@@ -269,6 +270,7 @@
           </div>
         </div>
       </div>
+    </div>
 
     <el-dialog title="发布作品" :visible.sync="showUploadDialog" width="600px" custom-class="modern-dialog">
       <el-form ref="uploadForm" :model="uploadForm" label-position="top">
@@ -320,9 +322,19 @@
         <el-button type="text" @click="$refs.avatarInput.click()">更换头像</el-button>
         <input type="file" ref="avatarInput" hidden accept="image/*" @change="handleAvatarSelect">
       </div>
-      <el-form :model="editForm" label-width="60px">
+      <el-form :model="editForm" label-width="80px">
         <el-form-item label="昵称">
           <el-input v-model="editForm.nickname"></el-input>
+        </el-form-item>
+        <el-form-item label="真实姓名">
+          <el-input v-model="editForm.realName" placeholder="实名认证使用的姓名"></el-input>
+        </el-form-item>
+        <el-form-item label="性别">
+          <el-radio-group v-model="editForm.gender">
+            <el-radio :label="1">男</el-radio>
+            <el-radio :label="0">女</el-radio>
+            <el-radio :label="2">保密</el-radio>
+          </el-radio-group>
         </el-form-item>
         <el-form-item label="简介">
           <el-input type="textarea" v-model="editForm.bio" :rows="3"></el-input>
@@ -330,7 +342,45 @@
       </el-form>
       <div slot="footer">
         <el-button @click="showEditDialog = false">取消</el-button>
-        <el-button type="primary" @click="saveProfile">保存</el-button>
+        <el-button type="primary" @click="saveProfile" :loading="uploading">保存</el-button>
+      </div>
+    </el-dialog>
+
+    <el-dialog title="账号安全设置" :visible.sync="showAccountDialog" width="500px" custom-class="modern-dialog">
+      <el-tabs v-model="accountActiveTab">
+        <el-tab-pane label="基本信息" name="info">
+          <el-form :model="accountForm" label-width="80px" style="margin-top: 20px;">
+            <el-form-item label="用户名">
+              <el-input v-model="accountForm.username" disabled placeholder="用户名不可修改"></el-input>
+            </el-form-item>
+            <el-form-item label="手机号">
+              <el-input v-model="accountForm.phone" placeholder="用于登录和找回密码"></el-input>
+            </el-form-item>
+            <el-form-item label="电子邮箱">
+              <el-input v-model="accountForm.email" placeholder="用于接收通知"></el-input>
+            </el-form-item>
+            <el-alert title="修改手机号或邮箱后，请使用新的联系方式登录" type="info" :closable="false" show-icon style="margin-bottom: 0;"></el-alert>
+          </el-form>
+        </el-tab-pane>
+
+        <el-tab-pane label="修改密码" name="password">
+          <el-form :model="pwdForm" :rules="pwdRules" ref="pwdForm" label-width="80px" style="margin-top: 20px;">
+            <el-form-item label="旧密码" prop="oldPassword">
+              <el-input type="password" v-model="pwdForm.oldPassword" show-password></el-input>
+            </el-form-item>
+            <el-form-item label="新密码" prop="newPassword">
+              <el-input type="password" v-model="pwdForm.newPassword" show-password></el-input>
+            </el-form-item>
+            <el-form-item label="确认密码" prop="confirmPassword">
+              <el-input type="password" v-model="pwdForm.confirmPassword" show-password></el-input>
+            </el-form-item>
+          </el-form>
+        </el-tab-pane>
+      </el-tabs>
+
+      <div slot="footer">
+        <el-button @click="showAccountDialog = false">关闭</el-button>
+        <el-button type="primary" @click="saveAccountSettings" :loading="uploading">保存修改</el-button>
       </div>
     </el-dialog>
 
@@ -343,6 +393,19 @@ import { userVideoApi } from '@/api/user'
 export default {
   name: 'UserProfile',
   data() {
+    const validatePass = (rule, value, callback) => {
+      if (value === '') callback(new Error('请输入密码'));
+      else {
+        if (this.pwdForm.confirmPassword !== '') this.$refs.pwdForm.validateField('confirmPassword');
+        callback();
+      }
+    };
+    const validatePass2 = (rule, value, callback) => {
+      if (value === '') callback(new Error('请再次输入密码'));
+      else if (value !== this.pwdForm.newPassword) callback(new Error('两次输入密码不一致!'));
+      else callback();
+    };
+
     return {
       defaultAvatar: 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png',
       userInfo: {},
@@ -375,9 +438,22 @@ export default {
       // Dialogs
       showUploadDialog: false,
       showEditDialog: false,
+      showAccountDialog: false,
+      accountActiveTab: 'info',
       uploading: false,
+
+      // Forms
       uploadForm: { title: '', description: '', categoryId: null, videoFile: null, coverFile: null, coverPreview: null },
-      editForm: { nickname: '', bio: '', avatarUrl: '' },
+      editForm: { nickname: '', bio: '', avatarUrl: '', gender: 2, realName: '' },
+      accountForm: { username: '', phone: '', email: '' },
+      pwdForm: { oldPassword: '', newPassword: '', confirmPassword: '' },
+
+      pwdRules: {
+        oldPassword: [{ required: true, message: '请输入旧密码', trigger: 'blur' }],
+        newPassword: [{ validator: validatePass, trigger: 'blur' }],
+        confirmPassword: [{ validator: validatePass2, trigger: 'blur' }]
+      },
+
       categories: [],
 
       // Follow Lists
@@ -408,6 +484,8 @@ export default {
         this.editForm.nickname = res.data.nickname
         this.editForm.bio = res.data.bio
         this.editForm.avatarUrl = res.data.avatarUrl
+        this.editForm.gender = res.data.gender
+        this.editForm.realName = res.data.realName
       }
     },
     switchTab(key) {
@@ -439,7 +517,6 @@ export default {
     },
     async loadFavorites() {
       this.loadingCollects = true
-      // 兼容处理：如果没有后端接口，置空防止报错
       try {
         const res = await userVideoApi.getCollectedVideos(1, 20)
         this.collectedVideos = (res && res.data && (res.data.list || res.data)) || []
@@ -479,11 +556,10 @@ export default {
       await userVideoApi.unlikeVideo(item.id)
       this.loadLikes()
     },
-    // 【修改】删除单条历史
     async deleteHistoryItem(item) {
       this.$confirm('确认删除这条记录?', '提示', { type: 'warning' }).then(async () => {
         try {
-          await userVideoApi.deletePlayHistoryItem(item.id) // 传入 videoId
+          await userVideoApi.deletePlayHistoryItem(item.id)
           this.playHistoryList = this.playHistoryList.filter(i => i.id !== item.id)
           this.$message.success('已删除')
         } catch (e) {
@@ -491,8 +567,6 @@ export default {
         }
       })
     },
-
-    // 【修改】清空历史
     async clearHistory() {
       this.$confirm('确定清空所有播放历史?', '提示', { type: 'warning' }).then(async () => {
         try {
@@ -535,7 +609,6 @@ export default {
         await userVideoApi.uploadVideo(fd)
         this.$message.success('投稿成功！请等待审核通过后显示')
         this.showUploadDialog = false
-        // 修改：强制刷新列表
         if (this.currentTab === 'works') {
           this.loadMyWorks()
         } else {
@@ -545,53 +618,94 @@ export default {
       finally { this.uploading = false }
     },
 
-// --- Edit Profile ---
+    // --- Edit Profile ---
     openEditProfile() {
       this.showEditDialog = true
-      // 每次打开时重置头像文件
       this.editForm.avatarFile = null
     },
 
     handleAvatarSelect(e) {
       const file = e.target.files[0]
       if(file) {
-        // 保存文件对象用于上传
         this.editForm.avatarFile = file
         const reader = new FileReader()
-        reader.onload = (ev) => { this.editForm.avatarUrl = ev.target.result } // 仅用于预览
+        reader.onload = (ev) => { this.editForm.avatarUrl = ev.target.result }
         reader.readAsDataURL(file)
       }
     },
 
-    // 【修改】保存资料（含头像上传）
     async saveProfile() {
       this.uploading = true
       try {
-        // 1. 如果选择了新头像，先上传头像
         if (this.editForm.avatarFile) {
           const res = await userVideoApi.uploadFile(this.editForm.avatarFile)
           if (res.code === 200) {
-            this.editForm.avatarUrl = res.data // 获取后端返回的云存储 URL
+            this.editForm.avatarUrl = res.data
           }
         }
-
-        // 2. 更新资料
         await userVideoApi.updateProfile({
           nickname: this.editForm.nickname,
           bio: this.editForm.bio,
-          avatarUrl: this.editForm.avatarUrl // 传入新的 URL
+          avatarUrl: this.editForm.avatarUrl,
+          gender: this.editForm.gender,
+          realName: this.editForm.realName
         })
-
         this.$message.success('资料已更新')
         this.showEditDialog = false
-        this.loadUserInfo() // 刷新页面信息
+        this.loadUserInfo()
       } catch (e) {
         this.$message.error('保存失败')
       } finally {
         this.uploading = false
       }
     },
-    openAccountSettings() { this.$message.info('账号设置开发中...') },
+
+    // --- Account Settings ---
+    openAccountSettings() {
+      this.showAccountDialog = true
+      this.accountActiveTab = 'info'
+      // 回显数据
+      this.accountForm.username = this.userInfo.username
+      this.accountForm.phone = this.userInfo.phone
+      this.accountForm.email = this.userInfo.email
+      // 重置密码表单
+      this.pwdForm = { oldPassword: '', newPassword: '', confirmPassword: '' }
+      if(this.$refs.pwdForm) this.$refs.pwdForm.resetFields()
+    },
+
+    async saveAccountSettings() {
+      this.uploading = true
+      try {
+        if (this.accountActiveTab === 'info') {
+          // 更新基本账号信息 (手机/邮箱)
+          await userVideoApi.updateProfile({
+            phone: this.accountForm.phone,
+            email: this.accountForm.email
+          })
+          this.$message.success('账号信息已更新')
+          this.loadUserInfo() // 刷新全局信息
+        } else {
+          // 修改密码
+          this.$refs.pwdForm.validate(async valid => {
+            if (valid) {
+              await userVideoApi.changePassword({
+                oldPassword: this.pwdForm.oldPassword,
+                newPassword: this.pwdForm.newPassword
+              })
+              this.$message.success('密码修改成功，请重新登录')
+              setTimeout(() => {
+                localStorage.removeItem('userToken')
+                this.$router.push('/login')
+              }, 1000)
+            }
+          })
+        }
+      } catch (e) {
+        this.$message.error(e.message || '保存失败')
+      } finally {
+        this.uploading = false
+      }
+    },
 
     // --- Utils ---
     goToVideo(id) { this.$router.push(`/main/video/${id}`) },
@@ -615,7 +729,6 @@ export default {
             const res = await userVideoApi.getVideoById(id)
             this.$set(this.videoTitleCache, id, res.data.title)
           } catch(e) {
-            // 【修复】添加日志，解决 no-empty 报错
             console.warn('获取视频标题失败', e)
           }
         }
@@ -749,6 +862,12 @@ export default {
 .edit-btn {
   padding: 10px 24px;
   font-weight: 600;
+}
+.edit-avatar-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 20px;
 }
 
 /* 3. 导航栏 */

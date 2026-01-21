@@ -18,16 +18,17 @@ public interface UserMapper extends BaseMapper<User> {
      * @return 用户信息
      */
     User selectByUsername(@Param("username") String username);
-    
-    /**
-     * 根据条件查询用户列表
-     * @param keyword 关键词（用户名/手机号/ID）
-     * @param status 状态字符串（normal/frozen/muted）
-     * @param level 用户等级
-     * @return 用户列表
-     */
-    List<User> selectByCondition(@Param("keyword") String keyword, @Param("status") String status, @Param("level") String level);
-    
+
+    // 【修改】确保参数与 Service 调用一致
+    List<User> selectByCondition(@Param("keyword") String keyword,
+                                 @Param("status") String status,
+                                 @Param("level") String level);
+
+    // 【新增】补充缺失的计数方法
+    Long countByCondition(@Param("keyword") String keyword,
+                          @Param("status") String status,
+                          @Param("level") String level);
+
     /**
      * 更新用户状态
      * @param userId 用户ID
