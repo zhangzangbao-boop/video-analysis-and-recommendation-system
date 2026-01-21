@@ -48,11 +48,11 @@ export const userApi = {
     })
   },
   
-  // 重置用户密码
+  // 重置用户密码（管理员操作，重置为默认密码 123456）
   resetPassword(id) {
     return request({
-      url: `/api/admin/user/${id}/password`,
-      method: 'put'
+      url: `/api/admin/user/reset-password/${id}`,
+      method: 'post'
     })
   },
   

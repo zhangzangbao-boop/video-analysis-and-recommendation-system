@@ -2,7 +2,11 @@
   <div class="guest-container">
     <el-header class="main-header">
       <div class="header-left-section">
-        <h2 class="logo-text">短视频推荐系统</h2>
+        <div class="logo-wrapper">
+          <img src="@/logo/logo.png" class="logo-img" alt="logo">
+          <h2 class="logo-text">TWIKKER</h2>
+        </div>
+
 
         <div class="horizontal-nav">
           <div class="nav-item active">
@@ -445,6 +449,25 @@ export default {
   align-items: center;
   gap: 40px;
 }
+
+/* --- 新增：Logo 容器 --- */
+.logo-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: default; /* 登录页保持默认光标即可 */
+  transition: opacity 0.3s;
+}
+
+/* --- 新增：Logo 图片 --- */
+.logo-img {
+  /* 保持与 UserMain 一致的尺寸 */
+  width: 100px;
+  height: 35px;
+  object-fit: contain;
+}
+
+/* .logo-text 保持原有样式 */
 .logo-text {
   margin: 0;
   font-size: 24px;
