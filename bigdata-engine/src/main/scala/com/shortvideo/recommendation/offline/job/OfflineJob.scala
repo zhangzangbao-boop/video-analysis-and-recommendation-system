@@ -5,6 +5,8 @@ import org.apache.spark.sql.functions._
 import java.sql.{Connection, DriverManager, PreparedStatement, Date => SQLDate}
 import java.time.{LocalDate, LocalDateTime}
 import java.time.format.DateTimeFormatter
+import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.hadoop.conf.Configuration
 
 /**
  * 离线统计分析任务
@@ -22,7 +24,7 @@ object OfflineJob {
   // MySQL 连接配置（与 MySQLWriter 保持一致）
   private val JDBC_URL = "jdbc:mysql://localhost:3306/short_video_platform?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai"
   private val JDBC_USER = "root"
-  private val JDBC_PASSWORD = "123456"
+  private val JDBC_PASSWORD = "041206"
 
   def main(args: Array[String]): Unit = {
     val spark = SparkSession.builder()
@@ -48,7 +50,43 @@ object OfflineJob {
     val inputPath = if (args.length > 1 && args(1).nonEmpty) {
       args(1) // 允许通过命令行参数指定路径
     } else {
-      s"hdfs://localhost:9000/short-video/behavior/logs/$statDateStr/*.json"
+      // 自动查找可用的日期目录
+      val hadoopConf = spark.sparkContext.hadoopConfiguration
+      hadoopConf.set("fs.defaultFS", "hdfs://localhost:9000")
+      val fs = FileSystem.get(new java.net.URI("hdfs://localhost:9000"), hadoopConf)
+      val basePath = new Path("hdfs://localhost:9000/short-video/behavior/logs/")
+      
+      var finalPath = s"hdfs://localhost:9000/short-video/behavior/logs/$statDateStr/*.json"
+      
+      // 如果今天的路径不存在，尝试查找最近的可用日期
+      val todayPath = new Path(s"hdfs://localhost:9000/short-video/behavior/logs/$statDateStr")
+      if (!fs.exists(todayPath)) {
+        println(s"[INFO] 今天的日期路径不存在: $statDateStr")
+        println(s"[INFO] 正在查找可用的日期目录...")
+        
+        if (fs.exists(basePath)) {
+          val statuses = fs.listStatus(basePath)
+          val dateDirs = statuses.filter(_.isDirectory)
+            .map(_.getPath.getName)
+            .filter(name => """^\d{4}-\d{2}-\d{2}$""".r.findFirstIn(name).isDefined)
+            .sorted(Ordering.String.reverse) // 按日期降序排列
+          
+          if (dateDirs.nonEmpty) {
+            val latestDate = dateDirs.head
+            finalPath = s"hdfs://localhost:9000/short-video/behavior/logs/$latestDate/*.json"
+            println(s"[INFO] 找到最新的可用日期: $latestDate")
+            println(s"[INFO] 将使用路径: $finalPath")
+          } else {
+            println(s"[WARN] 未找到任何日期目录，将使用今天的路径（可能失败）")
+          }
+        } else {
+          println(s"[WARN] HDFS基础目录不存在，将使用今天的路径（可能失败）")
+        }
+      } else {
+        println(s"[INFO] 使用今天的日期路径: $statDateStr")
+      }
+      
+      finalPath
     }
 
     println("=" * 80)
@@ -58,6 +96,58 @@ object OfflineJob {
     println(s"[INFO] HDFS 输入路径: $inputPath")
 
     try {
+      // ========================================
+      // 0. 检查HDFS路径是否存在
+      // ========================================
+      println(s"[INFO] 检查HDFS路径是否存在...")
+      val hadoopConf = spark.sparkContext.hadoopConfiguration
+      // 确保使用HDFS文件系统
+      if (!hadoopConf.get("fs.defaultFS", "").startsWith("hdfs://")) {
+        hadoopConf.set("fs.defaultFS", "hdfs://localhost:9000")
+      }
+      
+      // 使用URI创建FileSystem，确保使用HDFS而不是本地文件系统
+      val fs = FileSystem.get(new java.net.URI("hdfs://localhost:9000"), hadoopConf)
+      
+      // 提取基础路径（去掉通配符）
+      val basePathStr = inputPath.replaceAll("/\\*.*$", "").replaceAll("\\*.*$", "")
+      val basePath = new Path(basePathStr)
+      
+      if (!fs.exists(basePath)) {
+        println(s"[ERROR] HDFS路径不存在: $basePathStr")
+        println(s"[ERROR] 请检查以下事项:")
+        println(s"  1. HDFS服务是否已启动: hadoop fs -ls /")
+        println(s"  2. 数据是否已上传到HDFS: hadoop fs -ls $basePathStr")
+        println(s"  3. 是否使用了Flume将数据同步到HDFS")
+        println(s"  4. 或者使用脚本上传本地日志: scripts/upload_local_logs_to_hdfs.bat")
+        println(s"")
+        println(s"[TIP] 如果HDFS中没有数据，可以:")
+        println(s"  - 使用DataGeneratorApp生成数据并保存到本地logs目录")
+        println(s"  - 使用Flume将logs目录的数据同步到HDFS")
+        println(s"  - 或直接使用本地文件路径作为输入（修改代码）")
+        spark.stop()
+        return
+      }
+      
+      // 检查是否有匹配的文件
+      try {
+        val fileStatuses = fs.globStatus(new Path(inputPath))
+        if (fileStatuses == null || fileStatuses.isEmpty) {
+          println(s"[WARN] HDFS路径存在，但没有匹配的文件: $inputPath")
+          println(s"[WARN] 请检查:")
+          println(s"  - 日期目录是否正确: hadoop fs -ls $basePathStr")
+          println(s"  - 是否有JSON文件: hadoop fs -ls $basePathStr/*/*.json")
+          println(s"[WARN] 任务结束（没有数据可处理）")
+          spark.stop()
+          return
+        }
+        println(s"[INFO] 找到 ${fileStatuses.length} 个匹配的文件")
+      } catch {
+        case e: Exception =>
+          println(s"[WARN] 检查文件时出错: ${e.getMessage}")
+          println(s"[WARN] 将继续尝试读取数据...")
+      }
+      
       // ========================================
       // 1. 读取并解析原始日志
       // ========================================

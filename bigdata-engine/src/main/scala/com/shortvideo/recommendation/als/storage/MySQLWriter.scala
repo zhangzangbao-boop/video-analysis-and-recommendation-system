@@ -6,9 +6,11 @@ import org.apache.spark.sql.Row
 object MySQLWriter {
 
   // [修正] 数据库名与 application.yml 保持一致
-  private val JDBC_URL = "jdbc:mysql://localhost:3306/short_video_platform?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai"
-  private val JDBC_USER = "root"
-  private val JDBC_PASSWORD = "123456"
+  // 使用统一的数据库配置
+  import com.shortvideo.recommendation.common.config.DatabaseConfig
+  private val JDBC_URL = DatabaseConfig.JDBC_URL
+  private val JDBC_USER = DatabaseConfig.JDBC_USER
+  private val JDBC_PASSWORD = DatabaseConfig.JDBC_PASSWORD
 
   /**
    * 写入推荐结果到 MySQL
@@ -196,14 +198,32 @@ object MySQLWriter {
     val modelId = s"als-${System.currentTimeMillis()}"
 
     try {
+      println(s"[MySQL] ====== 开始写入模型参数到MySQL ======")
+      println(s"[MySQL] 模型ID: $modelId")
+      println(s"[MySQL] 模型路径: $modelPath")
+      println(s"[MySQL] 参数: rank=$rank, regParam=$regParam, maxIter=$maxIter, rmse=$rmse")
+      println(s"[MySQL] 数据库URL: $JDBC_URL")
+      println(s"[MySQL] 数据库用户: $JDBC_USER")
+      System.out.flush()
+      
+      println(s"[MySQL] 步骤1: 加载MySQL驱动...")
       Class.forName("com.mysql.cj.jdbc.Driver")
+      println(s"[MySQL] 步骤2: 连接数据库...")
+      System.out.flush()
+      
       connection = DriverManager.getConnection(JDBC_URL, JDBC_USER, JDBC_PASSWORD)
+      println(s"[MySQL] ✓ 数据库连接成功")
+      System.out.flush()
 
+      println(s"[MySQL] 步骤3: 更新旧模型状态为DEPRECATED...")
       val updateSql = "UPDATE model_params SET status = 'DEPRECATED' WHERE status = 'ACTIVE'"
       stmt = connection.prepareStatement(updateSql)
-      stmt.executeUpdate()
+      val updatedCount = stmt.executeUpdate()
       stmt.close()
+      println(s"[MySQL] 已更新 $updatedCount 条旧模型记录")
+      System.out.flush()
 
+      println(s"[MySQL] 步骤4: 插入新模型参数...")
       val insertSql = """
         INSERT INTO model_params
         (model_id, `rank`, reg_param, max_iter, training_time, model_path, rmse, status)
@@ -217,17 +237,59 @@ object MySQLWriter {
       stmt.setString(5, modelPath)
       stmt.setDouble(6, rmse)
 
-      stmt.executeUpdate()
-      println(s"[INFO] 模型参数已保存: $modelId")
+      val insertedCount = stmt.executeUpdate()
+      println(s"[MySQL] ✓ 模型参数插入成功，影响行数: $insertedCount")
+      println(s"[MySQL] ✓✓✓ 模型参数已保存到MySQL: $modelId")
+      System.out.flush()
+      
       modelId
 
     } catch {
+      case e: java.sql.SQLException =>
+        System.err.println(s"[ERROR] ====== MySQL SQL异常 ======")
+        System.err.println(s"[ERROR] 错误消息: ${e.getMessage}")
+        System.err.println(s"[ERROR] SQL状态: ${e.getSQLState}")
+        System.err.println(s"[ERROR] 错误码: ${e.getErrorCode}")
+        System.err.println(s"[ERROR] 模型ID: $modelId")
+        e.printStackTrace(System.err)
+        System.err.flush()
+        "unknown-model"
+      case e: ClassNotFoundException =>
+        System.err.println(s"[ERROR] ====== MySQL驱动类未找到 ======")
+        System.err.println(s"[ERROR] 错误消息: ${e.getMessage}")
+        System.err.println(s"[ERROR] 请检查是否添加了MySQL JDBC驱动依赖")
+        e.printStackTrace(System.err)
+        System.err.flush()
+        "unknown-model"
       case e: Exception =>
-        e.printStackTrace()
+        System.err.println(s"[ERROR] ====== 写入模型参数到MySQL失败 ======")
+        System.err.println(s"[ERROR] 错误消息: ${e.getMessage}")
+        System.err.println(s"[ERROR] 异常类型: ${e.getClass.getName}")
+        System.err.println(s"[ERROR] 模型ID: $modelId")
+        e.printStackTrace(System.err)
+        System.err.flush()
         "unknown-model"
     } finally {
-      if (stmt != null) stmt.close()
-      if (connection != null) connection.close()
+      try {
+        if (stmt != null) {
+          stmt.close()
+          println(s"[MySQL] PreparedStatement已关闭")
+        }
+      } catch {
+        case e: Exception =>
+          System.err.println(s"[WARN] 关闭PreparedStatement失败: ${e.getMessage}")
+      }
+      try {
+        if (connection != null) {
+          connection.close()
+          println(s"[MySQL] 数据库连接已关闭")
+        }
+      } catch {
+        case e: Exception =>
+          System.err.println(s"[WARN] 关闭数据库连接失败: ${e.getMessage}")
+      }
+      println(s"[MySQL] ====== 结束MySQL操作 ======")
+      System.out.flush()
     }
   }
 }

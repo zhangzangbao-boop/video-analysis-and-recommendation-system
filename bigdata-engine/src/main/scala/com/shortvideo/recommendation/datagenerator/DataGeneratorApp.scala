@@ -17,6 +17,29 @@ object DataGeneratorApp {
   
   def main(args: Array[String]): Unit = {
     println("=== 短视频推荐系统 - 数据生成器 ===")
+    
+    // 从数据库加载视频ID列表（在程序启动时加载一次）
+    println("[INFO] 正在从数据库加载视频ID列表...")
+    System.out.flush()
+    val videoIds = try {
+      VideoIdLoader.loadVideoIds()
+    } catch {
+      case e: Exception =>
+        println(s"[ERROR] 加载视频ID时发生异常: ${e.getMessage}")
+        e.printStackTrace()
+        Array.empty[Long]
+    }
+    
+    // 创建LogGenerator（使用数据库中的视频ID，如果加载失败则使用默认范围）
+    val logGenerator = if (videoIds.nonEmpty) {
+      println(s"[INFO] 使用数据库中的视频ID生成数据，共 ${videoIds.length} 个视频ID")
+      LogGenerator(videoIds)
+    } else {
+      println(s"[INFO] 使用默认模拟视频ID范围生成数据")
+      LogGenerator()
+    }
+    System.out.flush()
+    
     println("请选择数据生成模式:")
     println("1. 按数量生成 (指定生成数据条数)")
     println("2. 按时间生成 (指定生成持续时间)")
@@ -42,13 +65,13 @@ object DataGeneratorApp {
     
     try {
       choice match {
-        case "1" => generateByCount()
-        case "2" => generateByTime()
-        case "3" => generateRealTime()
-        case "4" => generateHighQualityData()
+        case "1" => generateByCount(logGenerator)
+        case "2" => generateByTime(logGenerator)
+        case "3" => generateRealTime(logGenerator)
+        case "4" => generateHighQualityData(logGenerator)
         case _ => 
           println("无效选择，使用默认模式: 按数量生成")
-          generateByCount()
+          generateByCount(logGenerator)
       }
     } finally {
       // 关闭HDFS连接
@@ -59,7 +82,7 @@ object DataGeneratorApp {
   /**
    * 按指定数量生成数据
    */
-  private def generateByCount(): Unit = {
+  private def generateByCount(generator: LogGenerator): Unit = {
     print("请输入要生成的数据条数: ")
     val countStr = StdIn.readLine().trim
     
@@ -71,13 +94,12 @@ object DataGeneratorApp {
       }
       
       println(s"开始生成 $count 条数据...")
-      val generator = LogGenerator()
       val startTime = System.currentTimeMillis()
       
       val behaviors = generator.generateUserBehaviors(count)
       
       // 输出到控制台或文件
-      outputBehaviors(behaviors, s"Generated $count records in ${System.currentTimeMillis() - startTime}ms")
+      outputBehaviors(behaviors, generator, s"Generated $count records in ${System.currentTimeMillis() - startTime}ms")
 
     } catch {
       case _: NumberFormatException =>
@@ -90,7 +112,7 @@ object DataGeneratorApp {
   /**
    * 按指定时间生成数据
    */
-  private def generateByTime(): Unit = {
+  private def generateByTime(generator: LogGenerator): Unit = {
     print("请输入生成持续时间 (秒): ")
     val timeStr = StdIn.readLine().trim
     
@@ -102,7 +124,6 @@ object DataGeneratorApp {
       }
       
       println(s"开始生成数据，持续 $seconds 秒...")
-      val generator = LogGenerator()
       val executor = Executors.newSingleThreadScheduledExecutor()
       
       var totalRecords = 0
@@ -114,7 +135,7 @@ object DataGeneratorApp {
         override def run(): Unit = {
           if (System.currentTimeMillis() < endTime) {
             val batch = generator.generateUserBehaviors(10) // 每秒生成10条
-            outputBehaviors(batch, s"Batch generated at ${new java.util.Date()}")
+            outputBehaviors(batch, generator, s"Batch generated at ${new java.util.Date()}")
             totalRecords += batch.size
             
             // 显示进度
@@ -145,11 +166,10 @@ object DataGeneratorApp {
   /**
    * 实时生成数据
    */
-  private def generateRealTime(): Unit = {
+  private def generateRealTime(generator: LogGenerator): Unit = {
     println("开始实时生成数据... (按 Ctrl+C 停止)")
     println("生成频率: 每秒5条记录")
     
-    val generator = LogGenerator()
     val executor = Executors.newSingleThreadScheduledExecutor()
     
     var totalRecords = 0
@@ -159,7 +179,7 @@ object DataGeneratorApp {
       override def run(): Unit = {
         try {
           val batch = generator.generateUserBehaviors(5) // 每秒生成5条
-          outputBehaviors(batch, "")
+          outputBehaviors(batch, generator, "")
           totalRecords += batch.size
           
           // 每10秒显示一次统计
@@ -195,7 +215,7 @@ object DataGeneratorApp {
   /**
    * 生成高质量数据集，专为ALS模型训练优化
    */
-  private def generateHighQualityData(): Unit = {
+  private def generateHighQualityData(generator: LogGenerator): Unit = {
     print("请输入要生成的高质量数据条数: ")
     val countStr = StdIn.readLine().trim
     
@@ -207,13 +227,12 @@ object DataGeneratorApp {
       }
       
       println(s"开始生成 $count 条高质量数据...")
-      val generator = LogGenerator()
       val startTime = System.currentTimeMillis()
       
       val behaviors = generator.generateHighQualityDataSet(count)
       
-      // 输出到2控制台或文件
-      outputBehaviors(behaviors, s"Generated $count high-quality records in ${System.currentTimeMillis() - startTime}ms")
+      // 输出到控制台或文件
+      outputBehaviors(behaviors, generator, s"Generated $count high-quality records in ${System.currentTimeMillis() - startTime}ms")
       
       // 输出统计信息
       val userStats = behaviors.groupBy(_.userId).mapValues(_.size).toMap
@@ -238,9 +257,7 @@ object DataGeneratorApp {
   /**
    * 输出行为数据
    */
-  private def outputBehaviors(behaviors: List[UserBehavior], description: String): Unit = {
-    val generator = LogGenerator()
-
+  private def outputBehaviors(behaviors: List[UserBehavior], generator: LogGenerator, description: String): Unit = {
     // 打印描述信息
     if (description.nonEmpty) {
       println(description)
@@ -257,77 +274,90 @@ object DataGeneratorApp {
   }
   
   /**
-   * 保存到本地日志目录和HDFS
+   * 保存到本地日志目录
+   * 同时保存到两个位置：
+   * 1. logs目录（单条文件形式） - 供Flume spooldir source收集到HDFS，用于离线分析
+   * 2. generated_logs.json（追加模式） - 供Flume exec source收集到Kafka，用于实时分析
    */
   private def saveToFlumeDirectory(logEntry: String): Unit = {
-    // 1. 先保存到本地目录
     try {
-
-      // 检查是否有参数指定生成到特定文件
-      val flumeMode = sys.props.getOrElse("flume.mode", "spooldir") // 默认使用spooldir模式
+      // 1. 保存到logs目录（单条文件形式，供离线分析使用）
+      saveToLogsDirectory(logEntry)
       
-      if (flumeMode == "exec") {
-        // exec模式：追加到一个单一文件
-        val writer = new BufferedWriter(new FileWriter("generated_logs.json", true)) // true表示追加模式
-        writer.write(logEntry)
-        writer.newLine() // 添加换行符以分隔记录
-        writer.close()
-      } else {
-        // spooldir模式：为每个日志条目创建唯一的临时文件，然后重命名以确保Flume能正确处理
-        // 确保目录存在
-        val logDir = new File("bigdata-engine/logs")
-        if (!logDir.exists()) {
-          logDir.mkdirs()
-        }
-        
-        val timestamp = System.currentTimeMillis()
-        val tempFileName = s"bigdata-engine/logs/temp_$timestamp.tmp"
-        val finalFileName = s"bigdata-engine/logs/user_behavior_${timestamp}.json"
-        
-        // 先写入临时文件
-        val tempWriter = new BufferedWriter(new FileWriter(tempFileName))
-        tempWriter.write(logEntry)
-        tempWriter.close()
-        
-        // 重命名文件，这样Flume的spooldir source能检测到新文件
-        val tempFile = new java.io.File(tempFileName)
-        val finalFile = new java.io.File(finalFileName)
-        if (tempFile.renameTo(finalFile)) {
-          println(s"[SUCCESS] 日志已保存到本地: ${finalFile.getAbsolutePath}")
-          
-          // 2. 同步到HDFS（不阻塞主流程）
-          try {
-            HDFSUtil.writeLogToHDFS(logEntry, Some(finalFile.getName))
-          } catch {
-            case ex: Exception =>
-              // HDFS同步失败不影响本地保存，只输出警告
-              // 异常已在HDFSUtil中处理，这里不再打印
-          }
-        } else {
-          println(s"警告: 文件重命名失败，文件可能已存在或路径不可访问: ${finalFile.getAbsolutePath}")
-        }
+      // 2. 追加到generated_logs.json（供实时分析使用）
+      saveToGeneratedLogsFile(logEntry)
+      
+    } catch {
+      case ex: Exception =>
+        println(s"保存日志失败: ${ex.getMessage}")
+        ex.printStackTrace()
+    }
+  }
+  
+  /**
+   * 保存到logs目录（单条文件形式）
+   * 供Flume spooldir source收集，最终保存到HDFS用于离线分析
+   */
+  private def saveToLogsDirectory(logEntry: String): Unit = {
+    try {
+      // 确保目录存在
+      val logDir = new File("bigdata-engine/logs")
+      if (!logDir.exists()) {
+        logDir.mkdirs()
       }
-
-      // 为每个日志条目创建唯一的临时文件，然后重命名以确保Flume能正确处理
+      
+      // 为每个日志条目创建唯一的文件
       val timestamp = System.currentTimeMillis()
-      val tempFileName = s"logs/temp_$timestamp.tmp"
-      val finalFileName = s"logs/user_behavior_${timestamp}.json"
-
+      val nanoTime = System.nanoTime() // 使用纳秒时间确保唯一性
+      val tempFileName = s"bigdata-engine/logs/temp_${timestamp}_${nanoTime}.tmp"
+      val finalFileName = s"bigdata-engine/logs/user_behavior_${timestamp}_${nanoTime}.json"
+      
       // 先写入临时文件
       val tempWriter = new BufferedWriter(new FileWriter(tempFileName))
       tempWriter.write(logEntry)
       tempWriter.close()
-
+      
       // 重命名文件，这样Flume的spooldir source能检测到新文件
       val tempFile = new java.io.File(tempFileName)
       val finalFile = new java.io.File(finalFileName)
-      tempFile.renameTo(finalFile)
-
-
+      if (tempFile.renameTo(finalFile)) {
+        // 静默保存，不打印日志以减少输出（可选：在debug模式下打印）
+        // println(s"[INFO] 日志已保存到logs目录: ${finalFile.getName}")
+      } else {
+        println(s"[WARN] 文件重命名失败: ${finalFile.getAbsolutePath}")
+      }
     } catch {
       case ex: Exception =>
-        println(s"保存到本地目录失败: ${ex.getMessage}")
-        ex.printStackTrace()
+        println(s"[ERROR] 保存到logs目录失败: ${ex.getMessage}")
+        throw ex
+    }
+  }
+  
+  /**
+   * 追加到generated_logs.json文件
+   * 供Flume exec source收集，可以发送到Kafka用于实时分析
+   */
+  private def saveToGeneratedLogsFile(logEntry: String): Unit = {
+    var writer: BufferedWriter = null
+    try {
+      // 追加模式写入generated_logs.json
+      writer = new BufferedWriter(new FileWriter("generated_logs.json", true)) // true表示追加模式
+      writer.write(logEntry)
+      writer.newLine() // 添加换行符以分隔记录
+      writer.flush() // 立即刷新，确保数据及时写入
+    } catch {
+      case ex: Exception =>
+        println(s"[ERROR] 追加到generated_logs.json失败: ${ex.getMessage}")
+        throw ex
+    } finally {
+      if (writer != null) {
+        try {
+          writer.close()
+        } catch {
+          case ex: Exception =>
+            println(s"[WARN] 关闭文件流失败: ${ex.getMessage}")
+        }
+      }
     }
   }
 }

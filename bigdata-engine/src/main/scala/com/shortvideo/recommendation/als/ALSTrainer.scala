@@ -100,19 +100,46 @@ object ALSTrainer {
     println("Spark ALS 离线推荐训练 (文档标准版)")
     println("=" * 80)
 
-    // 1. 初始化 Spark
+    // 1. 初始化 Spark (优化内存配置)
     val spark = SparkSession.builder()
       .appName("ShortVideoALSRecommendation")
       // 生产环境通常由 spark-submit 指定 master，这里保留 local[*] 方便调试
       .master("local[*]")
-      .config("spark.sql.shuffle.partitions", "100")
-      // 配置 HDFS 相关设置，确保能正确连接到 HDFS
+      // ========== 内存优化配置 ==========
+      // 增加driver内存（ALS训练需要大量内存）
+      .config("spark.driver.memory", "4g")
+      .config("spark.driver.maxResultSize", "2g")
+      // 增加executor内存（local模式下executor和driver共享内存）
+      .config("spark.executor.memory", "4g")
+      // 减少shuffle分区数以降低内存压力（根据数据量动态调整）
+      .config("spark.sql.shuffle.partitions", "20")
+      .config("spark.default.parallelism", "20")
+      // 序列化配置（Kryo更节省内存）
+      .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+      .config("spark.kryoserializer.buffer.max", "512m")
+      // 内存管理配置
+      .config("spark.memory.fraction", "0.8")
+      .config("spark.memory.storageFraction", "0.3")
+      // 垃圾回收优化
+      .config("spark.executor.extraJavaOptions", "-XX:+UseG1GC -XX:MaxGCPauseMillis=200")
+      .config("spark.driver.extraJavaOptions", "-XX:+UseG1GC -XX:MaxGCPauseMillis=200")
+      // ========== HDFS 配置 ==========
       .config("spark.hadoop.fs.defaultFS", "hdfs://localhost:9000")
       .config("spark.hadoop.dfs.client.use.datanode.hostname", "false")
       .config("spark.hadoop.dfs.replication", "1")
-      // 配置时间解析策略，支持多种时间格式（包括带毫秒的格式）
+      // ========== 其他配置 ==========
       .config("spark.sql.legacy.timeParserPolicy", "LEGACY")
+      .config("spark.sql.adaptive.enabled", "true")
+      .config("spark.sql.adaptive.coalescePartitions.enabled", "true")
       .getOrCreate()
+    
+    // 打印内存配置信息
+    val driverMemory = spark.conf.get("spark.driver.memory", "未设置")
+    val executorMemory = spark.conf.get("spark.executor.memory", "未设置")
+    println(s"[INFO] Spark内存配置:")
+    println(s"  - Driver内存: $driverMemory")
+    println(s"  - Executor内存: $executorMemory")
+    println(s"  - Shuffle分区数: ${spark.conf.get("spark.sql.shuffle.partitions")}")
     
     // 设置 Hadoop 配置，确保使用 HDFS 而不是本地文件系统
     val hadoopConf = spark.sparkContext.hadoopConfiguration
@@ -139,8 +166,27 @@ object ALSTrainer {
     val inputPath = if (args.length > 0 && args(0).nonEmpty) {
       args(0) // 允许通过命令行参数指定路径
     } else {
-      // 默认使用通配符读取所有历史数据（按日期分区）
-      "hdfs://localhost:9000/short-video/behavior/logs/*/*.json"
+      // 尝试获取今天的日期，如果失败则使用通配符读取所有历史数据（按日期分区）
+      val todayPath = s"hdfs://localhost:9000/short-video/behavior/logs/$today/*.json"
+      val yesterday = LocalDate.now().minusDays(1).toString
+      val yesterdayPath = s"hdfs://localhost:9000/short-video/behavior/logs/$yesterday/*.json"
+      
+      // 检查今天的路径是否存在
+      val hadoopConf = spark.sparkContext.hadoopConfiguration
+      val fs = org.apache.hadoop.fs.FileSystem.get(hadoopConf)
+      
+      // 如果今天的路径存在且有数据，则使用今天的路径，否则使用通配符路径
+      if (fs.exists(new Path(s"hdfs://localhost:9000/short-video/behavior/logs/$today"))) {
+        println(s"[INFO] 使用今天的日期路径: $todayPath")
+        todayPath
+      } else if (fs.exists(new Path(s"hdfs://localhost:9000/short-video/behavior/logs/$yesterday"))) {
+        println(s"[INFO] 使用昨天的日期路径: $yesterdayPath")
+        yesterdayPath
+      } else {
+        // 如果今天的路径不存在，则使用通配符读取所有历史数据
+        println(s"[INFO] 今天的路径不存在，使用通配符路径读取所有历史数据")
+        "hdfs://localhost:9000/short-video/behavior/logs/*/*.json"
+      }
     }
     val modelPath = s"hdfs://localhost:9000/short-video/als-model/model-$today"
 
@@ -155,6 +201,36 @@ object ALSTrainer {
       if (!skipValidation && !validateHDFSDirectory(spark, inputPath)) {
         println(s"[ERROR] HDFS路径验证失败，请确保HDFS服务运行且路径正确！")
         println(s"[INFO] 如需跳过验证，设置环境变量 SKIP_HDFS_VALIDATION=true")
+        
+        // 尝试查找存在的日期目录
+        try {
+          val hadoopConf = spark.sparkContext.hadoopConfiguration
+          val fs = org.apache.hadoop.fs.FileSystem.get(hadoopConf)
+          val basePath = new Path("hdfs://localhost:9000/short-video/behavior/logs/")
+          
+          if (fs.exists(basePath)) {
+            val statuses = fs.listStatus(basePath)
+            val dateDirs = statuses.filter(_.isDirectory()).map(_.getPath.getName)
+              .filter(name => """^\d{4}-\d{2}-\d{2}$""".r.findFirstIn(name).isDefined)
+              .sorted(Ordering.String.reverse)
+              
+            if (dateDirs.nonEmpty) {
+              println("[INFO] 在HDFS中找到以下日期目录，可以尝试使用其中之一:")
+              dateDirs.take(5).foreach(dir => {
+                val datePath = s"hdfs://localhost:9000/short-video/behavior/logs/$dir/*.json"
+                println(s"  - $datePath")
+              })
+            } else {
+              println("[INFO] HDFS中没有找到按日期命名的目录")
+            }
+          } else {
+            println("[INFO] HDFS根目录不存在，请先创建目录并上传数据")
+          }
+        } catch {
+          case e: Exception => 
+            println(s"[INFO] 尝试查找可用日期目录时出错: ${e.getMessage}")
+        }
+        
         return
       }
 
@@ -242,9 +318,12 @@ object ALSTrainer {
       }
 
       // Step 5: 聚合评分 (同一用户对同一视频取最高分)
+      println("[INFO] 开始聚合评分...")
       val aggregatedRatings = DataProcessor.aggregateRatings(rawRatings)
+      println(s"[INFO] 聚合后评分记录数: ${aggregatedRatings.count()}")
 
       // Step 6: 数据质量过滤 (用户行为>=5, 视频互动>=5)
+      println("[INFO] 开始数据质量过滤...")
       val trainingDataFull = DataProcessor.filterByQuality(aggregatedRatings, 5, 5)
 
       val count = trainingDataFull.count()
@@ -272,7 +351,11 @@ object ALSTrainer {
       // 4. 划分数据集与训练 (对应流程图 Step 7-8)
       // ============================================
       // Step 7: 划分训练集和测试集 (80% 训练, 20% 测试)
+      println("[INFO] 开始划分训练集和测试集...")
       val Array(training, test) = trainingDataFull.randomSplit(Array(0.8, 0.2), seed = 1234L)
+      
+      // 注意：不缓存数据集以节省内存，直接使用
+      println("[INFO] 数据集划分完成，开始训练...")
       
       val trainingCount = training.count()
       val testCount = test.count()
@@ -310,34 +393,121 @@ object ALSTrainer {
       println(s"  - 获得推荐的用户数: $recUserCount")
       println(s"  - 每个用户推荐数: $topN")
 
-      // Step 11: 保存模型到 HDFS
+      // Step 11: 保存模型到 HDFS (添加错误处理和重试)
       println(s"[INFO] 保存模型到: $modelPath")
-      model.write.overwrite().save(modelPath)
+      var modelSaved = false
+      try {
+        // 确保模型目录的父目录存在
+        val hadoopConf = spark.sparkContext.hadoopConfiguration
+        val fs = FileSystem.get(hadoopConf)
+        val modelParentPath = new Path(modelPath).getParent
+        if (!fs.exists(modelParentPath)) {
+          fs.mkdirs(modelParentPath)
+          println(s"[INFO] 创建模型目录: $modelParentPath")
+        }
+        
+        model.write.overwrite().save(modelPath)
+        modelSaved = true
+        println(s"[SUCCESS] 模型已保存到: $modelPath")
+      } catch {
+        case e: Exception =>
+          println(s"[ERROR] 保存模型到HDFS失败: ${e.getMessage}")
+          e.printStackTrace()
+          println(s"[WARN] 模型未保存，但将继续尝试保存到MySQL")
+      }
 
       // Step 12 & 13: 写入 MySQL (推荐结果 + 模型参数)
       // 写入推荐结果 type=OFFLINE
       println("[INFO] 开始保存模型参数和推荐结果到 MySQL...")
-      val modelId = MySQLWriter.writeModelParamsToMySQL(modelPath, rank, regParam, maxIter, rmse)
-      MySQLWriter.writeRecommendationsToMySQL(userRecs, "OFFLINE", modelId)
+      var modelId: String = ""
+      try {
+        modelId = MySQLWriter.writeModelParamsToMySQL(modelPath, rank, regParam, maxIter, rmse)
+        println(s"[SUCCESS] 模型参数已保存到MySQL，模型ID: $modelId")
+      } catch {
+        case e: Exception =>
+          println(s"[ERROR] 保存模型参数到MySQL失败: ${e.getMessage}")
+          e.printStackTrace()
+          // 如果模型已保存，至少记录模型路径
+          if (modelSaved) {
+            println(s"[WARN] 模型已保存到HDFS: $modelPath，但MySQL保存失败")
+          }
+      }
+      
+      try {
+        MySQLWriter.writeRecommendationsToMySQL(userRecs, "OFFLINE", modelId)
+        println(s"[SUCCESS] 推荐结果已保存到MySQL")
+      } catch {
+        case e: Exception =>
+          println(s"[ERROR] 保存推荐结果到MySQL失败: ${e.getMessage}")
+          e.printStackTrace()
+          println(s"[WARN] 推荐结果未保存到MySQL，但模型训练已完成")
+      }
 
       // 输出最终统计信息
       println("=" * 80)
-      println("[SUCCESS] 离线推荐流程执行完毕！")
+      if (modelSaved && modelId.nonEmpty) {
+        println("[SUCCESS] 离线推荐流程执行完毕！")
+      } else if (modelSaved) {
+        println("[PARTIAL SUCCESS] 模型已保存，但MySQL保存部分失败")
+      } else {
+        println("[WARNING] 训练完成，但保存过程出现问题")
+      }
       println("=" * 80)
       println("[INFO] 最终统计:")
-      println(s"  - 模型ID: $modelId")
+      println(s"  - 模型保存状态: ${if (modelSaved) "成功" else "失败"}")
       println(s"  - 模型路径: $modelPath")
+      println(s"  - 模型ID: ${if (modelId.nonEmpty) modelId else "未保存"}")
       println(s"  - 模型RMSE: ${if (rmse >= 0) rmse.formatted("%.4f") else "N/A"}")
       println(s"  - 推荐用户数: $recUserCount")
       println(s"  - 推荐总数: ${recUserCount * topN}")
       println("=" * 80)
+      
+      // 如果模型保存失败，提供手动保存建议
+      if (!modelSaved) {
+        println("[TIP] 如果模型保存失败，可以:")
+        println("  1. 检查HDFS服务是否正常运行")
+        println("  2. 检查HDFS磁盘空间是否充足")
+        println("  3. 检查是否有写入权限")
+        println("  4. 尝试手动保存模型到本地:")
+        val localModelPath = s"file:///tmp/als-model-$today"
+        println("     model.write.overwrite().save(\"" + localModelPath + "\")")
+      }
 
     } catch {
-      case e: Exception =>
+      case e: OutOfMemoryError =>
+        println("=" * 80)
+        println("[ERROR] ========== 内存不足错误 ==========")
+        println("[ERROR] Java堆内存不足，程序无法继续执行")
+        println("=" * 80)
+        println("[SOLUTION] 解决方案:")
+        println("  1. 增加JVM堆内存:")
+        println("     - 如果使用sbt运行: 设置环境变量 JAVA_OPTS=\"-Xmx6g -Xms4g\"")
+        println("     - 如果使用java运行: java -Xmx6g -Xms4g -cp ...")
+        println("  2. 减少数据量:")
+        println("     - 使用更具体的日期路径，而不是通配符")
+        println("     - 例如: hdfs://localhost:9000/short-video/behavior/logs/2026-01-22/*.json")
+        println("  3. 降低ALS参数:")
+        println("     - 减少rank参数（当前: $rank，可尝试: 10）")
+        println("     - 减少maxIter参数（当前: $maxIter，可尝试: 5）")
+        println("  4. 减少shuffle分区数（已在代码中优化）")
+        println("  5. 关闭其他占用内存的程序")
+        println("=" * 80)
         e.printStackTrace()
+        System.exit(1)
+      case e: Exception =>
+        println("=" * 80)
         println(s"[ERROR] 任务失败: ${e.getMessage}")
+        println("=" * 80)
+        e.printStackTrace()
+        println("[INFO] 检查错误日志以获取更多信息")
     } finally {
-      spark.stop()
+      try {
+        spark.stop()
+        println("[INFO] Spark会话已关闭")
+      } catch {
+        case e: Exception =>
+          println(s"[WARN] 关闭Spark会话时出错: ${e.getMessage}")
+      }
     }
   }
 }

@@ -10,15 +10,32 @@ import scala.util.{Failure, Success, Try}
 
 /**
  * Redis工具类
+ * 支持在driver端和executor端使用
+ * 在executor端会自动懒加载初始化连接池
  */
 object RedisUtil {
 
-  private var jedisPool: JedisPool = _
+  @volatile private var jedisPool: JedisPool = _
+  @volatile private var redisConfig: RedisConfig = _
+  private val poolLock = new Object()
 
   /**
-   * 初始化Redis连接池
+   * 初始化Redis连接池（driver端调用）
    */
   def initPool(config: RedisConfig): Unit = {
+    poolLock.synchronized {
+      redisConfig = config
+      if (jedisPool == null) {
+        jedisPool = createPool(config)
+        println(s"[Driver] Redis连接池初始化成功: ${config.host}:${config.port}")
+      }
+    }
+  }
+
+  /**
+   * 创建连接池（内部方法）
+   */
+  private def createPool(config: RedisConfig): JedisPool = {
     val poolConfig = new JedisPoolConfig()
 
     // 连接池配置
@@ -34,29 +51,60 @@ object RedisUtil {
 
     // 创建连接池
     if (config.password.nonEmpty) {
-      jedisPool = new JedisPool(poolConfig, config.host, config.port,
+      new JedisPool(poolConfig, config.host, config.port,
         config.timeout, config.password, config.database)
     } else {
-      jedisPool = new JedisPool(poolConfig, config.host, config.port,
+      new JedisPool(poolConfig, config.host, config.port,
         config.timeout, null, config.database)
     }
+  }
 
-    println(s"Redis连接池初始化成功: ${config.host}:${config.port}")
+  /**
+   * 懒加载初始化连接池（executor端自动调用）
+   * 如果连接池未初始化，会尝试从配置创建
+   */
+  private def ensurePoolInitialized(): Unit = {
+    if (jedisPool == null || jedisPool.isClosed) {
+      poolLock.synchronized {
+        if (jedisPool == null || jedisPool.isClosed) {
+          // 尝试从已保存的配置初始化
+          if (redisConfig != null) {
+            jedisPool = createPool(redisConfig)
+            println(s"[Executor] Redis连接池懒加载初始化成功: ${redisConfig.host}:${redisConfig.port}")
+          } else {
+            // 如果没有配置，尝试从配置文件加载
+            try {
+              val config = RedisConfig.createConfig()
+              redisConfig = config
+              jedisPool = createPool(config)
+              println(s"[Executor] Redis连接池从配置文件懒加载初始化成功: ${config.host}:${config.port}")
+            } catch {
+              case e: Exception =>
+                println(s"[ERROR] Executor端无法初始化Redis连接池: ${e.getMessage}")
+                throw new IllegalStateException("Redis连接池未初始化且无法从配置加载", e)
+            }
+          }
+        }
+      }
+    }
   }
 
   /**
    * 获取Redis连接
+   * 支持在driver端和executor端使用
    */
   def getConnection: Option[Jedis] = {
     Try {
-      if (jedisPool == null) {
-        throw new IllegalStateException("Redis连接池未初始化，请先调用initPool方法")
+      ensurePoolInitialized()
+      if (jedisPool == null || jedisPool.isClosed) {
+        throw new IllegalStateException("Redis连接池未初始化或已关闭")
       }
       jedisPool.getResource
     } match {
       case Success(jedis) => Some(jedis)
       case Failure(e) =>
         println(s"获取Redis连接失败: ${e.getMessage}")
+        e.printStackTrace()
         None
     }
   }
