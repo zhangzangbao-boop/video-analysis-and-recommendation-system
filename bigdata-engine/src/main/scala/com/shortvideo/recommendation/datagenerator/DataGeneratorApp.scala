@@ -4,8 +4,10 @@ import java.io.{BufferedWriter, FileWriter}
 import java.util.concurrent.{Executors, ScheduledExecutorService, TimeUnit}
 import com.shortvideo.recommendation.common.entity.UserBehavior
 import com.shortvideo.recommendation.common.utils.HDFSUtil
+
 import scala.io.StdIn
 import java.io.File
+import scala.language.postfixOps
 
 /**
  * 数据生成器主应用程序
@@ -19,8 +21,9 @@ object DataGeneratorApp {
     println("1. 按数量生成 (指定生成数据条数)")
     println("2. 按时间生成 (指定生成持续时间)")
     println("3. 实时生成 (持续生成直到停止)")
+    println("4. 高质量数据生成 (专为ALS模型训练优化)")
     
-    val choice = StdIn.readLine("请输入选择 (1/2/3): ").trim
+    val choice = StdIn.readLine("请输入选择 (1/2/3/4): ").trim
     
     // 确保日志目录存在 (生成到bigdata-engine/logs下)
     val logDir = new File("bigdata-engine/logs")
@@ -42,6 +45,7 @@ object DataGeneratorApp {
         case "1" => generateByCount()
         case "2" => generateByTime()
         case "3" => generateRealTime()
+        case "4" => generateHighQualityData()
         case _ => 
           println("无效选择，使用默认模式: 按数量生成")
           generateByCount()
@@ -189,6 +193,49 @@ object DataGeneratorApp {
   }
   
   /**
+   * 生成高质量数据集，专为ALS模型训练优化
+   */
+  private def generateHighQualityData(): Unit = {
+    print("请输入要生成的高质量数据条数: ")
+    val countStr = StdIn.readLine().trim
+    
+    try {
+      val count = countStr.toInt
+      if (count <= 0) {
+        println("数据条数必须大于0")
+        return
+      }
+      
+      println(s"开始生成 $count 条高质量数据...")
+      val generator = LogGenerator()
+      val startTime = System.currentTimeMillis()
+      
+      val behaviors = generator.generateHighQualityDataSet(count)
+      
+      // 输出到2控制台或文件
+      outputBehaviors(behaviors, s"Generated $count high-quality records in ${System.currentTimeMillis() - startTime}ms")
+      
+      // 输出统计信息
+      val userStats = behaviors.groupBy(_.userId).mapValues(_.size).toMap
+      val videoStats = behaviors.groupBy(_.videoId).mapValues(_.size).toMap
+      val minUserBehaviors = userStats.values.min
+      val minVideoBehaviors = videoStats.values.min
+      val avgUserBehaviors = userStats.values.sum.toDouble / userStats.size
+      val avgVideoBehaviors = videoStats.values.sum.toDouble / videoStats.size
+      
+      println(s"[STATS] 用户行为统计 - 最少: $minUserBehaviors, 平均: ${avgUserBehaviors.formatted("%.2f")}, 总用户: ${userStats.size}")
+      println(s"[STATS] 视频互动统计 - 最少: $minVideoBehaviors, 平均: ${avgVideoBehaviors.formatted("%.2f")}, 总视频: ${videoStats.size}")
+      println(s"[INFO] 数据特点: 增强了用户行为重复度和视频互动频率，更适合ALS模型训练")
+
+    } catch {
+      case _: NumberFormatException =>
+        println("输入的不是有效数字")
+      case ex: Exception =>
+        println(s"生成数据时发生错误: ${ex.getMessage}")
+    }
+  }
+  
+  /**
    * 输出行为数据
    */
   private def outputBehaviors(behaviors: List[UserBehavior], description: String): Unit = {
@@ -215,20 +262,6 @@ object DataGeneratorApp {
   private def saveToFlumeDirectory(logEntry: String): Unit = {
     // 1. 先保存到本地目录
     try {
-      // 为每个日志条目创建唯一的临时文件，然后重命名以确保Flume能正确处理
-      val timestamp = System.currentTimeMillis()
-      val tempFileName = s"logs/temp_$timestamp.tmp"
-      val finalFileName = s"logs/user_behavior_${timestamp}.json"
-
-      // 先写入临时文件
-      val tempWriter = new BufferedWriter(new FileWriter(tempFileName))
-      tempWriter.write(logEntry)
-      tempWriter.close()
-
-      // 重命名文件，这样Flume的spooldir source能检测到新文件
-      val tempFile = new java.io.File(tempFileName)
-      val finalFile = new java.io.File(finalFileName)
-      tempFile.renameTo(finalFile)
 
       // 检查是否有参数指定生成到特定文件
       val flumeMode = sys.props.getOrElse("flume.mode", "spooldir") // 默认使用spooldir模式
@@ -274,6 +307,23 @@ object DataGeneratorApp {
           println(s"警告: 文件重命名失败，文件可能已存在或路径不可访问: ${finalFile.getAbsolutePath}")
         }
       }
+
+      // 为每个日志条目创建唯一的临时文件，然后重命名以确保Flume能正确处理
+      val timestamp = System.currentTimeMillis()
+      val tempFileName = s"logs/temp_$timestamp.tmp"
+      val finalFileName = s"logs/user_behavior_${timestamp}.json"
+
+      // 先写入临时文件
+      val tempWriter = new BufferedWriter(new FileWriter(tempFileName))
+      tempWriter.write(logEntry)
+      tempWriter.close()
+
+      // 重命名文件，这样Flume的spooldir source能检测到新文件
+      val tempFile = new java.io.File(tempFileName)
+      val finalFile = new java.io.File(finalFileName)
+      tempFile.renameTo(finalFile)
+
+
     } catch {
       case ex: Exception =>
         println(s"保存到本地目录失败: ${ex.getMessage}")

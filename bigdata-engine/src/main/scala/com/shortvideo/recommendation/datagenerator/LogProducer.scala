@@ -6,6 +6,9 @@ import com.shortvideo.recommendation.common.utils.{ConfigUtils, KafkaUtil}
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 import org.apache.spark.sql.SparkSession
 
+// 明确导入同包中的 LogGenerator
+import com.shortvideo.recommendation.datagenerator.LogGenerator
+
 /**
  * 日志生产者 - 将模拟数据发送到Kafka
  */
@@ -134,8 +137,8 @@ object LogProducer {
       .getOrCreate()
     
     try {
-      // 生成模拟数据
-      val behaviors = logGenerator.generateUserBehaviors(count)
+      // 生成高质量模拟数据
+      val behaviors = logGenerator.generateHighQualityDataSet(count)
       
       // 转换为JSON字符串
       val jsonLogs = behaviors.map(behavior => logGenerator.generateJsonLog(behavior))
@@ -153,7 +156,7 @@ object LogProducer {
         .mode("append")
         .text(hdfsPath)
       
-      println(s"[INFO] 成功将 $count 条数据写入HDFS路径: $hdfsPath")
+      println(s"[INFO] 成功将 $count 条高质量数据写入HDFS路径: $hdfsPath")
       
     } catch {
       case e: Exception =>
@@ -169,12 +172,12 @@ object LogProducer {
       println("用法:")
       println("  scala LogProducer fixed <count>                    # 发送固定数量消息到Kafka")
       println("  scala LogProducer continuous <minutes>             # 持续发送指定分钟数到Kafka")
-      println("  scala LogProducer hdfs <count>                     # 发送数据到HDFS")
+      println("  scala LogProducer hdfs <count>                     # 发送高质量数据到HDFS")
       println("")
       println("示例:")
       println("  scala LogProducer fixed 1000                       # 发送1000条消息到Kafka")
       println("  scala LogProducer continuous 5                     # 持续发送5分钟到Kafka")
-      println("  scala LogProducer hdfs 500                         # 发送500条数据到HDFS")
+      println("  scala LogProducer hdfs 500                         # 发送500条高质量数据到HDFS")
       return
     }
     
