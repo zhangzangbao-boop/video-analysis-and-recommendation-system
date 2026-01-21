@@ -77,6 +77,7 @@ object SparkUtil {
 
     val sparkConf = new SparkConf()
       .setAppName(appName)
+      .setMaster("local[*]")
       .set("spark.streaming.backpressure.enabled", "true")
       .set("spark.streaming.kafka.maxRatePerPartition", "1000")
       .set("spark.streaming.stopGracefullyOnShutdown", "true")

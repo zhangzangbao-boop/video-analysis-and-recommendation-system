@@ -89,6 +89,7 @@ object RealtimeAnalysisApp {
         }
       }
 
+
       // 10. 监控输出（可选）
       behaviorStream.foreachRDD { rdd =>
         if (!rdd.isEmpty()) {
