@@ -1,3 +1,4 @@
+package com.shortvideo.recommendation.datagenerator
 
 import java.sql.Timestamp
 import java.text.SimpleDateFormat

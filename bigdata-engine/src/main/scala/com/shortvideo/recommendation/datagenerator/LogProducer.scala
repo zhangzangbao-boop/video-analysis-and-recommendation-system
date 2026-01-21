@@ -6,6 +6,9 @@ import com.shortvideo.recommendation.common.utils.{ConfigUtils, KafkaUtil}
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 import org.apache.spark.sql.SparkSession
 
+// 明确导入同包中的 LogGenerator
+import com.shortvideo.recommendation.datagenerator.LogGenerator
+
 /**
  * 日志生产者 - 将模拟数据发送到Kafka
  */
