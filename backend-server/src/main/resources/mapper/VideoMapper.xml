@@ -70,21 +70,7 @@
                 #{isHot}, #{tags}, #{isDeleted}, #{createTime}, #{updateTime})
     </insert>
 
-    <update id="updateById">
-        UPDATE video_info
-        <set>
-            <if test="title != null">title = #{title},</if>
-            <if test="description != null">description = #{description},</if>
-            <if test="coverUrl != null">cover_url = #{coverUrl},</if>
-            <if test="categoryId != null">category_id = #{categoryId},</if>
-            <if test="tags != null">tags = #{tags},</if>
-            <if test="playCount != null">view_count = #{playCount},</if>
-            <if test="likeCount != null">like_count = #{likeCount},</if>
-            <if test="commentCount != null">comment_count = #{commentCount},</if>
-            update_time = NOW()
-        </set>
-        WHERE id = #{id}
-    </update>
+
 
     <delete id="deleteById">
         DELETE FROM video_info WHERE id = #{id}
@@ -159,7 +145,19 @@
         UPDATE video_info SET view_count = view_count + 1, update_time = NOW() WHERE id = #{id}
     </update>
 
-    <update id="updateById">
+
+
+    <update id="incrementLikeCount">
+        UPDATE video_info SET like_count = like_count + 1 WHERE id = #{videoId}
+    </update>
+
+    <update id="updateStatusById">
+        UPDATE video_info
+        SET status = CASE #{status} WHEN 'PENDING' THEN 0 WHEN 'PASSED' THEN 1 WHEN 'REJECTED' THEN 2 ELSE 0 END
+        WHERE id = #{videoId}
+    </update>
+
+    <update id="updateVideoInfo">
         UPDATE video_info
         <set>
             <if test="title != null">title = #{title},</if>
@@ -181,16 +179,6 @@
             update_time = NOW()
         </set>
         WHERE id = #{id}
-    </update>
-
-    <update id="incrementLikeCount">
-        UPDATE video_info SET like_count = like_count + 1 WHERE id = #{videoId}
-    </update>
-
-    <update id="updateStatusById">
-        UPDATE video_info
-        SET status = CASE #{status} WHEN 'PENDING' THEN 0 WHEN 'PASSED' THEN 1 WHEN 'REJECTED' THEN 2 ELSE 0 END
-        WHERE id = #{videoId}
     </update>
 
     <update id="updateAuditResult">

@@ -83,4 +83,9 @@ public interface VideoMapper extends BaseMapper<Video> {
      * 获取所有视频的总播放量（仅统计已发布且未删除的视频）
      */
     Long getTotalPlayCount();
+    
+    /**
+     * 更新视频信息（包含更多字段的更新）
+     */
+    int updateVideoInfo(Video video);
 }

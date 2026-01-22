@@ -422,7 +422,7 @@ public class VideoServiceImpl implements VideoService {
         video.setUpdateTime(LocalDateTime.now());
         
         // 执行更新
-        videoMapper.updateById(video);
+        videoMapper.updateVideoInfo(video);
     }
 
     @Override

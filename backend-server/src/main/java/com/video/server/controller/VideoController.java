@@ -105,6 +105,7 @@ public class VideoController {
             HttpServletRequest request
     ) {
         Long userId = (Long) request.getAttribute("userId");
+        System.out.println(">>> 上传视频，归属 userId: " + userId);
         if (userId == null) {
             String userIdStr = request.getHeader("X-User-Id");
             if (userIdStr != null && !userIdStr.isEmpty()) {
