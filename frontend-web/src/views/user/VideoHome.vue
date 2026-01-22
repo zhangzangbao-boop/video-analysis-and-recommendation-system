@@ -138,7 +138,7 @@
             
             <!-- 视频信息 -->
             <div class="video-info featured-info">
-              <div class="video-title" :title="videos[0].title">
+              <div class="video-title rainbow-text" :title="videos[0].title">
                 {{ videos[0].title || '无标题' }}
               </div>
               <div class="video-description">
@@ -171,12 +171,11 @@
           </div>
           
           <!-- 其他普通卡片 (从第二个视频开始) -->
-          <div 
-            v-for="(video, index) in videos.slice(1)" 
+          <div
+            v-for="(video, index) in videos.slice(1)"
             :key="video.id"
             class="video-card normal-card"
             :class="`card-${(index % 6) + 1}`"
-            :style="{ animationDelay: `${index * 0.05}s` }"
             @click="goToVideoDetail(video)"
           >
             <!-- 视频封面 -->
@@ -194,7 +193,7 @@
             
             <!-- 视频信息 -->
             <div class="video-info normal-info">
-              <div class="video-title" :title="video.title">
+              <div class="video-title rainbow-text" :title="video.title">
                 {{ video.title || '无标题' }}
               </div>
               <div class="video-meta">
@@ -263,6 +262,11 @@ export default {
         // 这里可以添加实际的搜索逻辑
       })
     }
+
+    // 初始化滚动渐入动画观察器（暂时禁用）
+    // this.$nextTick(() => {
+    //   this.initScrollReveal()
+    // })
   },
   
   beforeDestroy() {
@@ -322,6 +326,10 @@ export default {
         this.videos = []
       } finally {
         this.loading = false
+        // 数据加载完成后重新初始化滚动动画（暂时禁用）
+        // this.$nextTick(() => {
+        //   this.initScrollReveal()
+        // })
       }
     },
     
@@ -360,6 +368,12 @@ export default {
       this.loadVideos()
     },
     
+    // 初始化滚动渐入动画（暂时禁用，避免影响视频显示）
+    initScrollReveal() {
+      // 暂时移除滚动动画功能，确保视频正常显示
+      // 后续可以重新启用
+    },
+
     // 刷新视频推荐（每次刷新推送新视频）
     async refreshVideos() {
       if (this.loading || this.refreshing) return
@@ -407,10 +421,18 @@ export default {
           if (uniqueNewVideos.length > 0) {
             this.videos = [...uniqueNewVideos, ...this.videos]
             this.$message.success(`已推送 ${uniqueNewVideos.length} 个新视频`)
+            // 重新初始化滚动动画（暂时禁用）
+            // this.$nextTick(() => {
+            //   this.initScrollReveal()
+            // })
           } else {
             // 如果没有新视频，完全替换列表（可能是所有推荐都已显示）
             this.videos = newVideos
             this.$message.info('已刷新推荐列表')
+            // 重新初始化滚动动画（暂时禁用）
+            // this.$nextTick(() => {
+            //   this.initScrollReveal()
+            // })
           }
         } else {
           this.$message.warning('暂无推荐视频')
@@ -741,16 +763,13 @@ export default {
   grid-column: 1 / span 2;
   grid-row: 1 / span 2;
   background: white;
-  border-radius: 24px;
+  border-radius: 12px;
   overflow: hidden;
   position: relative;
   cursor: pointer;
   transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
   border: 1px solid rgba(0, 0, 0, 0.05);
-  animation: cardAppear 0.6s ease forwards;
-  opacity: 0;
-  transform: translateY(20px);
   display: flex;
   flex-direction: column;
 }
@@ -764,7 +783,7 @@ export default {
 
 .featured-card:hover {
   transform: translateY(-10px) scale(1.01);
-  box-shadow: 0 25px 60px rgba(0, 174, 236, 0.15), 0 0 0 1px rgba(0, 174, 236, 0.1);
+  box-shadow: 0 12px 20px rgba(0, 0, 0, 0.2);
 }
 
 .featured-badge {
@@ -888,15 +907,45 @@ export default {
 }
 
 .featured-info .video-title {
-  font-size: 24px;
+  font-size: 16px;
   font-weight: 700;
-  color: #18191c;
+  font-family: "Microsoft YaHei", sans-serif;
   margin-bottom: 12px;
   line-height: 1.3;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  animation: titleBounce 1s ease-in-out infinite;
+}
+
+@keyframes titleBounce {
+  0%, 100% { transform: translateY(0); }
+  25% { transform: translateY(-2px); }
+  50% { transform: translateY(0); }
+  75% { transform: translateY(2px); }
+}
+
+/* 视频标题彩虹渐变效果 */
+.video-title.rainbow-text {
+  background: linear-gradient(45deg,
+    #ff0000 0%, #ff0000 16.67%,
+    #ff9900 16.67%, #ff9900 33.33%,
+    #ffff00 33.33%, #ffff00 50%,
+    #00ff00 50%, #00ff00 66.67%,
+    #0099ff 66.67%, #0099ff 83.33%,
+    #9900ff 83.33%, #9900ff 100%
+  );
+  background-size: 400% 400%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: rainbowShift 2s ease-in-out infinite;
+}
+
+@keyframes rainbowShift {
+  0%, 100% { background-position: 0% 0%; }
+  50% { background-position: 100% 100%; }
 }
 
 .video-description {
@@ -927,9 +976,22 @@ export default {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #61666d;
-  font-size: 14px;
+  font-family: "华文行楷", "Ma Shan Zheng", cursive;
+  font-size: 12px;
   font-weight: 500;
+  color: #666;
+  -webkit-text-stroke: 1px #99ccff;
+  text-stroke: 1px #99ccff;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.video-duration-stat:hover,
+.video-views-stat:hover {
+  transform: rotate(5deg) scale(1.1);
+  color: #ffff00;
+  -webkit-text-stroke: 1px #ff0000;
+  text-stroke: 1px #ff0000;
 }
 
 .video-duration-stat i,
@@ -946,8 +1008,20 @@ export default {
 
 .author-name {
   font-weight: 600;
-  color: #18191c;
-  font-size: 16px;
+  font-family: "华文行楷", "Ma Shan Zheng", cursive;
+  font-size: 12px;
+  color: #666;
+  -webkit-text-stroke: 1px #ff99cc;
+  text-stroke: 1px #ff99cc;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.author-name:hover {
+  transform: rotate(5deg) scale(1.1);
+  color: #ffff00;
+  -webkit-text-stroke: 1px #ff0000;
+  text-stroke: 1px #ff0000;
 }
 
 .author-followers {
@@ -1014,21 +1088,18 @@ export default {
 /* 普通卡片 */
 .normal-card {
   background: white;
-  border-radius: 16px;
+  border-radius: 12px;
   overflow: hidden;
   cursor: pointer;
   position: relative;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
   border: 1px solid rgba(0, 0, 0, 0.03);
-  opacity: 0;
-  animation: cardAppear 0.6s ease forwards;
 }
 
 .normal-card:hover {
   transform: translateY(-6px);
-  box-shadow: 0 16px 40px rgba(0, 174, 236, 0.12);
-  border-color: rgba(0, 174, 236, 0.1);
+  box-shadow: 0 12px 20px rgba(0, 0, 0, 0.2);
 }
 
 .normal-cover {
@@ -1071,16 +1142,46 @@ export default {
 }
 
 .normal-info .video-title {
-  font-weight: 600;
-  color: #18191c;
+  font-weight: 700;
+  font-family: "Microsoft YaHei", sans-serif;
   line-height: 1.4;
-  font-size: 14px;
+  font-size: 16px;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   min-height: 40px;
   margin-bottom: 12px;
+  animation: titleBounce 1s ease-in-out infinite;
+}
+
+@keyframes titleBounce {
+  0%, 100% { transform: translateY(0); }
+  25% { transform: translateY(-2px); }
+  50% { transform: translateY(0); }
+  75% { transform: translateY(2px); }
+}
+
+/* 视频标题彩虹渐变效果 */
+.video-title.rainbow-text {
+  background: linear-gradient(45deg,
+    #ff0000 0%, #ff0000 16.67%,
+    #ff9900 16.67%, #ff9900 33.33%,
+    #ffff00 33.33%, #ffff00 50%,
+    #00ff00 50%, #00ff00 66.67%,
+    #0099ff 66.67%, #0099ff 83.33%,
+    #9900ff 83.33%, #9900ff 100%
+  );
+  background-size: 400% 400%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: rainbowShift 2s ease-in-out infinite;
+}
+
+@keyframes rainbowShift {
+  0%, 100% { background-position: 0% 0%; }
+  50% { background-position: 100% 100%; }
 }
 
 .normal-card:hover .video-title {

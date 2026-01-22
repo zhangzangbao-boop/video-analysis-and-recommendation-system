@@ -2,6 +2,26 @@
   <div class="main-container">
     <!-- 顶部导航栏 -->
     <el-header class="main-header">
+      <!-- 轮播背景 -->
+      <div class="banner-carousel" ref="bannerCarousel" @mouseenter="pauseCarousel" @mouseleave="resumeCarousel">
+        <div
+          v-for="(banner, index) in bannerImages"
+          :key="index"
+          class="banner-slide"
+          :class="{ active: currentBanner === index }"
+          :style="{ backgroundImage: `url(${banner})` }"
+        ></div>
+        <!-- 轮播指示器 -->
+        <div class="banner-indicators">
+          <div
+            v-for="(banner, index) in bannerImages"
+            :key="`dot-${index}`"
+            class="banner-dot"
+            :class="{ active: currentBanner === index }"
+            @click="goToBanner(index)"
+          ></div>
+        </div>
+      </div>
       <!-- 左侧：标题 + 导航菜单 -->
       <div class="header-left-section">
         <div class="logo-wrapper" @click="$router.push('/main/video')">
@@ -159,7 +179,16 @@ export default {
       loadingMessages: false,
       messageTimer: null,
       // 用户信息
-      userInfo: null
+      userInfo: null,
+      // 轮播相关
+      bannerImages: [
+        require('@/logo/banner1.png'),
+        require('@/logo/banner2.png'),
+        require('@/logo/banner3.png')
+      ],
+      currentBanner: 0,
+      carouselInterval: null,
+      isPaused: false
     }
   },
   computed: {
@@ -205,10 +234,15 @@ export default {
     this.$nextTick(() => {
       document.addEventListener('click', this.handleClickOutside)
     })
+    // 启动轮播
+    this.startCarousel()
   },
   beforeDestroy() {
     if (this.messageTimer) {
       clearInterval(this.messageTimer)
+    }
+    if (this.carouselInterval) {
+      clearInterval(this.carouselInterval)
     }
     // 移除事件监听
     document.removeEventListener('click', this.handleClickOutside)
@@ -429,18 +463,18 @@ export default {
       if (!this.showMessageDropdown) {
         return
       }
-      
+
       const messageNotification = this.$refs.messageNotification
       const messageDropdown = this.$refs.messageDropdown
-      
+
       if (!messageNotification || !messageDropdown) {
         return
       }
-      
+
       // 获取 DOM 元素
       const notificationEl = messageNotification.$el || messageNotification
       const dropdownEl = messageDropdown.$el || messageDropdown
-      
+
       // 如果点击的不是消息通知区域和下拉框，则关闭下拉框
       if (notificationEl && dropdownEl) {
         const target = event.target
@@ -448,6 +482,31 @@ export default {
           this.showMessageDropdown = false
         }
       }
+    },
+
+    // 轮播相关方法
+    startCarousel() {
+      this.carouselInterval = setInterval(() => {
+        if (!this.isPaused) {
+          this.nextBanner()
+        }
+      }, 2000) // 2秒切换一次
+    },
+
+    nextBanner() {
+      this.currentBanner = (this.currentBanner + 1) % this.bannerImages.length
+    },
+
+    goToBanner(index) {
+      this.currentBanner = index
+    },
+
+    pauseCarousel() {
+      this.isPaused = true
+    },
+
+    resumeCarousel() {
+      this.isPaused = false
     }
   }
 }
@@ -471,6 +530,62 @@ export default {
   box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
   position: relative;
   z-index: 1000;
+  overflow: hidden; /* 隐藏超出宽度的背景图 */
+}
+
+/* 轮播背景容器 */
+.banner-carousel {
+  position: absolute;
+  top: 0;
+  left: -10px; /* 左侧延伸10px */
+  right: -10px; /* 右侧延伸10px */
+  height: 100%;
+  overflow: hidden;
+  z-index: 1;
+}
+
+/* 单个轮播图片 */
+.banner-slide {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity 0.5s ease-in-out;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.banner-slide.active {
+  opacity: 1;
+}
+
+/* 轮播指示器 */
+.banner-indicators {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  z-index: 2;
+}
+
+.banner-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.banner-dot.active {
+  background: white;
+  transform: scale(1.3);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
 }
 
 /* 左侧区域 */
@@ -590,18 +705,31 @@ export default {
 .header-search-input-wrapper {
   position: relative;
   background: rgba(255, 255, 255, 0.95);
-  border-radius: 20px;
+  border-radius: 15px;
   padding: 8px 16px 8px 40px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
+  border: 2px solid #ccc;
   transition: all 0.3s ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  min-width: 280px;
+  width: 300px;
+  min-width: 200px;
 }
 
 .header-search-input-wrapper:focus-within {
-  border-color: rgba(255, 255, 255, 0.6);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  background: white;
+  border: 2px solid transparent;
+  background: linear-gradient(white, white) padding-box,
+              linear-gradient(45deg, #ff0000, #ff9900, #ffff00, #00ff00, #0099ff, #9900ff) border-box;
+  background-size: 400% 400%;
+  animation: rainbowBorder 2s ease-in-out infinite;
+  box-shadow: 0 0 8px rgba(255, 0, 0, 0.3);
+}
+
+@keyframes rainbowBorder {
+  0%, 100% { background-position: 0% 0%; }
+  16.67% { background-position: 100% 0%; }
+  33.33% { background-position: 100% 100%; }
+  50% { background-position: 0% 100%; }
+  66.67% { background-position: -100% 100%; }
+  83.33% { background-position: -100% 0%; }
 }
 
 .header-search-icon {
@@ -612,6 +740,34 @@ export default {
   color: #9499a0;
   font-size: 16px;
   z-index: 1;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.5s ease-in-out;
+}
+
+.header-search-input-wrapper:focus-within .header-search-icon {
+  animation: iconRotate 0.5s ease-in-out, rainbowColor 0.2s ease-in-out infinite;
+}
+
+@keyframes iconRotate {
+  from {
+    transform: translateY(-50%) rotate(0deg);
+  }
+  to {
+    transform: translateY(-50%) rotate(180deg);
+  }
+}
+
+@keyframes rainbowColor {
+  0%, 100% { color: #ff0000; }
+  16.67% { color: #ff9900; }
+  33.33% { color: #ffff00; }
+  50% { color: #00ff00; }
+  66.67% { color: #0099ff; }
+  83.33% { color: #9900ff; }
 }
 
 .header-search-input {
@@ -622,6 +778,8 @@ export default {
   color: #18191c;
   outline: none;
   padding: 0;
+  height: 24px;
+  line-height: 24px;
 }
 
 .header-search-input::placeholder {
