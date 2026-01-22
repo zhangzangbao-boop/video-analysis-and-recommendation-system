@@ -55,7 +55,7 @@ export const userVideoApi = {
       method: 'post',
       data: formData,
       headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 300000
+      timeout: 300000.
     })
   },
 
@@ -70,6 +70,15 @@ export const userVideoApi = {
   // ==========================================
   // 2. 核心互动
   // ==========================================
+
+  // 记录用户行为（发送到Kafka）
+  recordBehavior(userId, videoId, actionType) {
+    return request({
+      url: '/api/v1/user/behavior',
+      method: 'post',
+      data: { userId, videoId, actionType }
+    })
+  },
 
   likeVideo(videoId) {
     return request({ url: `/api/v1/video/${videoId}/like`, method: 'post' })

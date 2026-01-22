@@ -7,6 +7,7 @@ import java.time.{LocalDate, LocalDateTime}
 import java.time.format.DateTimeFormatter
 import org.apache.hadoop.fs.{FileSystem, Path}
 import org.apache.hadoop.conf.Configuration
+import com.shortvideo.recommendation.common.config.DatabaseConfig
 
 /**
  * 离线统计分析任务
@@ -21,10 +22,10 @@ import org.apache.hadoop.conf.Configuration
  */
 object OfflineJob {
 
-  // MySQL 连接配置（与 MySQLWriter 保持一致）
-  private val JDBC_URL = "jdbc:mysql://localhost:3306/short_video_platform?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai"
-  private val JDBC_USER = "root"
-  private val JDBC_PASSWORD = "041206"
+  // MySQL 连接配置（使用统一的DatabaseConfig）
+  private val JDBC_URL = DatabaseConfig.JDBC_URL
+  private val JDBC_USER = DatabaseConfig.JDBC_USER
+  private val JDBC_PASSWORD = DatabaseConfig.JDBC_PASSWORD
 
   def main(args: Array[String]): Unit = {
     val spark = SparkSession.builder()

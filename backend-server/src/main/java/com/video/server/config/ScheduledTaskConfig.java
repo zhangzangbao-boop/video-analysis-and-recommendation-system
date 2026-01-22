@@ -76,8 +76,8 @@ public class ScheduledTaskConfig {
      */
     @Scheduled(cron = "0 0 2 * * ?")
     public void runOfflineJob() {
-        log.info("========== 开始执行离线分析任务 ==========");
-        executeSparkJob(OFFLINE_JOB_CLASS, "离线分析");
+        log.info("========== 开始执行离线分析任务（定时任务） ==========");
+        triggerOfflineJob(null);
     }
 
     /**
@@ -85,14 +85,36 @@ public class ScheduledTaskConfig {
      */
     @Scheduled(cron = "0 0 3 ? * MON")
     public void runALSTrainer() {
+        log.info("========== 开始执行ALS模型训练任务（定时任务） ==========");
+        triggerALSTrainer();
+    }
+    
+    /**
+     * 手动触发离线分析任务（供Controller调用）
+     * @param date 可选，指定统计日期（格式：yyyy-MM-dd），不传则使用昨天
+     */
+    public void triggerOfflineJob(String date) {
+        log.info("========== 开始执行离线分析任务 ==========");
+        String dateArg = date != null && !date.isEmpty() ? date : 
+            LocalDate.now().minusDays(1).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        executeSparkJob(OFFLINE_JOB_CLASS, "离线分析", dateArg);
+    }
+    
+    /**
+     * 手动触发ALS模型训练任务（供Controller调用）
+     */
+    public void triggerALSTrainer() {
         log.info("========== 开始执行ALS模型训练任务 ==========");
-        executeSparkJob(ALS_TRAINER_CLASS, "ALS模型训练");
+        executeSparkJob(ALS_TRAINER_CLASS, "ALS模型训练", null);
     }
 
     /**
      * 执行Spark任务
+     * @param mainClass 主类名
+     * @param jobName 任务名称
+     * @param dateArg 可选，日期参数（用于离线分析任务）
      */
-    private void executeSparkJob(String mainClass, String jobName) {
+    private void executeSparkJob(String mainClass, String jobName, String dateArg) {
         executorService.submit(() -> {
             try {
                 // 查找bigdata-engine目录
@@ -110,7 +132,7 @@ public class ScheduledTaskConfig {
                 log.info("{}任务 - 找到JAR文件: {}", jobName, jarFile.getAbsolutePath());
 
                 // 获取Spark提交命令
-                String sparkSubmitCmd = getSparkSubmitCommand(jarFile, mainClass);
+                String sparkSubmitCmd = getSparkSubmitCommand(jarFile, mainClass, dateArg);
                 
                 log.info("{}任务执行命令: {}", jobName, sparkSubmitCmd);
                 
@@ -213,23 +235,32 @@ public class ScheduledTaskConfig {
 
     /**
      * 获取Spark提交命令
+     * @param jarFile JAR文件
+     * @param mainClass 主类名
+     * @param dateArg 可选，日期参数（用于离线分析任务）
+     * @return Spark提交命令
      */
-    private String getSparkSubmitCommand(File jarFile, String mainClass) {
+    private String getSparkSubmitCommand(File jarFile, String mainClass, String dateArg) {
         String jarPath = "target/" + JAR_NAME;
         
         // 查找spark-submit可执行文件
         String sparkSubmit = findSparkSubmit();
         
-        // 对于离线分析任务，传递日期参数（昨天的日期）
-        String dateArg = "";
+        // 对于离线分析任务，传递日期参数
+        String finalDateArg = "";
         if (OFFLINE_JOB_CLASS.equals(mainClass)) {
-            LocalDate yesterday = LocalDate.now().minusDays(1);
-            dateArg = " " + yesterday.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+            if (dateArg != null && !dateArg.isEmpty()) {
+                finalDateArg = " " + dateArg;
+            } else {
+                // 默认使用昨天的日期
+                LocalDate yesterday = LocalDate.now().minusDays(1);
+                finalDateArg = " " + yesterday.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+            }
         }
         
         return String.format(
             "%s --class %s --master local[*] --driver-memory 2g --executor-memory 2g %s%s",
-            sparkSubmit, mainClass, jarPath, dateArg
+            sparkSubmit, mainClass, jarPath, finalDateArg
         );
     }
 }

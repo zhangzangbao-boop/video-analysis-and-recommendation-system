@@ -211,7 +211,8 @@ export default {
         playDuration: 0,
         isCompleted: false
       },
-      lastRecordTime: null
+      lastRecordTime: null,
+      hasRecordedView: false
     }
   },
 
@@ -458,6 +459,7 @@ export default {
 
       this.stopBehaviorTracking()
       this.sendUserBehavior()
+      this.hasRecordedView = false  // 重置观看记录标记
 
       if (!video.url || !video.videoUrl) {
         if (video.id) {
@@ -611,6 +613,18 @@ export default {
     handleVideoPlay() {
       this.isPlaying = true
       this.startBehaviorTracking()
+      
+      // 记录观看行为到Kafka（首次播放时）
+      if (this.currentVideo.id && !this.hasRecordedView) {
+        this.hasRecordedView = true
+        const userId = localStorage.getItem('userId')
+        if (userId) {
+          // 【修复】直接传递字符串，避免parseInt()精度丢失（大整数问题）
+          userVideoApi.recordBehavior(userId, this.currentVideo.id, 'view').catch(err => {
+            console.warn('记录观看行为失败:', err)
+          })
+        }
+      }
     },
 
     handleVideoPause() {

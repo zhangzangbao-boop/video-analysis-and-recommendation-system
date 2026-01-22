@@ -105,15 +105,16 @@ object MySQLWriter {
       connection.setAutoCommit(false)
 
       // [修正] 字段适配: movie_id -> video_id (依据 database.sql)
-      // [修正] 包含 model_id (依据 database.sql)
+      // [修正] 包含 model_id 和 reason (与实时推荐保持一致)
       val sql =
         """
           |INSERT INTO recommendation_result
-          |(user_id, video_id, score, `rank`, `type`, model_id, create_time, update_time)
-          |VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          |(user_id, video_id, score, `rank`, `type`, reason, model_id, create_time, update_time)
+          |VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
           |ON DUPLICATE KEY UPDATE
           |score = VALUES(score),
           |`rank` = VALUES(`rank`),
+          |reason = VALUES(reason),
           |model_id = VALUES(model_id),
           |update_time = VALUES(update_time)
         """.stripMargin
@@ -121,6 +122,9 @@ object MySQLWriter {
       insertStmt = connection.prepareStatement(sql)
       val currentTime = new Timestamp(System.currentTimeMillis())
       var batchCount = 0
+      
+      // 根据推荐类型设置推荐理由
+      val reason = if (recommendType == "OFFLINE") "基于协同过滤推荐" else "离线推荐"
 
       partition.foreach { row =>
         try {
@@ -140,9 +144,10 @@ object MySQLWriter {
                 insertStmt.setDouble(3, score.toDouble)
                 insertStmt.setInt(4, rank)
                 insertStmt.setString(5, recommendType)
-                insertStmt.setString(6, modelId) // 写入模型ID
-                insertStmt.setTimestamp(7, currentTime)
+                insertStmt.setString(6, reason) // 写入推荐理由
+                insertStmt.setString(7, modelId) // 写入模型ID
                 insertStmt.setTimestamp(8, currentTime)
+                insertStmt.setTimestamp(9, currentTime)
 
                 insertStmt.addBatch()
                 batchCount += 1

@@ -28,6 +28,9 @@ public class UserBehaviorController {
      */
     @PostMapping("/behavior")
     public ResponseEntity<Void> recordBehavior(@RequestBody UserBehaviorRequest request) {
+
+        System.out.println("1\n1\n\n\n\n\n\n");
+
         userBehaviorService.recordBehavior(request);
         return ResponseEntity.ok().build();
     }

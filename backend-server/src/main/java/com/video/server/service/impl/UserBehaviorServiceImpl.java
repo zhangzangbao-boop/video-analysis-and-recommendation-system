@@ -1,5 +1,6 @@
 package com.video.server.service.impl;
 
+import com.video.server.dto.UserBehaviorKafkaMessage;
 import com.video.server.dto.UserBehaviorRequest;
 import com.video.server.entity.UserBehavior;
 import com.video.server.mapper.UserBehaviorMapper;
@@ -48,31 +49,48 @@ public class UserBehaviorServiceImpl implements UserBehaviorService {
         if ("like".equalsIgnoreCase(request.getActionType())) {
             videoService.incrementLikeCount(request.getVideoId());
         }
-        
+
+        System.out.println("1\n1\n\n\n\n\n\n");
+
+
         // 3. 如果Kafka可用，发送行为数据到 Kafka
         if (kafkaTemplate != null) {
             try {
-                log.info("发送用户行为数据到Kafka: userId={}, videoId={}, actionType={}", 
-                        userBehavior.getUserId(), userBehavior.getVideoId(), userBehavior.getActionType());
-                ListenableFuture<SendResult<String, Object>> future = kafkaTemplate.send(KAFKA_TOPIC, userBehavior);
+                // 转换为大数据模块期望的格式
+                UserBehaviorKafkaMessage kafkaMessage = UserBehaviorKafkaMessage.builder()
+                        .userId(userBehavior.getUserId())
+                        .videoId(userBehavior.getVideoId())
+                        .behaviorType(userBehavior.getActionType())  // actionType -> behaviorType
+                        .behaviorTime(UserBehaviorKafkaMessage.formatTime(userBehavior.getCreateTime()))  // createTime -> behaviorTime (字符串格式)
+                        .duration(0)
+                        .deviceInfo("")
+                        .networkType("")
+                        .ipAddress("")
+                        .location("")
+                        .extraInfo("")
+                        .build();
+                
+                ListenableFuture<SendResult<String, Object>> future = kafkaTemplate.send(KAFKA_TOPIC, kafkaMessage);
                 future.addCallback(new ListenableFutureCallback<SendResult<String, Object>>() {
                     @Override
                     public void onSuccess(SendResult<String, Object> result) {
-                        log.info("Kafka消息发送成功: topic={}, offset={}", 
-                                KAFKA_TOPIC, result.getRecordMetadata().offset());
+                        // 只记录成功信息，简化输出
+                        log.info("✓ Kafka消息已发送: userId={}, videoId={}, behaviorType={}, offset={}", 
+                                userBehavior.getUserId(), userBehavior.getVideoId(), 
+                                userBehavior.getActionType(), result.getRecordMetadata().offset());
                     }
                     
                     @Override
                     public void onFailure(Throwable ex) {
-                        log.error("Kafka消息发送失败: topic={}, error={}", KAFKA_TOPIC, ex.getMessage(), ex);
+                        log.error("✗ Kafka消息发送失败: userId={}, videoId={}, error={}", 
+                                userBehavior.getUserId(), userBehavior.getVideoId(), ex.getMessage());
                     }
                 });
             } catch (Exception e) {
-                // Kafka发送失败不影响主流程，只记录日志
-                log.error("Kafka消息发送异常: topic={}, error={}", KAFKA_TOPIC, e.getMessage(), e);
+                // Kafka发送失败不影响主流程，只记录错误
+                log.error("✗ Kafka消息发送异常: userId={}, videoId={}, error={}", 
+                        userBehavior.getUserId(), userBehavior.getVideoId(), e.getMessage());
             }
-        } else {
-            log.warn("KafkaTemplate未配置，跳过消息发送");
         }
     }
 }

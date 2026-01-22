@@ -211,6 +211,15 @@ export default {
           // 再次确认：如果后端返回 false (比如已经点过赞)，则不需要回滚，保持现状即可
           // 但如果后端报错，catch 会捕获
           if (res.code !== 200) throw new Error(res.message)
+          
+          // 记录用户行为到Kafka
+          const userId = localStorage.getItem('userId')
+          if (userId) {
+            // 【修复】直接传递字符串，避免parseInt()精度丢失（大整数问题）
+            userVideoApi.recordBehavior(userId, this.video.id, 'like').catch(err => {
+              console.warn('记录用户行为失败:', err)
+            })
+          }
         } else {
           // 之前已点赞 -> 现在取消
           const res = await userVideoApi.unlikeVideo(this.video.id)
@@ -256,6 +265,15 @@ export default {
           this.isCollected = true
           // 同样做强制类型转换
           this.currentCollectCount = (parseInt(this.currentCollectCount) || 0) + 1
+          
+          // 记录用户行为到Kafka
+          const userId = localStorage.getItem('userId')
+          if (userId) {
+            // 【修复】直接传递字符串，避免parseInt()精度丢失（大整数问题）
+            userVideoApi.recordBehavior(userId, this.video.id, 'collect').catch(err => {
+              console.warn('记录用户行为失败:', err)
+            })
+          }
         }
         this.$message.success('收藏成功')
         this.collectionVisible = false
@@ -279,6 +297,15 @@ export default {
       try {
         await userVideoApi.shareVideo(this.video.id)
         this.currentShareCount = (parseInt(this.currentShareCount) || 0) + 1
+        
+        // 记录用户行为到Kafka
+        const userId = localStorage.getItem('userId')
+        if (userId) {
+          // 【修复】直接传递字符串，避免parseInt()精度丢失（大整数问题）
+          userVideoApi.recordBehavior(userId, this.video.id, 'share').catch(err => {
+            console.warn('记录用户行为失败:', err)
+          })
+        }
       } catch (e) {
         console.warn('分享统计失败', e)
       }

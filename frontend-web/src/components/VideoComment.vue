@@ -102,6 +102,7 @@
 
 <script>
 import { commentApi } from '@/api/comment'
+import { userVideoApi } from '@/api/user'
 
 export default {
   name: 'VideoComment',
@@ -248,6 +249,15 @@ export default {
             this.commentList.unshift(newComment)
             this.mainContent = ''
             this.totalCount++
+            
+            // 记录评论行为到Kafka（只记录主评论，不记录回复）
+            const userId = localStorage.getItem('userId')
+            if (userId) {
+              // 【修复】直接传递字符串，避免parseInt()精度丢失（大整数问题）
+              userVideoApi.recordBehavior(userId, this.videoId, 'comment').catch(err => {
+                console.warn('记录评论行为失败:', err)
+              })
+            }
           } else {
             if (parentItem) {
               if (!parentItem.replies) this.$set(parentItem, 'replies', [])
