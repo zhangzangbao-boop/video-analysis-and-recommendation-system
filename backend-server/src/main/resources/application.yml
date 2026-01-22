@@ -14,7 +14,7 @@ spring:
   datasource:
     url: jdbc:mysql://localhost:3306/short_video_platform?useUnicode=true&characterEncoding=utf8&serverTimezone=GMT%2B8&allowPublicKeyRetrieval=true&useSSL=false&allowLoadLocalInfile=true
     username: root
-    password: "2468"  # 请修改为您的MySQL root密码
+    password: "123456"  # 请修改为您的MySQL root密码
     driver-class-name: com.mysql.cj.jdbc.Driver
     # 连接池配置
     hikari:
@@ -45,21 +45,6 @@ mybatis:
 jwt:
   secret: your-secret-key-here-please-change-it-to-a-secure-random-string
 
-# 日志配置
-logging:
-  level:
-    root: INFO
-    com.video.server: INFO
-    # 降低第三方库的日志级别
-    org.springframework.kafka: WARN
-    org.apache.kafka: WARN
-    org.mybatis: WARN
-    com.zaxxer.hikari: WARN
-    org.springframework.web: INFO
-    org.springframework.security: WARN
-  pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
-
 # 腾讯云COS配置（用于存储视频和封面）
 tencent:
   cos:
@@ -81,3 +66,8 @@ tencent:
     video-folder: video/short_video/
     # 封面图片存储文件夹（可选，默认cover/）
     cover-folder: video/cover/
+  # 腾讯云内容安全配置（用于AI审核）
+  cms:
+    # 内容安全地域（通常与COS地域相同）
+    region: ap-guangzhou
+    # 注意：使用与COS相同的secret-id和secret-key

@@ -85,7 +85,7 @@ public interface VideoMapper extends BaseMapper<Video> {
     Long getTotalPlayCount();
     
     /**
-     * 更新视频信息（包含更多字段的更新）
+     * 更新视频审核消息
      */
-    int updateVideoInfo(Video video);
+    int updateAuditMessage(@Param("videoId") Long videoId, @Param("auditMsg") String auditMsg);
 }

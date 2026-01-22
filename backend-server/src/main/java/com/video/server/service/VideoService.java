@@ -98,4 +98,9 @@ public interface VideoService {
      * 获取所有视频的总播放量（仅统计已发布且未删除的视频）
      */
     Long getTotalPlayCount();
+    
+    /**
+     * 更新视频审核消息
+     */
+    void updateAuditMessage(Long videoId, String auditMsg);
 }

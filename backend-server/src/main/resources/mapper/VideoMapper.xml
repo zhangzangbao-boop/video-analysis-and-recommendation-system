@@ -198,6 +198,13 @@
         UPDATE video_info SET is_hot = #{isHot} WHERE id = #{videoId}
     </update>
 
+    <update id="updateAuditMessage">
+        UPDATE video_info
+        SET audit_msg = #{auditMsg},
+            update_time = NOW()
+        WHERE id = #{videoId}
+    </update>
+
     <select id="selectByIds" resultMap="VideoDTOResultMap">
         SELECT 
             v.id, v.title, v.description, v.user_id, v.cover_url, v.video_url, v.category_id, 
