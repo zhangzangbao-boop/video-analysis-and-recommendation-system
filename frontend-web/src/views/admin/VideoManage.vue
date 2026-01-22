@@ -114,14 +114,148 @@
             <el-tag size="small">{{ currentVideo.categoryName || '未分类' }}</el-tag>
             <el-tag size="small" type="info">上传于: {{ formatTime(currentVideo.createTime) }}</el-tag>
           </div>
-          <div v-if="currentVideo.auditMsg" style="margin-top: 15px;">
+          <!-- AI审核建议 -->
+          <div v-if="hasAiAudit()" style="margin-top: 15px;">
+            <el-alert 
+              :type="getAiAuditType()" 
+              :closable="false"
+              show-icon>
+              <template slot="title">
+                <span style="font-weight: bold;">🤖 AI审核建议</span>
+                <div style="margin-top: 8px; font-size: 14px;">{{ getAiAuditMessage() }}</div>
+              </template>
+            </el-alert>
+          </div>
+          <!-- 人工审核意见 -->
+          <div v-else-if="currentVideo.auditMsg && !hasAiAudit()" style="margin-top: 15px;">
             <el-alert :title="'审核意见: ' + currentVideo.auditMsg" type="info" :closable="false"></el-alert>
           </div>
         </div>
 
         <el-divider></el-divider>
 
+        <!-- AI分析区域 -->
+        <div style="margin-bottom: 20px; padding: 15px; background: #f0f9ff; border-radius: 4px; border: 1px solid #b3d8ff;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h4 style="margin: 0;"><i class="el-icon-cpu"></i> AI智能分析</h4>
+            <el-button 
+              type="primary" 
+              size="small" 
+              icon="el-icon-search"
+              :loading="aiAnalyzing"
+              @click="triggerAiAudit">
+              {{ aiAuditResult ? '重新分析' : '开始AI分析' }}
+            </el-button>
+          </div>
+          
+          <!-- AI分析结果展示 -->
+          <div v-if="aiAuditResult" style="margin-top: 15px;">
+            <el-alert 
+              :type="getAiResultType()" 
+              :closable="false"
+              show-icon>
+              <template slot="title">
+                <div style="font-weight: bold; margin-bottom: 8px;">AI分析结果</div>
+                <div style="font-size: 14px; line-height: 1.6;">
+                  <div><strong>审核建议：</strong>{{ aiAuditResult.suggestion === 'PASS' ? '通过' : aiAuditResult.suggestion === 'REJECT' ? '驳回' : '人工审核' }}</div>
+                  <div><strong>风险等级：</strong>
+                    <el-tag :type="getRiskTagType()" size="small">{{ getRiskLevelText() }}</el-tag>
+                    <span style="margin-left: 10px;">风险分数：{{ aiAuditResult.riskScore || 0 }}/100</span>
+                  </div>
+                  <div><strong>分析说明：</strong>{{ aiAuditResult.message }}</div>
+                  
+                  <!-- 违规详情 -->
+                  <div v-if="aiAuditResult.violations && aiAuditResult.violations.length > 0" style="margin-top: 10px;">
+                    <div style="font-weight: bold; color: #F56C6C; margin-bottom: 5px;">⚠️ 违规标注：</div>
+                    <div v-for="(violation, index) in aiAuditResult.violations" :key="index" 
+                         style="padding: 8px; background: #fff; border-radius: 4px; margin-bottom: 5px; border-left: 3px solid #F56C6C;">
+                      <div><strong>{{ violation.typeName }}</strong> 
+                        <el-tag size="mini" type="info" style="margin-left: 5px;">{{ violation.location }}</el-tag>
+                        <el-tag size="mini" type="warning" style="margin-left: 5px;">置信度: {{ violation.confidence }}%</el-tag>
+                      </div>
+                      <div style="color: #666; font-size: 12px; margin-top: 3px;">{{ violation.description }}</div>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </el-alert>
+            
+            <!-- 根据AI结果快速操作 -->
+            <div style="margin-top: 15px;">
+              <el-button 
+                v-if="aiAuditResult.suggestion === 'PASS'"
+                type="success" 
+                size="small"
+                :loading="auditLoading"
+                @click="submitAudit('pass', '采纳AI分析结果：通过')">
+                采纳AI建议 - 通过
+              </el-button>
+              <el-button 
+                v-if="aiAuditResult.suggestion === 'REJECT'"
+                type="danger" 
+                size="small"
+                :loading="auditLoading"
+                @click="submitAudit('reject', aiAuditResult.message)">
+                采纳AI建议 - 驳回
+              </el-button>
+              <el-button 
+                v-if="aiAuditResult.suggestion === 'REVIEW'"
+                type="warning" 
+                size="small"
+                :loading="auditLoading"
+                @click="submitAudit('pass', '忽略AI建议，人工通过')">
+                忽略AI建议，人工通过
+              </el-button>
+            </div>
+          </div>
+          
+          <div v-else-if="!aiAnalyzing" style="color: #909399; font-size: 14px; text-align: center; padding: 20px;">
+            点击"开始AI分析"按钮，对视频进行智能审核分析
+          </div>
+          <div v-else style="text-align: center; padding: 20px;">
+            <i class="el-icon-loading" style="font-size: 20px;"></i>
+            <span style="margin-left: 10px;">AI正在分析中，请稍候...</span>
+          </div>
+        </div>
+
+        <el-divider></el-divider>
+
         <div v-if="currentVideo.status === 'PENDING'" class="audit-action">
+          <!-- AI一键操作 -->
+          <div v-if="hasAiAudit()" style="margin-bottom: 20px; padding: 15px; background: #f5f7fa; border-radius: 4px;">
+            <h4 style="margin: 0 0 10px 0;"><i class="el-icon-cpu"></i> AI智能审核</h4>
+            <div style="margin-bottom: 10px; color: #606266; font-size: 14px;">
+              {{ getAiAuditMessage() }}
+            </div>
+            <el-button 
+              v-if="getAiAuditAction() === 'PASS'" 
+              type="success" 
+              icon="el-icon-check" 
+              size="small"
+              :loading="auditLoading"
+              @click="submitAudit('pass', '采纳AI建议：通过')">
+              一键采纳AI建议（通过）
+            </el-button>
+            <el-button 
+              v-if="getAiAuditAction() === 'REJECT'" 
+              type="danger" 
+              icon="el-icon-close" 
+              size="small"
+              :loading="auditLoading"
+              @click="submitAudit('reject', getAiAuditMessage())">
+              一键采纳AI建议（驳回）
+            </el-button>
+            <el-button 
+              v-if="getAiAuditAction() === 'REVIEW'" 
+              type="warning" 
+              icon="el-icon-view" 
+              size="small"
+              :loading="auditLoading"
+              @click="submitAudit('pass', '忽略AI建议，人工通过')">
+              忽略AI建议，人工通过
+            </el-button>
+          </div>
+          
           <h4><i class="el-icon-s-check"></i> 人工审核</h4>
           <el-form>
             <el-form-item label="审核意见">
@@ -184,7 +318,9 @@ export default {
 
       drawerVisible: false,
       auditReason: '',
-      currentVideo: {}
+      currentVideo: {},
+      aiAuditResult: null, // AI分析结果
+      aiAnalyzing: false // AI分析中
     }
   },
   created() {
@@ -239,7 +375,66 @@ export default {
     openVideoDrawer(row) {
       this.currentVideo = row;
       this.auditReason = ''; // 重置审核理由
+      this.aiAuditResult = null; // 重置AI分析结果
       this.drawerVisible = true;
+    },
+    
+    // 触发AI分析
+    async triggerAiAudit() {
+      if (!this.currentVideo || !this.currentVideo.id) {
+        this.$message.warning('请先选择视频');
+        return;
+      }
+      
+      this.aiAnalyzing = true;
+      try {
+        const res = await videoApi.aiAuditVideo(this.currentVideo.id);
+        if (res.code === 200) {
+          this.aiAuditResult = res.data;
+          this.$message.success('AI分析完成');
+          // 刷新视频信息（更新audit_msg）
+          this.fetchList();
+          // 重新获取当前视频信息
+          const videoRes = await videoApi.getVideoById(this.currentVideo.id);
+          if (videoRes.code === 200) {
+            this.currentVideo = videoRes.data;
+          }
+        } else {
+          this.$message.error(res.msg || 'AI分析失败');
+        }
+      } catch (error) {
+        console.error('AI分析失败', error);
+        this.$message.error('AI分析请求失败，请稍后重试');
+      } finally {
+        this.aiAnalyzing = false;
+      }
+    },
+    
+    // 获取AI结果类型（用于el-alert）
+    getAiResultType() {
+      if (!this.aiAuditResult) return 'info';
+      if (this.aiAuditResult.suggestion === 'PASS') return 'success';
+      if (this.aiAuditResult.suggestion === 'REJECT') return 'error';
+      return 'warning';
+    },
+    
+    // 获取风险标签类型
+    getRiskTagType() {
+      if (!this.aiAuditResult) return 'info';
+      const level = this.aiAuditResult.riskLevel;
+      if (level === 'HIGH') return 'danger';
+      if (level === 'MEDIUM') return 'warning';
+      return 'success';
+    },
+    
+    // 获取风险等级文本
+    getRiskLevelText() {
+      if (!this.aiAuditResult) return '未知';
+      const level = this.aiAuditResult.riskLevel;
+      if (level === 'HIGH') return '高风险';
+      if (level === 'MEDIUM') return '中风险';
+      if (level === 'LOW') return '低风险';
+      return '未知';
     },
 
     handleCloseDrawer(done) {
@@ -250,9 +445,53 @@ export default {
       done();
     },
 
+    // 判断是否有AI审核建议
+    hasAiAudit() {
+      return this.currentVideo.auditMsg && this.currentVideo.auditMsg.includes('[AI审核]');
+    },
+
+    // 获取AI审核消息
+    getAiAuditMessage() {
+      if (!this.currentVideo.auditMsg) return '';
+      const msg = this.currentVideo.auditMsg;
+      if (msg.includes('[AI审核]')) {
+        return msg.replace('[AI审核]', '').trim();
+      }
+      return msg;
+    },
+
+    // 获取AI审核类型（用于显示不同颜色的提示）
+    getAiAuditType() {
+      const msg = this.getAiAuditMessage();
+      if (msg.includes('建议通过') || msg.includes('通过审核')) {
+        return 'success';
+      } else if (msg.includes('建议驳回') || msg.includes('驳回')) {
+        return 'error';
+      } else if (msg.includes('人工审核')) {
+        return 'warning';
+      }
+      return 'info';
+    },
+
+    // 获取AI审核建议的操作
+    getAiAuditAction() {
+      const msg = this.getAiAuditMessage();
+      if (msg.includes('建议通过') || msg.includes('通过审核')) {
+        return 'PASS';
+      } else if (msg.includes('建议驳回') || msg.includes('驳回')) {
+        return 'REJECT';
+      } else if (msg.includes('人工审核')) {
+        return 'REVIEW';
+      }
+      return 'PASS';
+    },
+
     // 提交审核
-    async submitAudit(action) {
-      if (action === 'reject' && !this.auditReason.trim()) {
+    async submitAudit(action, aiReason = null) {
+      // 如果使用AI建议，使用AI的原因；否则使用手动输入的原因
+      const reason = aiReason || this.auditReason;
+      
+      if (action === 'reject' && !reason || !reason.trim()) {
         this.$message.warning('驳回操作必须填写审核意见');
         return;
       }
@@ -262,7 +501,7 @@ export default {
         const payload = {
           videoId: this.currentVideo.id,
           action: action,
-          reason: this.auditReason // 将输入框的内容传递给后端
+          reason: reason || '通过审核'
         };
 
         const res = await videoApi.auditVideo(payload);

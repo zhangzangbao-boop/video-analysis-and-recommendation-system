@@ -12,6 +12,7 @@ import com.video.server.mapper.RecommendationResultMapper;
 import com.video.server.mapper.VideoMapper;
 import com.video.server.service.VideoService;
 import com.video.server.utils.TencentCosVideoUtil;
+import com.video.server.utils.SimpleContentAuditUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -302,6 +303,11 @@ public class VideoServiceImpl implements VideoService {
     }
 
     @Override
+    public void updateAuditMessage(Long videoId, String auditMsg) {
+        videoMapper.updateAuditMessage(videoId, auditMsg);
+    }
+
+    @Override
     public void uploadAndPublish(MultipartFile file, MultipartFile coverFile, String title, String description, Integer categoryId, String tags, Long userId) {
         if (file.isEmpty()) throw new RuntimeException("视频文件不能为空");
         String videoUrl = tencentCosVideoUtil.uploadVideo(file);
@@ -309,6 +315,10 @@ public class VideoServiceImpl implements VideoService {
         if (coverFile != null && !coverFile.isEmpty()) {
             coverUrl = tencentCosVideoUtil.uploadCover(coverFile);
         }
+        
+        // AI自动审核文本内容
+        SimpleContentAuditUtil.AuditResult auditResult = SimpleContentAuditUtil.auditVideoContent(title, description, tags);
+        
         Video video = new Video();
         video.setId(com.video.server.utils.IdGenerator.nextId());
         video.setAuthorId(userId);
@@ -320,6 +330,11 @@ public class VideoServiceImpl implements VideoService {
         video.setTags(tags);
         video.setDuration(0);
         video.setStatus(VideoStatus.PENDING);
+        
+        // 保存AI审核结果到审核意见字段
+        String auditMsg = "[AI审核] " + auditResult.getReason();
+        video.setAuditMsg(auditMsg);
+        
         video.setIsHot(0);
         video.setPlayCount(0L);
         video.setLikeCount(0L);
@@ -334,6 +349,13 @@ public class VideoServiceImpl implements VideoService {
     @Override
     @Transactional
     public void uploadVideo(VideoUploadRequest request, Long userId) {
+        // AI自动审核文本内容
+        SimpleContentAuditUtil.AuditResult auditResult = SimpleContentAuditUtil.auditVideoContent(
+            request.getTitle(), 
+            request.getDescription(), 
+            request.getTags()
+        );
+        
         Video video = new Video();
         video.setId(com.video.server.utils.IdGenerator.nextId());
         video.setAuthorId(userId);
@@ -345,6 +367,11 @@ public class VideoServiceImpl implements VideoService {
         video.setTags(request.getTags());
         video.setDuration(request.getDuration() != null ? request.getDuration() : 0);
         video.setStatus(VideoStatus.PENDING);
+        
+        // 保存AI审核结果到审核意见字段
+        String auditMsg = "[AI审核] " + auditResult.getReason();
+        video.setAuditMsg(auditMsg);
+        
         video.setIsHot(0);
         video.setPlayCount(0L);
         video.setLikeCount(0L);

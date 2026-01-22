@@ -151,6 +151,14 @@ export const videoApi = {
     })
   },
 
+  // AI分析视频
+  aiAuditVideo(id) {
+    return request({
+      url: `/api/admin/video/${id}/ai-audit`,
+      method: 'post'
+    })
+  },
+
   // ==========================================
   // 系统通知管理
   // ==========================================
