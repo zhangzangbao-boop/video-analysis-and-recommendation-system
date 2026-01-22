@@ -105,16 +105,17 @@ public class VideoController {
             HttpServletRequest request
     ) {
         Long userId = (Long) request.getAttribute("userId");
+        System.out.println(">>> 上传视频，归属 userId: " + userId);
         if (userId == null) {
             String userIdStr = request.getHeader("X-User-Id");
             if (userIdStr != null && !userIdStr.isEmpty()) {
                 try {
                     userId = Long.parseLong(userIdStr);
                 } catch (NumberFormatException e) {
-                    userId = 1L;
+                    return ResponseEntity.ok(ApiResponse.fail(401, "无效的用户ID"));
                 }
             } else {
-                userId = 1L;
+                return ResponseEntity.ok(ApiResponse.fail(401, "未登录或身份验证失败"));
             }
         }
 

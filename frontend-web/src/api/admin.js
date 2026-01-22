@@ -44,7 +44,7 @@ export const userApi = {
     return request({
       url: `/api/admin/user/${id}/status`,
       method: 'put',
-      params: { statusStr: status }
+      params: { status: status }
     })
   },
   
@@ -59,7 +59,7 @@ export const userApi = {
   // 创建用户
   createUser(data) {
     return request({
-      url: '/api/admin/user',
+      url: '/api/admin/user/create',
       method: 'post',
       data
     })
