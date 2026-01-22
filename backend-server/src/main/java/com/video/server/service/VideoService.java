@@ -43,6 +43,11 @@ public interface VideoService {
      * 搜索视频
      */
     List<Video> searchVideos(String keyword, Integer categoryId, Integer page, Integer pageSize);
+    
+    /**
+     * 统计搜索结果总数
+     */
+    Long countSearchVideos(String keyword, Integer categoryId);
 
     /**
      * 获取视频列表（后台管理用）

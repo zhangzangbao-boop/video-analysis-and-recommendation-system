@@ -425,6 +425,11 @@ public class VideoServiceImpl implements VideoService {
             })
             .collect(Collectors.toList()) : null;
     }
+    
+    @Override
+    public Long countSearchVideos(String keyword, Integer categoryId) {
+        return videoMapper.countSearchVideos(keyword, categoryId);
+    }
 
     /**
      * 【新增】实现获取用户作品

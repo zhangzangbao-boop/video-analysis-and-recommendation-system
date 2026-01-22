@@ -155,13 +155,13 @@ public class VideoController {
             @RequestParam(required = false) Integer categoryId,
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "20") Integer pageSize) {
-        com.video.server.dto.VideoListRequest request = new com.video.server.dto.VideoListRequest();
-        request.setKeyword(keyword);
-        request.setCategory(categoryId != null ? categoryId.toString() : null);
-        request.setStatus("PASSED"); // 只搜索已发布的视频
-        request.setPage(page);
-        request.setPageSize(pageSize);
-        PageResponse<Video> response = videoService.getVideoList(request);
+        // 直接使用searchVideos方法，支持categoryId参数
+        List<Video> videos = videoService.searchVideos(keyword, categoryId, page, pageSize);
+        
+        // 计算总数
+        Long total = videoService.countSearchVideos(keyword, categoryId);
+        
+        PageResponse<Video> response = new PageResponse<>(videos, total, page, pageSize);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 

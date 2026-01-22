@@ -22,11 +22,38 @@
       </div>
     </div>
     
-    <!-- 页面装饰元素 -->
+    <!-- 视频分类栏 - 参考B站设计 -->
+    <div class="category-bar-section" v-if="categories.length > 0">
+      <div class="category-bar-container">
+        <div class="category-bar-header">
+          <i class="el-icon-menu"></i>
+          <span class="category-bar-title">视频分类</span>
+        </div>
+        <div class="category-bar-content">
+          <div 
+            v-for="category in categories" 
+            :key="category.id"
+            class="category-bar-item"
+            :class="{ active: selectedCategoryId === category.id }"
+            @click="handleCategoryClick(category)"
+          >
+            <span class="category-item-name">{{ category.name }}</span>
+            <span v-if="category.videoCount" class="category-item-count">{{ category.videoCount }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- 页面装饰元素 - 方案五：少量装饰性几何图形 -->
     <div class="decoration-elements">
       <div class="floating-element el-1"></div>
       <div class="floating-element el-2"></div>
       <div class="floating-element el-3"></div>
+      <div class="geometric-line line-1"></div>
+      <div class="geometric-line line-2"></div>
+      <div class="geometric-dot dot-1"></div>
+      <div class="geometric-dot dot-2"></div>
+      <div class="geometric-dot dot-3"></div>
       <div class="glow-effect"></div>
     </div>
     
@@ -138,7 +165,7 @@
             
             <!-- 视频信息 -->
             <div class="video-info featured-info">
-              <div class="video-title rainbow-text" :title="videos[0].title">
+              <div class="video-title" :title="videos[0].title">
                 {{ videos[0].title || '无标题' }}
               </div>
               <div class="video-description">
@@ -193,7 +220,7 @@
             
             <!-- 视频信息 -->
             <div class="video-info normal-info">
-              <div class="video-title rainbow-text" :title="video.title">
+              <div class="video-title" :title="video.title">
                 {{ video.title || '无标题' }}
               </div>
               <div class="video-meta">
@@ -236,6 +263,8 @@ export default {
       loading: false,
       refreshing: false,
       totalPlayCount: 0, // 真实的总播放量
+      categories: [], // 视频分类列表
+      selectedCategoryId: null, // 当前选中的分类ID
       filterTabs: [
         { value: 'recommend', label: '推荐', icon: 'el-icon-star-on' },
         { value: 'hot', label: '热门', icon: 'el-icon-fire' },
@@ -254,6 +283,7 @@ export default {
   mounted() {
     this.loadVideos()
     this.loadTotalPlayCount() // 加载真实的总播放量
+    this.loadCategories() // 加载视频分类
     // 监听全局搜索事件
     this.$bus = this.$root.$children.find(c => c.$options.name === 'App') || this.$root;
     if (this.$bus) {
@@ -336,6 +366,7 @@ export default {
     // 设置筛选类型
     setFilterType(type) {
       this.filterType = type
+      this.selectedCategoryId = null // 清除分类选择
       this.handleFilterChange()
     },
     
@@ -374,6 +405,55 @@ export default {
       // 后续可以重新启用
     },
 
+    // 加载视频分类
+    async loadCategories() {
+      try {
+        const response = await userVideoApi.getCategories()
+        if (response && response.data) {
+          this.categories = response.data
+        }
+      } catch (error) {
+        console.error('加载分类列表失败:', error)
+      }
+    },
+    
+    // 处理分类点击
+    handleCategoryClick(category) {
+      this.selectedCategoryId = category.id
+      // 根据分类筛选视频
+      this.loadVideosByCategory(category.id)
+    },
+    
+    // 根据分类加载视频
+    async loadVideosByCategory(categoryId) {
+      this.loading = true
+      try {
+        const response = await userVideoApi.searchVideos(null, categoryId, 1, 20)
+        if (response && response.data && response.data.list) {
+          this.videos = response.data.list.map(video => ({
+            id: video.id,
+            title: video.title || '无标题',
+            thumbnail: video.coverUrl || '',
+            duration: this.formatDuration(video.duration || 0),
+            views: video.playCount || 0,
+            likes: video.likeCount || 0,
+            uploadTime: video.createTime,
+            author: {
+              id: video.authorId || null,
+              name: video.authorName || (video.authorId ? `用户${video.authorId}` : '未知作者')
+            }
+          }))
+        } else {
+          this.videos = []
+        }
+      } catch (error) {
+        console.error('加载分类视频失败:', error)
+        this.videos = []
+      } finally {
+        this.loading = false
+      }
+    },
+    
     // 刷新视频推荐（每次刷新推送新视频）
     async refreshVideos() {
       if (this.loading || this.refreshing) return
@@ -453,13 +533,19 @@ export default {
 /* B站风格 + 田字格大卡片布局 */
 .video-home-container {
   padding: 20px 5px 30px 5px;
-  background: linear-gradient(135deg, #f5f7fa 0%, #f0f2f5 30%, #e6e9f0 100%);
-  min-height: calc(100vh - 60px);
+  /* 渐变网格背景 - 方案一 */
+  background: 
+    linear-gradient(135deg, #f5f7fa 0%, #f0f2f5 30%, #e6e9f0 100%),
+    /* 网格图案 */
+    linear-gradient(90deg, rgba(0, 0, 0, 0.02) 1px, transparent 1px),
+    linear-gradient(rgba(0, 0, 0, 0.02) 1px, transparent 1px);
+  background-size: 100% 100%, 40px 40px, 40px 40px;
+  min-height: calc(100vh - 300px); /* 调整以适应新的导航栏高度（200px + 分类导航约100px） */
   position: relative;
   overflow-x: hidden;
 }
 
-/* 装饰元素 */
+/* 装饰元素 - 方案五：少量装饰性几何图形 */
 .decoration-elements {
   position: absolute;
   top: 0;
@@ -470,36 +556,91 @@ export default {
   z-index: 0;
 }
 
+/* 装饰性几何图形 - 圆形 */
 .floating-element {
   position: absolute;
   border-radius: 50%;
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
-  filter: blur(40px);
-  animation: float 20s infinite linear;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.08), rgba(118, 75, 162, 0.08));
+  filter: blur(30px);
+  animation: float 25s infinite ease-in-out;
 }
 
 .floating-element.el-1 {
-  width: 300px;
-  height: 300px;
-  top: 10%;
-  left: 5%;
+  width: 200px;
+  height: 200px;
+  top: 15%;
+  left: 8%;
   animation-delay: 0s;
 }
 
 .floating-element.el-2 {
-  width: 200px;
-  height: 200px;
-  top: 60%;
-  right: 10%;
-  animation-delay: 5s;
+  width: 150px;
+  height: 150px;
+  top: 65%;
+  right: 12%;
+  animation-delay: 8s;
 }
 
 .floating-element.el-3 {
-  width: 150px;
-  height: 150px;
-  top: 30%;
+  width: 120px;
+  height: 120px;
+  top: 35%;
+  right: 25%;
+  animation-delay: 15s;
+}
+
+/* 装饰性几何图形 - 线条 */
+.geometric-line {
+  position: absolute;
+  background: linear-gradient(90deg, transparent, rgba(0, 174, 236, 0.05), transparent);
+  pointer-events: none;
+}
+
+.geometric-line.line-1 {
+  width: 300px;
+  height: 2px;
+  top: 20%;
+  left: 5%;
+  transform: rotate(15deg);
+  animation: lineFade 8s infinite ease-in-out;
+}
+
+.geometric-line.line-2 {
+  width: 250px;
+  height: 2px;
+  bottom: 25%;
+  right: 8%;
+  transform: rotate(-20deg);
+  animation: lineFade 10s infinite ease-in-out 2s;
+}
+
+/* 装饰性几何图形 - 小圆点 */
+.geometric-dot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(0, 174, 236, 0.15);
+  pointer-events: none;
+  animation: dotPulse 3s infinite ease-in-out;
+}
+
+.geometric-dot.dot-1 {
+  top: 25%;
+  left: 15%;
+  animation-delay: 0s;
+}
+
+.geometric-dot.dot-2 {
+  top: 70%;
   right: 20%;
-  animation-delay: 10s;
+  animation-delay: 1.5s;
+}
+
+.geometric-dot.dot-3 {
+  top: 50%;
+  left: 90%;
+  animation-delay: 3s;
 }
 
 .glow-effect {
@@ -508,21 +649,141 @@ export default {
   left: 0;
   right: 0;
   height: 400px;
-  background: radial-gradient(ellipse at top, rgba(102, 126, 234, 0.08) 0%, transparent 70%);
+  background: radial-gradient(ellipse at top, rgba(102, 126, 234, 0.06) 0%, transparent 70%);
 }
 
 @keyframes float {
   0%, 100% { transform: translate(0, 0) rotate(0deg); }
-  25% { transform: translate(20px, 20px) rotate(90deg); }
-  50% { transform: translate(0, 40px) rotate(180deg); }
-  75% { transform: translate(-20px, 20px) rotate(270deg); }
+  33% { transform: translate(30px, 30px) rotate(120deg); }
+  66% { transform: translate(-20px, 40px) rotate(240deg); }
+}
+
+@keyframes lineFade {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes dotPulse {
+  0%, 100% { 
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% { 
+    opacity: 0.6;
+    transform: scale(1.2);
+  }
 }
 
 /* 筛选区域 - B站风格 */
 .filter-section {
-  margin-bottom: 30px;
+  margin-bottom: 16px; /* 参考B站，减少间距 */
   position: relative;
   z-index: 2;
+}
+
+/* 视频分类栏 - 参考B站设计 */
+.category-bar-section {
+  margin-bottom: 20px;
+  margin-top: 10px; /* 添加上边距，避免与导航栏重叠 */
+  position: relative;
+  z-index: 2;
+}
+
+.category-bar-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  background: white;
+  border-radius: 8px;
+  padding: 16px 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.category-bar-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.category-bar-header i {
+  font-size: 18px;
+  color: #00aeec;
+}
+
+.category-bar-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #18191c;
+}
+
+.category-bar-content {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.category-bar-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 20px;
+  background: #f5f7fa;
+  color: #61666d;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 1px solid transparent;
+}
+
+.category-bar-item:hover {
+  background: #e6f7ff;
+  color: #00aeec;
+  border-color: rgba(0, 174, 236, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgba(0, 174, 236, 0.15);
+}
+
+.category-bar-item.active {
+  background: linear-gradient(135deg, #00aeec 0%, #0082c8 100%);
+  color: white;
+  border-color: transparent;
+  box-shadow: 0 4px 12px rgba(0, 174, 236, 0.3);
+}
+
+.category-item-name {
+  font-size: 14px;
+}
+
+.category-item-count {
+  font-size: 12px;
+  opacity: 0.8;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 2px 6px;
+  border-radius: 10px;
+}
+
+.category-bar-item.active .category-item-count {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* 响应式：分类栏 */
+@media (max-width: 768px) {
+  .category-bar-container {
+    padding: 12px 15px;
+  }
+  
+  .category-bar-content {
+    gap: 8px;
+  }
+  
+  .category-bar-item {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
 }
 
 .filter-wrapper {
@@ -620,13 +881,13 @@ export default {
 /* 信息头部 */
 .info-header {
   max-width: 1400px;
-  margin: 0 auto 30px;
+  margin: 0 auto 16px; /* 参考B站，减少间距 */
   display: flex;
   justify-content: space-between;
   align-items: center;
   position: relative;
   z-index: 1;
-  padding: 20px 0;
+  padding: 12px 0; /* 参考B站，减少内部留白 */
 }
 
 .header-left {
@@ -747,29 +1008,33 @@ export default {
   margin: 0 auto;
   position: relative;
   z-index: 1;
+  padding: 0 8px; /* 参考B站，减少容器两侧留白 */
 }
 
-/* 田字格布局 */
+/* 田字格布局 - 参考B站，减少间距 */
 .video-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   grid-template-rows: repeat(2, auto);
-  gap: 20px;
+  gap: 12px; /* 参考B站，减少卡片间距 */
   grid-auto-rows: minmax(0, auto);
 }
 
-/* 特色大卡片 (占据2x2) */
+/* 特色大卡片 (占据2x2) - 参考B站，减少留白 */
 .featured-card {
   grid-column: 1 / span 2;
   grid-row: 1 / span 2;
   background: white;
-  border-radius: 12px;
+  border-radius: 8px; /* 参考B站，稍微减小圆角 */
   overflow: hidden;
   position: relative;
   cursor: pointer;
   transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(0, 0, 0, 0.05);
+  /* 参考B站，使用更微妙的阴影 */
+  box-shadow: 
+    0 2px 4px rgba(0, 0, 0, 0.06),
+    0 4px 8px rgba(0, 0, 0, 0.04);
+  border: 1px solid rgba(0, 0, 0, 0.04);
   display: flex;
   flex-direction: column;
 }
@@ -782,8 +1047,11 @@ export default {
 }
 
 .featured-card:hover {
-  transform: translateY(-10px) scale(1.01);
-  box-shadow: 0 12px 20px rgba(0, 0, 0, 0.2);
+  transform: translateY(-4px); /* 参考B站，减少悬停位移 */
+  /* 悬停时微妙的阴影增强 */
+  box-shadow: 
+    0 4px 8px rgba(0, 0, 0, 0.1),
+    0 8px 16px rgba(0, 0, 0, 0.06);
 }
 
 .featured-badge {
@@ -830,10 +1098,12 @@ export default {
 
 .featured-cover {
   height: 0;
-  padding-bottom: 56.25%; /* 16:9 宽高比 */
+  padding-bottom: 56.25%; /* 16:9 宽高比 - 参考B站标准比例 */
   position: relative;
   overflow: hidden;
   background: #000;
+  /* 减少封面区域的留白 */
+  margin: 0;
 }
 
 .featured-cover .video-cover-placeholder {
@@ -851,7 +1121,7 @@ export default {
   left: 0;
   width: 100%;
   height: 100%;
-  object-fit: contain; /* 改为contain，确保完整显示 */
+  object-fit: cover; /* 参考B站，使用cover填充整个区域 */
   transition: transform 0.8s ease;
 }
 
@@ -899,7 +1169,7 @@ export default {
 }
 
 .featured-info {
-  padding: 20px;
+  padding: 12px; /* 参考B站，减少内部留白 */
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -907,52 +1177,26 @@ export default {
 }
 
 .featured-info .video-title {
-  font-size: 16px;
-  font-weight: 700;
-  font-family: "Microsoft YaHei", sans-serif;
-  margin-bottom: 12px;
-  line-height: 1.3;
+  font-size: 15px; /* 参考B站，稍微减小字体 */
+  font-weight: 600;
+  font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+  margin-bottom: 6px; /* 减少间距 */
+  line-height: 1.4;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  animation: titleBounce 1s ease-in-out infinite;
-}
-
-@keyframes titleBounce {
-  0%, 100% { transform: translateY(0); }
-  25% { transform: translateY(-2px); }
-  50% { transform: translateY(0); }
-  75% { transform: translateY(2px); }
-}
-
-/* 视频标题彩虹渐变效果 */
-.video-title.rainbow-text {
-  background: linear-gradient(45deg,
-    #ff0000 0%, #ff0000 16.67%,
-    #ff9900 16.67%, #ff9900 33.33%,
-    #ffff00 33.33%, #ffff00 50%,
-    #00ff00 50%, #00ff00 66.67%,
-    #0099ff 66.67%, #0099ff 83.33%,
-    #9900ff 83.33%, #9900ff 100%
-  );
-  background-size: 400% 400%;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  animation: rainbowShift 2s ease-in-out infinite;
-}
-
-@keyframes rainbowShift {
-  0%, 100% { background-position: 0% 0%; }
-  50% { background-position: 100% 100%; }
+  color: #18191c;
+  /* 移除所有动画效果 */
 }
 
 .video-description {
   color: #61666d;
-  font-size: 14px;
-  line-height: 1.5;
-  margin-bottom: 20px;
+  font-size: 12px; /* 参考B站，稍微减小字体 */
+  font-weight: 400;
+  font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.4; /* 减少行高 */
+  margin-bottom: 8px; /* 减少间距 */
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -963,7 +1207,7 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 16px;
+  margin-top: 8px;
 }
 
 .featured-info .video-stats {
@@ -976,22 +1220,16 @@ export default {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-family: "华文行楷", "Ma Shan Zheng", cursive;
+  font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
   font-size: 12px;
-  font-weight: 500;
-  color: #666;
-  -webkit-text-stroke: 1px #99ccff;
-  text-stroke: 1px #99ccff;
-  transition: all 0.3s ease;
-  cursor: pointer;
+  font-weight: 400;
+  color: #61666d;
+  transition: color 0.2s ease;
 }
 
 .video-duration-stat:hover,
 .video-views-stat:hover {
-  transform: rotate(5deg) scale(1.1);
-  color: #ffff00;
-  -webkit-text-stroke: 1px #ff0000;
-  text-stroke: 1px #ff0000;
+  color: #00aeec;
 }
 
 .video-duration-stat i,
@@ -1007,21 +1245,16 @@ export default {
 }
 
 .author-name {
-  font-weight: 600;
-  font-family: "华文行楷", "Ma Shan Zheng", cursive;
+  font-weight: 500;
+  font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
   font-size: 12px;
-  color: #666;
-  -webkit-text-stroke: 1px #ff99cc;
-  text-stroke: 1px #ff99cc;
-  transition: all 0.3s ease;
+  color: #61666d;
+  transition: color 0.2s ease;
   cursor: pointer;
 }
 
 .author-name:hover {
-  transform: rotate(5deg) scale(1.1);
-  color: #ffff00;
-  -webkit-text-stroke: 1px #ff0000;
-  text-stroke: 1px #ff0000;
+  color: #00aeec;
 }
 
 .author-followers {
@@ -1085,29 +1318,37 @@ export default {
   }
 }
 
-/* 普通卡片 */
+/* 普通卡片 - 参考B站，减少留白和阴影 */
 .normal-card {
   background: white;
-  border-radius: 12px;
+  border-radius: 8px; /* 参考B站，稍微减小圆角 */
   overflow: hidden;
   cursor: pointer;
   position: relative;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(0, 0, 0, 0.03);
+  /* 参考B站，使用更微妙的阴影 */
+  box-shadow: 
+    0 1px 3px rgba(0, 0, 0, 0.05),
+    0 2px 6px rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.04);
 }
 
 .normal-card:hover {
-  transform: translateY(-6px);
-  box-shadow: 0 12px 20px rgba(0, 0, 0, 0.2);
+  transform: translateY(-2px); /* 参考B站，减少悬停位移 */
+  /* 悬停时微妙的阴影增强 */
+  box-shadow: 
+    0 2px 6px rgba(0, 0, 0, 0.08),
+    0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
 .normal-cover {
   height: 0;
-  padding-bottom: 56.25%; /* 16:9 宽高比 */
+  padding-bottom: 56.25%; /* 16:9 宽高比 - 参考B站标准比例 */
   position: relative;
   overflow: hidden;
   background: #000;
+  /* 减少封面区域的留白 */
+  margin: 0;
 }
 
 .normal-cover .video-cover-placeholder {
@@ -1125,7 +1366,7 @@ export default {
   left: 0;
   width: 100%;
   height: 100%;
-  object-fit: contain; /* 改为contain，确保完整显示 */
+  object-fit: cover; /* 参考B站，使用cover填充整个区域 */
   transition: transform 0.6s ease;
 }
 
@@ -1134,58 +1375,31 @@ export default {
 }
 
 .normal-info {
-  padding: 12px;
-  height: 90px;
+  padding: 8px; /* 参考B站，进一步减少内部留白 */
+  min-height: 70px; /* 减少最小高度 */
   display: flex;
   flex-direction: column;
   justify-content: space-between;
 }
 
 .normal-info .video-title {
-  font-weight: 700;
-  font-family: "Microsoft YaHei", sans-serif;
-  line-height: 1.4;
-  font-size: 16px;
+  font-weight: 500; /* 参考B站，稍微减轻字重 */
+  font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
+  line-height: 1.3; /* 减少行高 */
+  font-size: 14px; /* 参考B站，稍微减小字体 */
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  min-height: 40px;
-  margin-bottom: 12px;
-  animation: titleBounce 1s ease-in-out infinite;
-}
-
-@keyframes titleBounce {
-  0%, 100% { transform: translateY(0); }
-  25% { transform: translateY(-2px); }
-  50% { transform: translateY(0); }
-  75% { transform: translateY(2px); }
-}
-
-/* 视频标题彩虹渐变效果 */
-.video-title.rainbow-text {
-  background: linear-gradient(45deg,
-    #ff0000 0%, #ff0000 16.67%,
-    #ff9900 16.67%, #ff9900 33.33%,
-    #ffff00 33.33%, #ffff00 50%,
-    #00ff00 50%, #00ff00 66.67%,
-    #0099ff 66.67%, #0099ff 83.33%,
-    #9900ff 83.33%, #9900ff 100%
-  );
-  background-size: 400% 400%;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  animation: rainbowShift 2s ease-in-out infinite;
-}
-
-@keyframes rainbowShift {
-  0%, 100% { background-position: 0% 0%; }
-  50% { background-position: 100% 100%; }
+  min-height: 36px; /* 减少最小高度 */
+  margin-bottom: 6px; /* 减少间距 */
+  color: #18191c;
+  /* 移除所有动画效果 */
 }
 
 .normal-card:hover .video-title {
   color: #00aeec;
+  transition: color 0.2s ease;
 }
 
 .normal-info .video-meta {
@@ -1224,11 +1438,18 @@ export default {
 
 .normal-info .author-name {
   font-size: 13px;
+  font-weight: 500;
+  font-family: "Microsoft YaHei", "PingFang SC", "Helvetica Neue", Arial, sans-serif;
   color: #61666d;
   max-width: 80px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  transition: color 0.2s ease;
+}
+
+.normal-info .author-name:hover {
+  color: #00aeec;
 }
 
 .card-hover-effect {
@@ -1447,6 +1668,7 @@ export default {
   .video-grid {
     grid-template-columns: repeat(3, 1fr);
     grid-template-rows: auto;
+    gap: 10px; /* 响应式时进一步减少间距 */
   }
   
   .featured-card {
@@ -1458,6 +1680,7 @@ export default {
 @media (max-width: 1024px) {
   .video-grid {
     grid-template-columns: repeat(2, 1fr);
+    gap: 8px; /* 响应式时进一步减少间距 */
   }
   
   .featured-card {
@@ -1472,23 +1695,24 @@ export default {
   .info-header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 16px;
+    gap: 12px; /* 减少间距 */
   }
 }
 
 @media (max-width: 768px) {
   .video-home-container {
-    padding: 15px;
+    padding: 12px; /* 移动端减少留白 */
   }
   
   .filter-wrapper {
     flex-direction: column;
     align-items: stretch;
-    gap: 15px;
+    gap: 12px; /* 减少间距 */
   }
   
   .video-grid {
     grid-template-columns: 1fr;
+    gap: 8px; /* 移动端减少间距 */
   }
   
   .featured-card {
@@ -1501,17 +1725,17 @@ export default {
   }
   
   .featured-info .video-title {
-    font-size: 20px;
+    font-size: 16px; /* 移动端适当减小 */
   }
   
   .normal-info .video-stats {
-    gap: 8px;
+    gap: 6px; /* 减少间距 */
   }
   
   .header-left {
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
+    gap: 10px; /* 减少间距 */
   }
 }
 

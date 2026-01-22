@@ -261,6 +261,18 @@
         LIMIT #{limit} OFFSET #{offset}
     </select>
 
+    <select id="countSearchVideos" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM video_info v
+        WHERE v.status = 1 AND v.is_deleted = 0
+        <if test="keyword != null and keyword != ''">
+            AND (v.title LIKE CONCAT('%', #{keyword}, '%') OR v.description LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+        <if test="categoryId != null">
+            AND v.category_id = #{categoryId}
+        </if>
+    </select>
+
     <select id="selectListByUserId" resultMap="BaseResultMap">
         SELECT <include refid="Base_Column_List"/> FROM video_info
         WHERE user_id = #{userId} AND is_deleted = 0
