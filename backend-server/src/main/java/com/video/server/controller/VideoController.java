@@ -33,8 +33,30 @@ public class VideoController {
     @GetMapping("/recommend")
     public ResponseEntity<ApiResponse<List<Video>>> getRecommendVideoList(
             @RequestParam(required = false) Long userId,
-            @RequestParam(defaultValue = "10") Integer limit) {
-        List<Video> list = videoService.getRecommendVideoList(userId, limit);
+            @RequestParam(defaultValue = "10") Integer limit,
+            @RequestParam(required = false) String excludeVideoIds) {
+        // 解析排除的视频ID列表（用于刷新时排除已推送的视频）
+        List<Long> excludeIds = null;
+        if (excludeVideoIds != null && !excludeVideoIds.isEmpty()) {
+            try {
+                excludeIds = java.util.Arrays.stream(excludeVideoIds.split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .map(Long::parseLong)
+                    .collect(java.util.stream.Collectors.toList());
+            } catch (Exception e) {
+                System.err.println("[WARN] 解析excludeVideoIds失败: " + e.getMessage());
+            }
+        }
+        
+        // 调用支持排除列表的方法
+        List<Video> list;
+        if (excludeIds != null && !excludeIds.isEmpty()) {
+            list = ((com.video.server.service.impl.VideoServiceImpl) videoService)
+                .getRecommendVideoList(userId, limit, excludeIds);
+        } else {
+            list = videoService.getRecommendVideoList(userId, limit);
+        }
         return ResponseEntity.ok(ApiResponse.success(list));
     }
 
@@ -112,6 +134,15 @@ public class VideoController {
     public ResponseEntity<ApiResponse<List<VideoCategory>>> getCategories() {
         List<VideoCategory> categories = videoService.getCategories();
         return ResponseEntity.ok(ApiResponse.success(categories));
+    }
+    
+    /**
+     * 获取所有视频的总播放量（仅统计已发布且未删除的视频）
+     */
+    @GetMapping("/stats/total-play-count")
+    public ResponseEntity<ApiResponse<Long>> getTotalPlayCount() {
+        Long totalPlayCount = videoService.getTotalPlayCount();
+        return ResponseEntity.ok(ApiResponse.success(totalPlayCount));
     }
 
     /**

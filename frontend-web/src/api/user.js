@@ -19,11 +19,23 @@ export const userVideoApi = {
   },
 
   // 获取推荐视频列表
-  getRecommendVideos(userId, limit = 10) {
+  getRecommendVideos(userId, limit = 10, excludeVideoIds = null) {
+    const params = { userId: userId || undefined, limit }
+    if (excludeVideoIds) {
+      params.excludeVideoIds = excludeVideoIds
+    }
     return request({
       url: '/api/v1/video/recommend',
       method: 'get',
-      params: { userId: userId || undefined, limit }
+      params
+    })
+  },
+
+  // 获取所有视频的总播放量
+  getTotalPlayCount() {
+    return request({
+      url: '/api/v1/video/stats/total-play-count',
+      method: 'get'
     })
   },
 
@@ -255,7 +267,42 @@ export const userVideoApi = {
       method: 'get',
       params: { keyword, categoryId, page, pageSize }
     })
+  },
+
+  // ==========================================
+  // 8. 消息通知
+  // ==========================================
+
+  // 获取消息列表
+  getMessageList(params = {}) {
+    return request({
+      url: '/api/v1/user/message/list',
+      method: 'get',
+      params
+    })
+  },
+
+  // 获取未读消息数
+  getUnreadMessageCount() {
+    return request({
+      url: '/api/v1/user/message/unread-count',
+      method: 'get'
+    })
+  },
+
+  // 标记消息为已读
+  markMessageAsRead(messageId) {
+    return request({
+      url: `/api/v1/user/message/${messageId}/read`,
+      method: 'put'
+    })
+  },
+
+  // 一键标记所有消息为已读
+  markAllMessagesAsRead() {
+    return request({
+      url: '/api/v1/user/message/read-all',
+      method: 'put'
+    })
   }
-
-
 }

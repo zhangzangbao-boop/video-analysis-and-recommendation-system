@@ -10,6 +10,7 @@ import VideoHome from '../views/user/VideoHome.vue'
 import VideoPlayer from '../views/user/VideoPlayer.vue'
 import NavigationSystem from '../views/user/NavigationSystem.vue'
 import UserProfile from '../views/user/UserProfile.vue'
+import MessageCenter from '../views/user/MessageCenter.vue'
 
 import AdminLayout from '../views/admin/AdminLayout.vue'
 import AdminStats from '../views/admin/AdminStats.vue'
@@ -50,7 +51,9 @@ const routes = [
       { path: 'video', name: 'VideoHome', component: VideoHome },
       { path: 'video/:id', name: 'VideoDetail', component: VideoPlayer },
       { path: 'navigation', name: 'UserNav', component: NavigationSystem },
-      { path: 'profile', name: 'UserProfile', component: UserProfile }
+      { path: 'profile', name: 'UserProfile', component: UserProfile },
+      { path: 'message', name: 'MessageCenter', component: MessageCenter },
+      { path: 'message/:id', name: 'MessageDetail', component: MessageCenter }
     ]
   },
 

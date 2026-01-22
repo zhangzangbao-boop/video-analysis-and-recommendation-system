@@ -149,5 +149,68 @@ export const videoApi = {
       method: 'put',
       params: { isHot }
     })
+  },
+
+  // ==========================================
+  // 系统通知管理
+  // ==========================================
+
+  // 创建系统通知（草稿）
+  createNotice(notice) {
+    return request({
+      url: '/api/v1/admin/notice/create',
+      method: 'post',
+      data: notice
+    })
+  },
+
+  // 发布系统通知
+  publishNotice(notice) {
+    return request({
+      url: '/api/v1/admin/notice/publish',
+      method: 'post',
+      data: notice
+    })
+  },
+
+  // 获取已发布的通知列表
+  getPublishedNotices(params = {}) {
+    return request({
+      url: '/api/v1/admin/notice/list',
+      method: 'get',
+      params
+    })
+  }
+}
+
+/**
+ * 管理员API
+ */
+export const adminApi = {
+  // 创建系统通知（草稿）
+  createNotice(notice) {
+    return request({
+      url: '/api/v1/admin/notice/create',
+      method: 'post',
+      data: notice
+    })
+  },
+
+  // 发布系统通知
+  publishNotice(notice) {
+    return request({
+      url: '/api/v1/admin/notice/publish',
+      method: 'post',
+      data: notice
+    })
+  },
+
+  // 获取已发布的通知列表
+  getPublishedNotices(params = {}) {
+    return request({
+      url: '/api/v1/admin/notice/list',
+      method: 'get',
+      params
+    })
   }
 }

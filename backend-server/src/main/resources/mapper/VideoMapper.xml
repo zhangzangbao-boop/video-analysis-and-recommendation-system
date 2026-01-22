@@ -24,12 +24,43 @@
         <result column="update_time" property="updateTime"/>
     </resultMap>
 
+    <!-- VideoDTO结果映射（包含作者昵称） -->
+    <resultMap id="VideoDTOResultMap" type="com.video.server.dto.VideoDTO">
+        <id column="id" property="id"/>
+        <result column="title" property="title"/>
+        <result column="description" property="description"/>
+        <result column="user_id" property="authorId"/>
+        <result column="author_nickname" property="authorName"/>
+        <result column="cover_url" property="coverUrl"/>
+        <result column="video_url" property="videoUrl"/>
+        <result column="category_id" property="categoryId"/>
+        <result column="duration" property="duration"/>
+        <result column="view_count" property="playCount"/>
+        <result column="like_count" property="likeCount"/>
+        <result column="comment_count" property="commentCount"/>
+        <result column="share_count" property="shareCount"/>
+        <result column="status" property="status" typeHandler="com.video.server.config.VideoStatusTypeHandler"/>
+        <result column="audit_msg" property="auditMsg"/>
+        <result column="is_hot" property="isHot"/>
+        <result column="tags" property="tags"/>
+        <result column="is_deleted" property="isDeleted"/>
+        <result column="create_time" property="createTime"/>
+        <result column="update_time" property="updateTime"/>
+    </resultMap>
+
     <sql id="Base_Column_List">
         id, title, description, user_id, cover_url, video_url, category_id, duration, view_count, like_count, comment_count, share_count, status, audit_msg, is_hot, tags, is_deleted, create_time, update_time
     </sql>
 
-    <select id="selectById" resultMap="BaseResultMap">
-        SELECT <include refid="Base_Column_List"/> FROM video_info WHERE id = #{id}
+    <select id="selectById" resultMap="VideoDTOResultMap">
+        SELECT 
+            v.id, v.title, v.description, v.user_id, v.cover_url, v.video_url, v.category_id, 
+            v.duration, v.view_count, v.like_count, v.comment_count, v.share_count, 
+            v.status, v.audit_msg, v.is_hot, v.tags, v.is_deleted, v.create_time, v.update_time,
+            COALESCE(u.nickname, u.username, CONCAT('用户', v.user_id)) AS author_nickname
+        FROM video_info v
+        LEFT JOIN sys_user u ON v.user_id = u.id
+        WHERE v.id = #{id}
     </select>
 
     <insert id="insert">
@@ -63,17 +94,29 @@
         SELECT <include refid="Base_Column_List"/> FROM video_info
     </select>
 
-    <select id="selectByStatusOrderByPlayCountDesc" resultMap="BaseResultMap">
-        SELECT <include refid="Base_Column_List"/> FROM video_info
-        WHERE status = CASE #{status} WHEN 'PENDING' THEN 0 WHEN 'PASSED' THEN 1 WHEN 'REJECTED' THEN 2 ELSE 0 END
-        ORDER BY view_count DESC LIMIT #{limit}
+    <select id="selectByStatusOrderByPlayCountDesc" resultMap="VideoDTOResultMap">
+        SELECT 
+            v.id, v.title, v.description, v.user_id, v.cover_url, v.video_url, v.category_id, 
+            v.duration, v.view_count, v.like_count, v.comment_count, v.share_count, 
+            v.status, v.audit_msg, v.is_hot, v.tags, v.is_deleted, v.create_time, v.update_time,
+            COALESCE(u.nickname, u.username, CONCAT('用户', v.user_id)) AS author_nickname
+        FROM video_info v
+        LEFT JOIN sys_user u ON v.user_id = u.id
+        WHERE v.status = CASE #{status} WHEN 'PENDING' THEN 0 WHEN 'PASSED' THEN 1 WHEN 'REJECTED' THEN 2 ELSE 0 END
+          AND v.is_deleted = 0
+        ORDER BY v.view_count DESC LIMIT #{limit}
     </select>
 
-    <select id="selectByUserId" resultMap="BaseResultMap">
-        SELECT <include refid="Base_Column_List"/>
-        FROM video_info
-        WHERE user_id = #{userId} AND is_deleted = 0
-        ORDER BY create_time DESC
+    <select id="selectByUserId" resultMap="VideoDTOResultMap">
+        SELECT 
+            v.id, v.title, v.description, v.user_id, v.cover_url, v.video_url, v.category_id, 
+            v.duration, v.view_count, v.like_count, v.comment_count, v.share_count, 
+            v.status, v.audit_msg, v.is_hot, v.tags, v.is_deleted, v.create_time, v.update_time,
+            COALESCE(u.nickname, u.username, CONCAT('用户', v.user_id)) AS author_nickname
+        FROM video_info v
+        LEFT JOIN sys_user u ON v.user_id = u.id
+        WHERE v.user_id = #{userId} AND v.is_deleted = 0
+        ORDER BY v.create_time DESC
         LIMIT #{limit} OFFSET #{offset}
     </select>
 
@@ -83,15 +126,22 @@
         WHERE user_id = #{userId} AND is_deleted = 0
     </select>
 
-    <select id="selectByCondition" resultMap="BaseResultMap">
-        SELECT <include refid="Base_Column_List"/> FROM video_info WHERE is_deleted = 0
+    <select id="selectByCondition" resultMap="VideoDTOResultMap">
+        SELECT 
+            v.id, v.title, v.description, v.user_id, v.cover_url, v.video_url, v.category_id, 
+            v.duration, v.view_count, v.like_count, v.comment_count, v.share_count, 
+            v.status, v.audit_msg, v.is_hot, v.tags, v.is_deleted, v.create_time, v.update_time,
+            COALESCE(u.nickname, u.username, CONCAT('用户', v.user_id)) AS author_nickname
+        FROM video_info v
+        LEFT JOIN sys_user u ON v.user_id = u.id
+        WHERE v.is_deleted = 0
         <if test="keyword != null and keyword != ''">
-            AND (title LIKE CONCAT('%', #{keyword}, '%') OR id = #{keyword})
+            AND (v.title LIKE CONCAT('%', #{keyword}, '%') OR v.id = #{keyword})
         </if>
         <if test="status != null and status != ''">
-            AND status = CASE #{status} WHEN 'PENDING' THEN 0 WHEN 'PASSED' THEN 1 WHEN 'REJECTED' THEN 2 ELSE 0 END
+            AND v.status = CASE #{status} WHEN 'PENDING' THEN 0 WHEN 'PASSED' THEN 1 WHEN 'REJECTED' THEN 2 ELSE 0 END
         </if>
-        ORDER BY create_time DESC
+        ORDER BY v.create_time DESC
         <if test="offset != null and limit != null">LIMIT #{limit} OFFSET #{offset}</if>
     </select>
 
@@ -136,11 +186,18 @@
         UPDATE video_info SET is_hot = #{isHot} WHERE id = #{videoId}
     </update>
 
-    <select id="selectByIds" resultMap="BaseResultMap">
-        SELECT <include refid="Base_Column_List"/> FROM video_info WHERE id IN
+    <select id="selectByIds" resultMap="VideoDTOResultMap">
+        SELECT 
+            v.id, v.title, v.description, v.user_id, v.cover_url, v.video_url, v.category_id, 
+            v.duration, v.view_count, v.like_count, v.comment_count, v.share_count, 
+            v.status, v.audit_msg, v.is_hot, v.tags, v.is_deleted, v.create_time, v.update_time,
+            COALESCE(u.nickname, u.username, CONCAT('用户', v.user_id)) AS author_nickname
+        FROM video_info v
+        LEFT JOIN sys_user u ON v.user_id = u.id
+        WHERE v.id IN
         <foreach collection="videoIds" item="id" open="(" separator="," close=")">#{id}</foreach>
-        AND is_deleted = 0
-        ORDER BY FIELD(id, <foreach collection="videoIds" item="id" separator=",">#{id}</foreach>)
+        AND v.is_deleted = 0
+        ORDER BY FIELD(v.id, <foreach collection="videoIds" item="id" separator=",">#{id}</foreach>)
     </select>
 
     <select id="selectByConditionForOffline" resultMap="BaseResultMap">
@@ -166,16 +223,22 @@
         LIMIT #{limit}
     </select>
 
-    <select id="searchVideos" resultMap="BaseResultMap">
-        SELECT <include refid="Base_Column_List"/> FROM video_info
-        WHERE status = 1 AND is_deleted = 0
+    <select id="searchVideos" resultMap="VideoDTOResultMap">
+        SELECT 
+            v.id, v.title, v.description, v.user_id, v.cover_url, v.video_url, v.category_id, 
+            v.duration, v.view_count, v.like_count, v.comment_count, v.share_count, 
+            v.status, v.audit_msg, v.is_hot, v.tags, v.is_deleted, v.create_time, v.update_time,
+            COALESCE(u.nickname, u.username, CONCAT('用户', v.user_id)) AS author_nickname
+        FROM video_info v
+        LEFT JOIN sys_user u ON v.user_id = u.id
+        WHERE v.status = 1 AND v.is_deleted = 0
         <if test="keyword != null and keyword != ''">
-            AND (title LIKE CONCAT('%', #{keyword}, '%') OR description LIKE CONCAT('%', #{keyword}, '%'))
+            AND (v.title LIKE CONCAT('%', #{keyword}, '%') OR v.description LIKE CONCAT('%', #{keyword}, '%'))
         </if>
         <if test="categoryId != null">
-            AND category_id = #{categoryId}
+            AND v.category_id = #{categoryId}
         </if>
-        ORDER BY create_time DESC
+        ORDER BY v.create_time DESC
         LIMIT #{limit} OFFSET #{offset}
     </select>
 
@@ -184,5 +247,12 @@
         WHERE user_id = #{userId} AND is_deleted = 0
         ORDER BY create_time DESC
             LIMIT 10
+    </select>
+
+    <!-- 获取所有视频的总播放量（仅统计已发布且未删除的视频） -->
+    <select id="getTotalPlayCount" resultType="java.lang.Long">
+        SELECT COALESCE(SUM(view_count), 0) AS total_play_count
+        FROM video_info
+        WHERE status = 1 AND is_deleted = 0
     </select>
 </mapper>

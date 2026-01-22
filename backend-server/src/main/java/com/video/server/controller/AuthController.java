@@ -3,7 +3,9 @@ package com.video.server.controller;
 import com.video.server.dto.ApiResponse;
 import com.video.server.dto.LoginRequest;
 import com.video.server.dto.LoginResponse;
+import com.video.server.dto.UserCreateRequest;
 import com.video.server.service.AuthService;
+import com.video.server.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -22,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
     
     private final AuthService authService;
+    private final UserService userService;
     
     /**
      * 用户登录
@@ -31,6 +34,25 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(@RequestBody LoginRequest request) {
         LoginResponse response = authService.login(request);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+    
+    /**
+     * 用户注册
+     * @param request 注册请求
+     * @return 注册响应
+     */
+    @PostMapping("/register")
+    public ResponseEntity<ApiResponse<LoginResponse>> register(@RequestBody UserCreateRequest request) {
+        // 创建用户
+        userService.createUser(request);
+        
+        // 注册成功后自动登录
+        LoginRequest loginRequest = new LoginRequest();
+        loginRequest.setUsername(request.getUsername());
+        loginRequest.setPassword(request.getPassword());
+        LoginResponse response = authService.login(loginRequest);
+        
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

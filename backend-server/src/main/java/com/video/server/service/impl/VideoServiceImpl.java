@@ -2,15 +2,18 @@ package com.video.server.service.impl;
 
 import com.video.server.constant.VideoStatus;
 import com.video.server.dto.PageResponse;
+import com.video.server.dto.VideoDTO;
 import com.video.server.dto.VideoListRequest;
 import com.video.server.dto.VideoUploadRequest;
 import com.video.server.entity.Video;
 import com.video.server.entity.VideoCategory;
 import com.video.server.mapper.CategoryMapper;
+import com.video.server.mapper.RecommendationResultMapper;
 import com.video.server.mapper.VideoMapper;
 import com.video.server.service.VideoService;
 import com.video.server.utils.TencentCosVideoUtil;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -19,6 +22,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -31,6 +35,9 @@ public class VideoServiceImpl implements VideoService {
 
     @Autowired(required = false)
     private RedisTemplate<String, Object> redisTemplate;
+    
+    @Autowired(required = false)
+    private RecommendationResultMapper recommendationResultMapper;
 
     private static final String HOT_VIDEO_LIST_KEY = "hot:video:list";
     private static final long CACHE_EXPIRE_HOURS = 1;
@@ -44,7 +51,15 @@ public class VideoServiceImpl implements VideoService {
                 return cachedList;
             }
         }
-        List<Video> videoList = videoMapper.selectByStatusOrderByPlayCountDesc("PASSED", 20);
+        // 查询返回VideoDTO（包含authorName），然后转换为Video
+        List<VideoDTO> videoDTOList = videoMapper.selectByStatusOrderByPlayCountDesc("PASSED", 20);
+        List<Video> videoList = videoDTOList != null ? videoDTOList.stream()
+            .map(dto -> {
+                Video video = new Video();
+                BeanUtils.copyProperties(dto, video);
+                return video;
+            })
+            .collect(Collectors.toList()) : null;
         if (redisTemplate != null && videoList != null && !videoList.isEmpty()) {
             redisTemplate.opsForValue().set(HOT_VIDEO_LIST_KEY, videoList, CACHE_EXPIRE_HOURS, TimeUnit.HOURS);
         }
@@ -60,7 +75,14 @@ public class VideoServiceImpl implements VideoService {
     public PageResponse<Video> getVideoList(VideoListRequest request) {
         String status = convertStatus(request.getStatus());
         int offset = (request.getPage() - 1) * request.getPageSize();
-        List<Video> list = videoMapper.selectByCondition(request.getKeyword(), status, offset, request.getPageSize());
+        List<VideoDTO> dtoList = videoMapper.selectByCondition(request.getKeyword(), status, offset, request.getPageSize());
+        List<Video> list = dtoList != null ? dtoList.stream()
+            .map(dto -> {
+                Video video = new Video();
+                BeanUtils.copyProperties(dto, video);
+                return video;
+            })
+            .collect(Collectors.toList()) : null;
         Long total = videoMapper.countByCondition(request.getKeyword(), status);
         return new PageResponse<>(list, total, request.getPage(), request.getPageSize());
     }
@@ -68,15 +90,25 @@ public class VideoServiceImpl implements VideoService {
     @Override
     public PageResponse<Video> getMyVideos(Long userId, int page, int limit) {
         int offset = (page - 1) * limit;
-        List<Video> list = videoMapper.selectByUserId(userId, offset, limit);
+        List<VideoDTO> dtoList = videoMapper.selectByUserId(userId, offset, limit);
+        List<Video> list = dtoList != null ? dtoList.stream()
+            .map(dto -> {
+                Video video = new Video();
+                BeanUtils.copyProperties(dto, video);
+                return video;
+            })
+            .collect(Collectors.toList()) : null;
         Long total = videoMapper.countByUserId(userId);
         return new PageResponse<>(list, total, page, limit);
     }
 
     @Override
     public Video getVideoById(Long videoId) {
-        Video video = videoMapper.selectById(videoId);
-        if (video != null) {
+        VideoDTO videoDTO = videoMapper.selectById(videoId);
+        Video video = null;
+        if (videoDTO != null) {
+            video = new Video();
+            BeanUtils.copyProperties(videoDTO, video);
             videoMapper.incrementPlayCount(videoId);
         }
         return video;
@@ -84,21 +116,155 @@ public class VideoServiceImpl implements VideoService {
 
     @Override
     public List<Video> getRecommendVideoList(Long userId, Integer limit) {
+        return getRecommendVideoList(userId, limit, null);
+    }
+    
+    /**
+     * 获取推荐视频列表（支持排除已推送的视频，用于刷新功能）
+     * 混合推荐策略（隐藏逻辑）：
+     * - 70% 从 recommendation_result 表获取（REALTIME优先，按score降序，rank升序）
+     * - 20% 从热门视频获取（按播放量排序）
+     * - 10% 随机推荐（增加多样性）
+     * 
+     * @param userId 用户ID
+     * @param limit 返回数量限制
+     * @param excludeVideoIds 排除的视频ID列表（用于刷新时排除已推送的视频）
+     * @return 推荐视频列表
+     */
+    public List<Video> getRecommendVideoList(Long userId, Integer limit, List<Long> excludeVideoIds) {
         if (limit == null || limit <= 0) limit = 10;
-        if (userId == null) {
-            return videoMapper.selectByStatusOrderByPlayCountDesc("PASSED", limit);
+        
+        List<Video> finalRecommendVideos = new java.util.ArrayList<>();
+        java.util.Set<Long> usedVideoIds = new java.util.HashSet<>();
+        if (excludeVideoIds != null) {
+            usedVideoIds.addAll(excludeVideoIds);
         }
-        if (redisTemplate != null) {
-            String recommendKey = "recommend:user:" + userId;
-            @SuppressWarnings("unchecked")
-            List<Long> recommendVideoIds = (List<Long>) redisTemplate.opsForValue().get(recommendKey);
-            if (recommendVideoIds != null && !recommendVideoIds.isEmpty()) {
-                if (recommendVideoIds.size() > limit) recommendVideoIds = recommendVideoIds.subList(0, limit);
-                List<Video> recommendVideos = videoMapper.selectByIds(recommendVideoIds);
-                if (recommendVideos != null && !recommendVideos.isEmpty()) return recommendVideos;
+        
+        // ========== 策略1: 70% 从 recommendation_result 表获取 ==========
+        int recommendCount = (int) Math.ceil(limit * 0.7);
+        if (userId != null && recommendationResultMapper != null) {
+            try {
+                List<Long> recommendVideoIds = recommendationResultMapper.selectVideoIdsByUserId(
+                    userId, recommendCount * 2, excludeVideoIds); // 多取一些，避免过滤后不够
+                if (recommendVideoIds != null && !recommendVideoIds.isEmpty()) {
+                    List<Long> filteredIds = recommendVideoIds.stream()
+                        .filter(id -> !usedVideoIds.contains(id))
+                        .limit(recommendCount)
+                        .collect(java.util.stream.Collectors.toList());
+                    
+                    if (!filteredIds.isEmpty()) {
+                        List<VideoDTO> recommendVideoDTOs = videoMapper.selectByIds(filteredIds);
+                        List<Video> recommendVideos = recommendVideoDTOs != null ? recommendVideoDTOs.stream()
+                            .map(dto -> {
+                                Video video = new Video();
+                                BeanUtils.copyProperties(dto, video);
+                                return video;
+                            })
+                            .collect(Collectors.toList()) : null;
+                        if (recommendVideos != null && !recommendVideos.isEmpty()) {
+                            // 保持 recommendation_result 中的顺序
+                            recommendVideos = recommendVideos.stream()
+                                .sorted((v1, v2) -> {
+                                    int idx1 = filteredIds.indexOf(v1.getId());
+                                    int idx2 = filteredIds.indexOf(v2.getId());
+                                    return Integer.compare(idx1, idx2);
+                                })
+                                .collect(java.util.stream.Collectors.toList());
+                            
+                            finalRecommendVideos.addAll(recommendVideos);
+                            recommendVideos.forEach(v -> usedVideoIds.add(v.getId()));
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("[WARN] 从recommendation_result获取推荐失败: " + e.getMessage());
             }
         }
-        return videoMapper.selectByStatusOrderByPlayCountDesc("PASSED", limit);
+        
+        // ========== 策略2: 20% 从热门视频获取 ==========
+        int hotCount = (int) Math.ceil(limit * 0.2);
+        if (finalRecommendVideos.size() < limit) {
+            try {
+                List<VideoDTO> hotVideoDTOs = videoMapper.selectByStatusOrderByPlayCountDesc("PASSED", hotCount * 2);
+                if (hotVideoDTOs != null && !hotVideoDTOs.isEmpty()) {
+                    List<Video> hotVideos = hotVideoDTOs.stream()
+                        .map(dto -> {
+                            Video v = new Video();
+                            BeanUtils.copyProperties(dto, v);
+                            return v;
+                        })
+                        .collect(Collectors.toList());
+                    List<Video> filteredHotVideos = hotVideos.stream()
+                        .filter(v -> !usedVideoIds.contains(v.getId()))
+                        .limit(hotCount)
+                        .collect(java.util.stream.Collectors.toList());
+                    
+                    if (!filteredHotVideos.isEmpty()) {
+                        finalRecommendVideos.addAll(filteredHotVideos);
+                        filteredHotVideos.forEach(v -> usedVideoIds.add(v.getId()));
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("[WARN] 获取热门视频失败: " + e.getMessage());
+            }
+        }
+        
+        // ========== 策略3: 10% 随机推荐（增加多样性） ==========
+        int randomCount = limit - finalRecommendVideos.size();
+        if (randomCount > 0 && userId != null && recommendationResultMapper != null) {
+            try {
+                List<Long> randomVideoIds = recommendationResultMapper.selectRandomVideoIds(
+                    new java.util.ArrayList<>(usedVideoIds), randomCount);
+                if (randomVideoIds != null && !randomVideoIds.isEmpty()) {
+                    List<VideoDTO> randomVideoDTOs = videoMapper.selectByIds(randomVideoIds);
+                    List<Video> randomVideos = randomVideoDTOs != null ? randomVideoDTOs.stream()
+                        .map(dto -> {
+                            Video video = new Video();
+                            BeanUtils.copyProperties(dto, video);
+                            return video;
+                        })
+                        .collect(Collectors.toList()) : null;
+                    if (randomVideos != null && !randomVideos.isEmpty()) {
+                        finalRecommendVideos.addAll(randomVideos);
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("[WARN] 随机推荐失败: " + e.getMessage());
+            }
+        }
+        
+        // ========== 兜底方案：如果还不够，用热门视频补齐 ==========
+        if (finalRecommendVideos.size() < limit) {
+            try {
+                int remainingCount = limit - finalRecommendVideos.size();
+                List<VideoDTO> hotVideoDTOs = videoMapper.selectByStatusOrderByPlayCountDesc("PASSED", remainingCount * 2);
+                if (hotVideoDTOs != null && !hotVideoDTOs.isEmpty()) {
+                    List<Video> hotVideos = hotVideoDTOs.stream()
+                        .map(dto -> {
+                            Video v = new Video();
+                            BeanUtils.copyProperties(dto, v);
+                            return v;
+                        })
+                        .collect(Collectors.toList());
+                    List<Video> filteredHotVideos = hotVideos.stream()
+                        .filter(v -> !usedVideoIds.contains(v.getId()))
+                        .limit(remainingCount)
+                        .collect(java.util.stream.Collectors.toList());
+                    
+                    if (!filteredHotVideos.isEmpty()) {
+                        finalRecommendVideos.addAll(filteredHotVideos);
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("[WARN] 兜底推荐失败: " + e.getMessage());
+            }
+        }
+        
+        // 打乱顺序，避免用户感知到推荐策略
+        java.util.Collections.shuffle(finalRecommendVideos);
+        
+        return finalRecommendVideos.size() > limit ? 
+            finalRecommendVideos.subList(0, limit) : finalRecommendVideos;
     }
 
     @Override
@@ -201,10 +367,12 @@ public class VideoServiceImpl implements VideoService {
     @Override
     @Transactional
     public void updateVideo(Long videoId, String title, String description, Integer categoryId, String tags, String coverUrl) {
-        Video video = videoMapper.selectById(videoId);
-        if (video == null) {
+        VideoDTO videoDTO = videoMapper.selectById(videoId);
+        if (videoDTO == null) {
             throw new RuntimeException("视频不存在");
         }
+        Video video = new Video();
+        BeanUtils.copyProperties(videoDTO, video);
         
         // 更新字段
         if (title != null) video.setTitle(title);
@@ -221,7 +389,14 @@ public class VideoServiceImpl implements VideoService {
     @Override
     public List<Video> searchVideos(String keyword, Integer categoryId, Integer page, Integer pageSize) {
         int offset = (page - 1) * pageSize;
-        return videoMapper.searchVideos(keyword, categoryId, offset, pageSize);
+        List<VideoDTO> dtoList = videoMapper.searchVideos(keyword, categoryId, offset, pageSize);
+        return dtoList != null ? dtoList.stream()
+            .map(dto -> {
+                Video video = new Video();
+                BeanUtils.copyProperties(dto, video);
+                return video;
+            })
+            .collect(Collectors.toList()) : null;
     }
 
     /**
@@ -243,5 +418,11 @@ public class VideoServiceImpl implements VideoService {
             case "removed": return VideoStatus.REJECTED.name();
             default: return null;
         }
+    }
+    
+    @Override
+    public Long getTotalPlayCount() {
+        Long total = videoMapper.getTotalPlayCount();
+        return total != null ? total : 0L;
     }
 }

@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.video.server.mapper.AdminStatsMapper">
+
+    <!-- 统计指定时间范围内的总播放量 -->
+    <select id="getTotalViews" resultType="java.lang.Long">
+        SELECT COALESCE(SUM(view_count), 0)
+        FROM video_info
+        WHERE status = 1 AND is_deleted = 0
+        <if test="startTime != null">
+            AND create_time &gt;= #{startTime}
+        </if>
+        <if test="endTime != null">
+            AND create_time &lt;= #{endTime}
+        </if>
+    </select>
+
+    <!-- 统计指定时间范围内的日活跃用户数（去重） -->
+    <select id="getDailyActiveUsers" resultType="java.lang.Long">
+        SELECT COUNT(DISTINCT user_id)
+        FROM video_play_record
+        WHERE 1=1
+        <if test="startTime != null">
+            AND create_time &gt;= #{startTime}
+        </if>
+        <if test="endTime != null">
+            AND create_time &lt;= #{endTime}
+        </if>
+    </select>
+
+    <!-- 统计指定时间范围内的新增创作者数（新注册用户） -->
+    <select id="getNewCreators" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM sys_user
+        WHERE is_deleted = 0
+        <if test="startTime != null">
+            AND create_time &gt;= #{startTime}
+        </if>
+        <if test="endTime != null">
+            AND create_time &lt;= #{endTime}
+        </if>
+    </select>
+
+    <!-- 按日期统计播放量（用于图表） -->
+    <select id="getViewsByDate" resultType="java.util.HashMap">
+        SELECT 
+            <choose>
+                <when test="groupBy == 'day'">
+                    DATE(create_time) AS date_label,
+                    DATE_FORMAT(create_time, '%m-%d') AS label
+                </when>
+                <when test="groupBy == 'week'">
+                    YEARWEEK(create_time) AS date_label,
+                    CONCAT(YEAR(create_time), '-W', LPAD(WEEK(create_time), 2, '0')) AS label
+                </when>
+                <when test="groupBy == 'month'">
+                    DATE_FORMAT(create_time, '%Y-%m') AS date_label,
+                    DATE_FORMAT(create_time, '%m月') AS label
+                </when>
+                <otherwise>
+                    DATE(create_time) AS date_label,
+                    DATE_FORMAT(create_time, '%m-%d') AS label
+                </otherwise>
+            </choose>,
+            SUM(view_count) AS value
+        FROM video_info
+        WHERE status = 1 AND is_deleted = 0
+        <if test="startTime != null">
+            AND create_time &gt;= #{startTime}
+        </if>
+        <if test="endTime != null">
+            AND create_time &lt;= #{endTime}
+        </if>
+        GROUP BY date_label, label
+        ORDER BY date_label ASC
+    </select>
+
+    <!-- 按日期统计新增用户数（用于图表） -->
+    <select id="getNewUsersByDate" resultType="java.util.HashMap">
+        SELECT 
+            <choose>
+                <when test="groupBy == 'day'">
+                    DATE(create_time) AS date_label,
+                    DATE_FORMAT(create_time, '%m-%d') AS label
+                </when>
+                <when test="groupBy == 'week'">
+                    YEARWEEK(create_time) AS date_label,
+                    CONCAT(YEAR(create_time), '-W', LPAD(WEEK(create_time), 2, '0')) AS label
+                </when>
+                <when test="groupBy == 'month'">
+                    DATE_FORMAT(create_time, '%Y-%m') AS date_label,
+                    DATE_FORMAT(create_time, '%m月') AS label
+                </when>
+                <otherwise>
+                    DATE(create_time) AS date_label,
+                    DATE_FORMAT(create_time, '%m-%d') AS label
+                </otherwise>
+            </choose>,
+            COUNT(*) AS value
+        FROM sys_user
+        WHERE is_deleted = 0
+        <if test="startTime != null">
+            AND create_time &gt;= #{startTime}
+        </if>
+        <if test="endTime != null">
+            AND create_time &lt;= #{endTime}
+        </if>
+        GROUP BY date_label, label
+        ORDER BY date_label ASC
+    </select>
+
+    <!-- 统计热门标签（前10） -->
+    <select id="getHotTags" resultType="java.util.HashMap">
+        SELECT 
+            TRIM(tag) AS name,
+            COUNT(*) AS count
+        FROM (
+            SELECT 
+                v.id,
+                TRIM(SUBSTRING_INDEX(SUBSTRING_INDEX(v.tags, ',', n.n), ',', -1)) AS tag
+            FROM video_info v
+            CROSS JOIN (
+                SELECT 1 n UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5
+                UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9 UNION SELECT 10
+            ) n
+            WHERE v.status = 1 AND v.is_deleted = 0
+            AND v.tags IS NOT NULL 
+            AND v.tags != ''
+            AND TRIM(v.tags) != ''
+            AND CHAR_LENGTH(v.tags) - CHAR_LENGTH(REPLACE(v.tags, ',', '')) &gt;= n.n - 1
+            <if test="startTime != null">
+                AND v.create_time &gt;= #{startTime}
+            </if>
+            <if test="endTime != null">
+                AND v.create_time &lt;= #{endTime}
+            </if>
+        ) AS tag_list
+        WHERE TRIM(tag) != '' AND tag IS NOT NULL
+        GROUP BY TRIM(tag)
+        ORDER BY count DESC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 获取优秀创作者列表（按视频数、播放量、点赞量综合评分） -->
+    <select id="getTopCreators" resultType="java.util.HashMap">
+        SELECT 
+            u.id AS userId,
+            COALESCE(u.nickname, u.username, CONCAT('用户', u.id)) AS name,
+            COALESCE(u.avatar_url, '') AS avatar,
+            COUNT(DISTINCT v.id) AS videoCount,
+            COALESCE(SUM(v.view_count), 0) AS totalViews,
+            COALESCE(SUM(v.like_count), 0) AS totalLikes,
+            ROUND(
+                (COUNT(DISTINCT v.id) * 0.3 + 
+                 COALESCE(SUM(v.view_count), 0) / 1000 * 0.4 + 
+                 COALESCE(SUM(v.like_count), 0) * 0.3) / 10, 
+                1
+            ) AS score
+        FROM sys_user u
+        INNER JOIN video_info v ON u.id = v.user_id
+        WHERE v.status = 1 AND v.is_deleted = 0 AND u.is_deleted = 0
+        <if test="startTime != null">
+            AND v.create_time &gt;= #{startTime}
+        </if>
+        <if test="endTime != null">
+            AND v.create_time &lt;= #{endTime}
+        </if>
+        GROUP BY u.id, u.nickname, u.username, u.avatar_url
+        HAVING COUNT(DISTINCT v.id) > 0
+        ORDER BY score DESC
+        LIMIT #{limit}
+    </select>
+
+</mapper>

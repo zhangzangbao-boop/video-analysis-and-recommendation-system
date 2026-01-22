@@ -5,6 +5,7 @@ import com.video.server.entity.VideoInteraction;
 import com.video.server.mapper.VideoInteractionMapper;
 import com.video.server.mapper.VideoMapper;
 import com.video.server.service.VideoInteractionService;
+import com.video.server.service.UserMessageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,7 @@ public class VideoInteractionServiceImpl implements VideoInteractionService {
 
     private final VideoInteractionMapper interactionMapper;
     private final VideoMapper videoMapper;
+    private final UserMessageService messageService;
 
     // 互动类型常量
     private static final int TYPE_LIKE = 1;
@@ -39,6 +41,13 @@ public class VideoInteractionServiceImpl implements VideoInteractionService {
         interactionMapper.insert(interaction);
 
         videoMapper.incrementLikeCount(videoId);
+        
+        // 创建点赞消息通知
+        Video video = videoMapper.selectById(videoId);
+        if (video != null && video.getAuthorId() != null) {
+            messageService.createLikeMessage(video.getAuthorId(), userId, videoId);
+        }
+        
         return true;
     }
 
@@ -80,6 +89,13 @@ public class VideoInteractionServiceImpl implements VideoInteractionService {
         interaction.setType(TYPE_COLLECT);
         interaction.setCreateTime(LocalDateTime.now());
         interactionMapper.insert(interaction);
+        
+        // 创建收藏消息通知
+        Video video = videoMapper.selectById(videoId);
+        if (video != null && video.getAuthorId() != null) {
+            messageService.createCollectMessage(video.getAuthorId(), userId, videoId);
+        }
+        
         return true;
     }
 

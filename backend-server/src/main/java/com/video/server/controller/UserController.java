@@ -41,6 +41,7 @@ public class UserController {
     private final VideoCommentService commentService;
     private final VideoService videoService;
     private final TencentCosVideoUtil tencentCosVideoUtil;
+    private final UserMessageService userMessageService;
     /**
      * 获取当前用户信息
      */
@@ -51,6 +52,12 @@ public class UserController {
         if (user != null) {
             user.setPassword(null);
             user.setSalt(null);
+            
+            // 实时统计关注数和粉丝数（确保数据真实）
+            Long realFollowCount = userFollowMapper.countFollowingByUserId(userId);
+            Long realFansCount = userFollowMapper.countFansByUserId(userId);
+            user.setFollowCount(realFollowCount != null ? realFollowCount.intValue() : 0);
+            user.setFansCount(realFansCount != null ? realFansCount.intValue() : 0);
         }
         return ResponseEntity.ok(ApiResponse.success(user));
     }
@@ -168,6 +175,9 @@ public class UserController {
 
         updateFollowCount(userId, 1);
         updateFansCount(followUserId, 1);
+        
+        // 创建关注消息通知
+        userMessageService.createFollowMessage(followUserId, userId);
 
         return ResponseEntity.ok(ApiResponse.success());
     }

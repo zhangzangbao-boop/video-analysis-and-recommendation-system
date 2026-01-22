@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.video.server.mapper.RecommendationResultMapper">
+
+    <!-- 根据用户ID获取推荐视频ID列表（按优先级排序） -->
+    <select id="selectVideoIdsByUserId" resultType="java.lang.Long">
+        SELECT video_id
+        FROM recommendation_result
+        WHERE user_id = #{userId}
+          AND video_id IN (
+              SELECT id FROM video_info WHERE status = 1 AND is_deleted = 0
+          )
+        <if test="excludeVideoIds != null and excludeVideoIds.size() > 0">
+            AND video_id NOT IN
+            <foreach collection="excludeVideoIds" item="videoId" open="(" separator="," close=")">
+                #{videoId}
+            </foreach>
+        </if>
+        ORDER BY 
+            CASE `type` 
+                WHEN 'REALTIME' THEN 1 
+                WHEN 'OFFLINE' THEN 2 
+                ELSE 3 
+            END,
+            score DESC,
+            `rank` ASC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 获取随机推荐视频ID（当用户没有推荐结果时使用） -->
+    <select id="selectRandomVideoIds" resultType="java.lang.Long">
+        SELECT id
+        FROM video_info
+        WHERE status = 1 
+          AND is_deleted = 0
+        <if test="excludeVideoIds != null and excludeVideoIds.size() > 0">
+            AND id NOT IN
+            <foreach collection="excludeVideoIds" item="videoId" open="(" separator="," close=")">
+                #{videoId}
+            </foreach>
+        </if>
+        ORDER BY RAND()
+        LIMIT #{limit}
+    </select>
+
+</mapper>

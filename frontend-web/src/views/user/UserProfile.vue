@@ -31,13 +31,13 @@
 
           <div class="user-right">
             <div class="data-group">
-              <div class="data-item" @click="showFollowingList = true">
-                <div class="num">{{ formatNumber(userInfo.followCount) }}</div>
+              <div class="data-item" @click="openFollowingList">
+                <div class="num">{{ formatNumber(userInfo.followCount || 0) }}</div>
                 <div class="label">关注</div>
               </div>
               <div class="divider"></div>
-              <div class="data-item" @click="showFansList = true">
-                <div class="num">{{ formatNumber(userInfo.fansCount) }}</div>
+              <div class="data-item" @click="openFansList">
+                <div class="num">{{ formatNumber(userInfo.fansCount || 0) }}</div>
                 <div class="label">粉丝</div>
               </div>
               <div class="divider"></div>
@@ -390,6 +390,88 @@
       </div>
     </el-dialog>
 
+    <!-- 关注列表对话框 -->
+    <el-dialog 
+      title="我的关注" 
+      :visible.sync="showFollowingList" 
+      width="500px" 
+      custom-class="modern-dialog"
+      @open="loadFollowingList"
+    >
+      <div v-loading="loadingFollowing" class="user-list-container">
+        <div v-if="followingList.length === 0 && !loadingFollowing" class="empty-state">
+          <i class="el-icon-user"></i>
+          <p>还没有关注任何人</p>
+        </div>
+        <div v-else class="user-list">
+          <div 
+            v-for="user in followingList" 
+            :key="user.id" 
+            class="user-list-item"
+            @click="goToUserProfile(user.id)"
+          >
+            <el-avatar :size="50" :src="user.avatarUrl || defaultAvatar" class="user-avatar">
+              {{ user.nickname ? user.nickname.charAt(0) : 'U' }}
+            </el-avatar>
+            <div class="user-info">
+              <div class="user-name">{{ user.nickname || user.username || '未知用户' }}</div>
+              <div class="user-bio">{{ user.bio || '这个人很懒，什么都没有写...' }}</div>
+            </div>
+            <div class="user-stats">
+              <div class="stat-item">
+                <span class="stat-value">{{ formatNumber(user.fansCount || 0) }}</span>
+                <span class="stat-label">粉丝</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div slot="footer">
+        <el-button @click="showFollowingList = false">关闭</el-button>
+      </div>
+    </el-dialog>
+
+    <!-- 粉丝列表对话框 -->
+    <el-dialog 
+      title="我的粉丝" 
+      :visible.sync="showFansList" 
+      width="500px" 
+      custom-class="modern-dialog"
+      @open="loadFansList"
+    >
+      <div v-loading="loadingFans" class="user-list-container">
+        <div v-if="fansList.length === 0 && !loadingFans" class="empty-state">
+          <i class="el-icon-user"></i>
+          <p>还没有粉丝</p>
+        </div>
+        <div v-else class="user-list">
+          <div 
+            v-for="user in fansList" 
+            :key="user.id" 
+            class="user-list-item"
+            @click="goToUserProfile(user.id)"
+          >
+            <el-avatar :size="50" :src="user.avatarUrl || defaultAvatar" class="user-avatar">
+              {{ user.nickname ? user.nickname.charAt(0) : 'U' }}
+            </el-avatar>
+            <div class="user-info">
+              <div class="user-name">{{ user.nickname || user.username || '未知用户' }}</div>
+              <div class="user-bio">{{ user.bio || '这个人很懒，什么都没有写...' }}</div>
+            </div>
+            <div class="user-stats">
+              <div class="stat-item">
+                <span class="stat-value">{{ formatNumber(user.fansCount || 0) }}</span>
+                <span class="stat-label">粉丝</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div slot="footer">
+        <el-button @click="showFansList = false">关闭</el-button>
+      </div>
+    </el-dialog>
+
   </div>
 </template>
 
@@ -471,7 +553,11 @@ export default {
 
       categories: [],
       showFollowingList: false,
-      showFansList: false
+      showFansList: false,
+      followingList: [],
+      fansList: [],
+      loadingFollowing: false,
+      loadingFans: false
     }
   },
   computed: {
@@ -891,6 +977,70 @@ export default {
     formatTimeAgo(t) {
       return t ? t.split('T')[0] : '刚刚'
     },
+    
+    // 打开关注列表
+    openFollowingList() {
+      this.showFollowingList = true
+      this.loadFollowingList()
+    },
+    
+    // 打开粉丝列表
+    openFansList() {
+      this.showFansList = true
+      this.loadFansList()
+    },
+    
+    // 加载关注列表
+    async loadFollowingList() {
+      this.loadingFollowing = true
+      try {
+        const res = await userVideoApi.getFollowingList()
+        if (res.code === 200) {
+          this.followingList = res.data || []
+        } else {
+          this.$message.error('加载关注列表失败')
+          this.followingList = []
+        }
+      } catch (error) {
+        console.error('加载关注列表失败:', error)
+        this.$message.error('加载关注列表失败')
+        this.followingList = []
+      } finally {
+        this.loadingFollowing = false
+      }
+    },
+    
+    // 加载粉丝列表
+    async loadFansList() {
+      this.loadingFans = true
+      try {
+        const res = await userVideoApi.getFansList()
+        if (res.code === 200) {
+          this.fansList = res.data || []
+        } else {
+          this.$message.error('加载粉丝列表失败')
+          this.fansList = []
+        }
+      } catch (error) {
+        console.error('加载粉丝列表失败:', error)
+        this.$message.error('加载粉丝列表失败')
+        this.fansList = []
+      } finally {
+        this.loadingFans = false
+      }
+    },
+    
+    // 跳转到用户主页（如果实现的话）
+    goToUserProfile(userId) {
+      // 如果当前用户是自己，跳转到个人中心
+      const currentUserId = localStorage.getItem('userId')
+      if (currentUserId && parseInt(currentUserId) === userId) {
+        this.$router.push('/main/profile')
+      } else {
+        // 可以跳转到其他用户的个人主页（如果实现了的话）
+        this.$message.info('用户主页功能开发中')
+      }
+    },
     async loadVideoTitles() {
       const ids = [...new Set(this.myComments.map(c => c.videoId))]
       for(let id of ids) {
@@ -1164,6 +1314,92 @@ export default {
 }
 .empty-state img { width: 120px; margin-bottom: 15px; opacity: 0.8; }
 .empty-state.mini { padding: 30px 0; }
+.empty-state i {
+  font-size: 48px;
+  color: #ddd;
+  margin-bottom: 15px;
+}
+
+/* =================== 用户列表样式 =================== */
+.user-list-container {
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.user-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.user-list-item {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s;
+  border: 1px solid #f0f0f0;
+}
+
+.user-list-item:hover {
+  background-color: #f8f9fa;
+  border-color: #409EFF;
+  transform: translateX(4px);
+}
+
+.user-list-item .user-avatar {
+  flex-shrink: 0;
+}
+
+.user-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-bio {
+  font-size: 13px;
+  color: #999;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-stats {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex-shrink: 0;
+}
+
+.user-stats .stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.user-stats .stat-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.user-stats .stat-label {
+  font-size: 12px;
+  color: #999;
+}
 
 /* =================== 我的作品 Grid 样式 (新) =================== */
 .works-grid {

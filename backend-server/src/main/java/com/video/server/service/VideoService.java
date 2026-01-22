@@ -93,4 +93,9 @@ public interface VideoService {
      * 【新增】更新视频信息（编辑功能）
      */
     void updateVideo(Long videoId, String title, String description, Integer categoryId, String tags, String coverUrl);
+    
+    /**
+     * 获取所有视频的总播放量（仅统计已发布且未删除的视频）
+     */
+    Long getTotalPlayCount();
 }

@@ -420,6 +420,31 @@ CREATE TABLE `sys_user_notice` (
                                    KEY `idx_user_read` (`user_id`, `is_read`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户通知阅读记录表';
 
+-- ----------------------------
+-- Table structure for user_message (用户消息表)
+-- ----------------------------
+DROP TABLE IF EXISTS `user_message`;
+CREATE TABLE `user_message` (
+                                `id` bigint NOT NULL AUTO_INCREMENT COMMENT '消息ID',
+                                `user_id` bigint NOT NULL COMMENT '接收消息的用户ID',
+                                `type` varchar(32) NOT NULL COMMENT '消息类型: LIKE-点赞, COMMENT-评论, COLLECT-收藏, FOLLOW-关注, SYSTEM-系统通知',
+                                `title` varchar(128) DEFAULT NULL COMMENT '消息标题',
+                                `content` text COMMENT '消息内容',
+                                `related_user_id` bigint DEFAULT NULL COMMENT '相关用户ID（发送消息的用户，如点赞者、评论者等）',
+                                `related_video_id` bigint DEFAULT NULL COMMENT '相关视频ID（如点赞的视频、评论的视频等）',
+                                `related_comment_id` bigint DEFAULT NULL COMMENT '相关评论ID（如回复的评论）',
+                                `related_notice_id` bigint DEFAULT NULL COMMENT '相关系统通知ID（如果是系统通知）',
+                                `is_read` tinyint DEFAULT 0 COMMENT '是否已读: 0-未读, 1-已读',
+                                `read_time` datetime DEFAULT NULL COMMENT '阅读时间',
+                                `create_time` datetime DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                                PRIMARY KEY (`id`),
+                                KEY `idx_user_type` (`user_id`, `type`),
+                                KEY `idx_user_read` (`user_id`, `is_read`),
+                                KEY `idx_create_time` (`create_time`),
+                                KEY `idx_related_user` (`related_user_id`),
+                                KEY `idx_related_video` (`related_video_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户消息表（点赞、评论、收藏、关注、系统通知等）';
+
 -- =================================================================
 -- ✅ 模块六：智能推荐核心模块 (新增！ID策略: 数据库自增)
 -- =================================================================
@@ -488,7 +513,16 @@ INSERT INTO `video_category` (`name`, `code`, `sort`) VALUES
                                                           ('科技', 'tech', 3),
                                                           ('游戏', 'game', 4),
                                                           ('美食', 'food', 5),
-                                                          ('萌宠', 'pet', 6);
+                                                          ('萌宠', 'pet', 6),
+                                                          ('影视', 'movie', 7),
+                                                          ('音乐', 'music', 8),
+                                                          ('舞蹈', 'dance', 9),
+                                                          ('体育', 'sports', 10),
+                                                          ('时尚', 'fashion', 11),
+                                                          ('旅行', 'travel', 12),
+                                                          ('知识', 'knowledge', 13),
+                                                          ('动漫', 'anime', 14);
+                                                          
 
 -- ----------------------------
 -- 初始化系统管理员

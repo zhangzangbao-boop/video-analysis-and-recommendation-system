@@ -35,21 +35,22 @@
                   <i :class="isPlaying ? 'el-icon-video-pause' : 'el-icon-video-play'"></i>
                 </button>
 
-                <div class="volume-control" @mouseenter="showVolumeSlider = true" @mouseleave="showVolumeSlider = false">
-                  <button class="control-btn" @click="toggleMute">
-                    <i :class="isMuted || volume === 0 ? 'el-icon-turn-off-microphone' : 'el-icon-microphone'"></i>
+                <div class="volume-control" @mouseenter="showVolumeSlider = true" @mouseleave="handleVolumeSliderLeave">
+                  <button class="control-btn volume-btn" @click="toggleMute" :title="isMuted ? '取消静音' : '静音'">
+                    <span class="volume-icon">{{ getVolumeIcon() }}</span>
                   </button>
-                  <div v-show="showVolumeSlider" class="volume-slider-wrapper">
+                  <div v-show="showVolumeSlider" class="volume-slider-wrapper" @mouseenter="showVolumeSlider = true" @mouseleave="handleVolumeSliderLeave">
                     <el-slider
                         v-model="volume"
                         :min="0"
                         :max="100"
                         :step="1"
                         vertical
-                        height="100px"
+                        height="120px"
                         @change="handleVolumeChange"
                         class="volume-slider"
                     ></el-slider>
+                    <div class="volume-value">{{ volume }}%</div>
                   </div>
                 </div>
 
@@ -320,7 +321,7 @@ export default {
           this.hotRanking = hotRes.data.slice(0, 5).map(v => ({
             id: v.id,
             title: v.title,
-            author: v.authorId ? `用户${v.authorId}` : '未知',
+            author: v.authorName || (v.authorId ? `用户${v.authorId}` : '未知'),
             views: this.formatNumber(v.playCount || 0),
             likes: this.formatNumber(v.likeCount || 0)
           }))
@@ -350,7 +351,7 @@ export default {
 
         author: {
           id: backendVideo.authorId || null,
-          name: backendVideo.authorId ? `用户${backendVideo.authorId}` : '未知作者',
+          name: backendVideo.authorName || (backendVideo.authorId ? `用户${backendVideo.authorId}` : '未知作者'),
           avatar: backendVideo.authorAvatar || '',
           bio: backendVideo.authorBio || ''
         }
@@ -489,7 +490,7 @@ export default {
         url: videoUrl,
         author: video.author || {
           id: video.authorId || null,
-          name: video.authorId ? `用户${video.authorId}` : '未知作者',
+          name: video.authorName || (video.authorId ? `用户${video.authorId}` : '未知作者'),
           avatar: ''
         }
       }
@@ -673,12 +674,46 @@ export default {
           if (this.volume === 0) {
             this.volume = 50
             videoElement.volume = 0.5
+            localStorage.setItem('videoVolume', '50')
           }
         } else {
           this.isMuted = true
           videoElement.muted = true
         }
       }
+    },
+    
+    getVolumeIcon() {
+      // 使用Unicode字符显示音量图标
+      if (this.isMuted || this.volume === 0) {
+        // 静音图标 🔇
+        return '🔇'
+      } else if (this.volume < 30) {
+        // 低音量图标 🔈
+        return '🔈'
+      } else if (this.volume < 70) {
+        // 中音量图标 🔉
+        return '🔉'
+      } else {
+        // 高音量图标 🔊
+        return '🔊'
+      }
+    },
+    
+    handleVolumeSliderLeave() {
+      // 延迟隐藏，避免鼠标移动到滑块时立即隐藏
+      setTimeout(() => {
+        const volumeControl = this.$el.querySelector('.volume-control')
+        const sliderWrapper = this.$el.querySelector('.volume-slider-wrapper')
+        if (volumeControl && sliderWrapper) {
+          const isHovering = volumeControl.matches(':hover') || sliderWrapper.matches(':hover')
+          if (!isHovering) {
+            this.showVolumeSlider = false
+          }
+        } else {
+          this.showVolumeSlider = false
+        }
+      }, 200)
     },
 
     toggleFullscreen() {
@@ -879,22 +914,75 @@ export default {
 
 .volume-control {
   position: relative;
+  display: inline-block;
+}
+
+.volume-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.volume-icon {
+  font-size: 18px;
+  line-height: 1;
+  display: inline-block;
 }
 
 .volume-slider-wrapper {
   position: absolute;
-  bottom: 100%;
+  bottom: calc(100% + 15px);
   left: 50%;
   transform: translateX(-50%);
-  margin-bottom: 10px;
-  background: rgba(0, 0, 0, 0.8);
-  padding: 15px 10px;
-  border-radius: 8px;
-  z-index: 100;
+  background: rgba(0, 0, 0, 0.85);
+  padding: 12px 8px;
+  border-radius: 6px;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  min-width: 50px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.volume-slider-wrapper::after {
+  content: '';
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid rgba(0, 0, 0, 0.85);
 }
 
 .volume-slider {
-  width: 100px;
+  width: 40px;
+}
+
+.volume-slider .el-slider__runway {
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.volume-slider .el-slider__bar {
+  background-color: #409EFF;
+}
+
+.volume-slider .el-slider__button {
+  border-color: #409EFF;
+  width: 14px;
+  height: 14px;
+}
+
+.volume-value {
+  color: #fff;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+  min-width: 40px;
 }
 
 /* 全屏适配 */

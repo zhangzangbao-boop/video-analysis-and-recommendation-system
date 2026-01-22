@@ -23,8 +23,47 @@
         </div>
       </div>
       
-      <!-- 右侧：搜索 + 用户信息 -->
+      <!-- 右侧：搜索 + 消息通知 + 用户信息 -->
       <div class="header-right-section">
+        <!-- 消息通知图标 -->
+        <div v-if="isLogin" class="message-notification" ref="messageNotification" @click="toggleMessageDropdown">
+          <el-badge :value="unreadCount" :hidden="unreadCount === 0" class="message-badge">
+            <i class="el-icon-bell" :class="{ 'has-unread': unreadCount > 0 }"></i>
+          </el-badge>
+          <!-- 消息下拉列表 -->
+          <div v-if="showMessageDropdown" class="message-dropdown" ref="messageDropdown" @click.stop="handleDropdownClick">
+            <div class="message-header">
+              <span>消息通知</span>
+              <div>
+                <el-button type="text" size="mini" @click="markAllAsRead" v-if="unreadCount > 0">一键已读</el-button>
+                <el-button type="text" size="mini" @click="goToMessageCenter">查看全部</el-button>
+                <el-button type="text" size="mini" icon="el-icon-close" @click="showMessageDropdown = false" style="padding: 0 5px;"></el-button>
+              </div>
+            </div>
+            <div class="message-list" v-loading="loadingMessages">
+              <div v-if="messages.length === 0 && !loadingMessages" class="empty-message">
+                <p>暂无消息</p>
+              </div>
+              <div 
+                v-for="msg in messages" 
+                :key="msg.id" 
+                class="message-item"
+                :class="{ 'unread': msg.isRead === 0 }"
+                @click="viewMessage(msg)"
+              >
+                <div class="message-icon">
+                  <i :class="getMessageIcon(msg.type)"></i>
+                </div>
+                <div class="message-content">
+                  <div class="message-title">{{ msg.title }}</div>
+                  <div class="message-text">{{ msg.content }}</div>
+                  <div class="message-time">{{ formatTime(msg.createTime) }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
         <!-- 搜索框 -->
         <div class="header-search-wrapper">
           <div class="header-search-input-wrapper" @focus="showSearchSuggestions = true" @blur="hideSearchSuggestions">
@@ -98,6 +137,8 @@
 </template>
 
 <script>
+import { userVideoApi } from '@/api/user'
+
 export default {
   name: 'UserMain',
   data() {
@@ -110,7 +151,15 @@ export default {
         { path: '/main/video', title: '视频首页', icon: 'el-icon-video-camera' },
         { path: '/main/navigation', title: '导航系统', icon: 'el-icon-map-location' },
         { path: '/main/profile', title: '个人中心', icon: 'el-icon-user' }
-      ]
+      ],
+      // 消息通知相关
+      showMessageDropdown: false,
+      unreadCount: 0,
+      messages: [],
+      loadingMessages: false,
+      messageTimer: null,
+      // 用户信息
+      userInfo: null
     }
   },
   computed: {
@@ -121,16 +170,48 @@ export default {
     username() {
       // 只有登录用户才显示用户名
       if (this.isLogin) {
+        // 优先显示nickname，如果没有则显示username
+        if (this.userInfo && this.userInfo.nickname) {
+          return this.userInfo.nickname;
+        }
+        // 从localStorage获取（登录时已保存nickname或username）
         return localStorage.getItem('username') || '用户';
       }
       return '游客';
     },
     userAvatar() {
+      // 优先使用从后端获取的头像
+      if (this.userInfo && this.userInfo.avatarUrl) {
+        return this.userInfo.avatarUrl;
+      }
       return localStorage.getItem('userAvatar') || '';
     }
   },
   created() {
     this.activeMenu = this.$route.path
+    if (this.isLogin) {
+      this.loadUserInfo()
+      this.loadUnreadCount()
+      this.loadMessages()
+      // 每30秒刷新一次未读消息数
+      this.messageTimer = setInterval(() => {
+        this.loadUnreadCount()
+      }, 30000)
+    }
+  },
+  mounted() {
+    // 在 mounted 后添加点击外部区域关闭消息下拉框的监听
+    // 使用延迟执行，确保 DOM 已渲染
+    this.$nextTick(() => {
+      document.addEventListener('click', this.handleClickOutside)
+    })
+  },
+  beforeDestroy() {
+    if (this.messageTimer) {
+      clearInterval(this.messageTimer)
+    }
+    // 移除事件监听
+    document.removeEventListener('click', this.handleClickOutside)
   },
   watch: {
     $route(to) {
@@ -199,6 +280,174 @@ export default {
       this.searchKeyword = suggestion;
       this.showSearchSuggestions = false;
       this.handleSearch();
+    },
+    
+    // 加载用户信息
+    async loadUserInfo() {
+      try {
+        const res = await userVideoApi.getCurrentUser()
+        if (res.code === 200 && res.data) {
+          this.userInfo = res.data
+          // 更新localStorage中的用户信息
+          if (res.data.nickname) {
+            localStorage.setItem('username', res.data.nickname)
+          }
+          if (res.data.avatarUrl) {
+            localStorage.setItem('userAvatar', res.data.avatarUrl)
+          }
+        }
+      } catch (error) {
+        console.error('加载用户信息失败:', error)
+      }
+    },
+    
+    // 消息通知相关方法
+    toggleMessageDropdown(event) {
+      // 阻止事件冒泡，避免触发 handleClickOutside
+      if (event) {
+        event.stopPropagation()
+        event.preventDefault()
+      }
+      const wasOpen = this.showMessageDropdown
+      this.showMessageDropdown = !this.showMessageDropdown
+      if (this.showMessageDropdown && !wasOpen) {
+        // 只有在打开时才加载消息
+        this.loadMessages()
+      }
+    },
+    
+    // 处理下拉框内部点击
+    handleDropdownClick(event) {
+      // 阻止事件冒泡到 document，避免触发 handleClickOutside
+      event.stopPropagation()
+    },
+    
+    async loadUnreadCount() {
+      try {
+        const res = await userVideoApi.getUnreadMessageCount()
+        if (res.code === 200) {
+          this.unreadCount = res.data || 0
+        }
+      } catch (error) {
+        console.error('加载未读消息数失败:', error)
+      }
+    },
+    
+    async loadMessages() {
+      this.loadingMessages = true
+      try {
+        const res = await userVideoApi.getMessageList({ limit: 10 })
+        if (res.code === 200) {
+          this.messages = res.data || []
+        }
+      } catch (error) {
+        console.error('加载消息列表失败:', error)
+      } finally {
+        this.loadingMessages = false
+      }
+    },
+    
+    async markAllAsRead() {
+      try {
+        const res = await userVideoApi.markAllMessagesAsRead()
+        if (res.code === 200) {
+          this.$message.success('已全部标记为已读')
+          this.unreadCount = 0
+          this.messages.forEach(msg => msg.isRead = 1)
+        }
+      } catch (error) {
+        console.error('标记已读失败:', error)
+        this.$message.error('操作失败')
+      }
+    },
+    
+    async viewMessage(msg) {
+      // 如果未读，标记为已读
+      if (msg.isRead === 0) {
+        try {
+          await userVideoApi.markMessageAsRead(msg.id)
+          msg.isRead = 1
+          this.unreadCount = Math.max(0, this.unreadCount - 1)
+        } catch (error) {
+          console.error('标记已读失败:', error)
+        }
+      }
+      
+      // 跳转到消息详情或相关页面
+      if (msg.type === 'LIKE' || msg.type === 'COLLECT' || msg.type === 'COMMENT') {
+        if (msg.relatedVideoId) {
+          this.$router.push(`/main/video/${msg.relatedVideoId}`)
+        }
+      } else if (msg.type === 'FOLLOW') {
+        if (msg.relatedUserId) {
+          // 可以跳转到用户主页
+          this.$message.info('用户主页功能开发中')
+        }
+      } else if (msg.type === 'SYSTEM') {
+        // 跳转到消息详情页
+        this.$router.push(`/main/message/${msg.id}`)
+      }
+      
+      this.showMessageDropdown = false
+    },
+    
+    goToMessageCenter() {
+      this.$router.push('/main/message')
+      this.showMessageDropdown = false
+    },
+    
+    getMessageIcon(type) {
+      const iconMap = {
+        'LIKE': 'el-icon-thumb',
+        'COMMENT': 'el-icon-chat-dot-round',
+        'COLLECT': 'el-icon-star-on',
+        'FOLLOW': 'el-icon-user',
+        'SYSTEM': 'el-icon-bell'
+      }
+      return iconMap[type] || 'el-icon-message'
+    },
+    
+    formatTime(time) {
+      if (!time) return ''
+      const date = new Date(time)
+      const now = new Date()
+      const diff = now - date
+      const minutes = Math.floor(diff / 60000)
+      const hours = Math.floor(diff / 3600000)
+      const days = Math.floor(diff / 86400000)
+      
+      if (minutes < 1) return '刚刚'
+      if (minutes < 60) return `${minutes}分钟前`
+      if (hours < 24) return `${hours}小时前`
+      if (days < 7) return `${days}天前`
+      return time.substring(0, 10)
+    },
+    
+    // 处理点击外部区域关闭消息下拉框
+    handleClickOutside(event) {
+      // 如果下拉框未打开，直接返回
+      if (!this.showMessageDropdown) {
+        return
+      }
+      
+      const messageNotification = this.$refs.messageNotification
+      const messageDropdown = this.$refs.messageDropdown
+      
+      if (!messageNotification || !messageDropdown) {
+        return
+      }
+      
+      // 获取 DOM 元素
+      const notificationEl = messageNotification.$el || messageNotification
+      const dropdownEl = messageDropdown.$el || messageDropdown
+      
+      // 如果点击的不是消息通知区域和下拉框，则关闭下拉框
+      if (notificationEl && dropdownEl) {
+        const target = event.target
+        if (!notificationEl.contains(target) && !dropdownEl.contains(target)) {
+          this.showMessageDropdown = false
+        }
+      }
     }
   }
 }
@@ -492,6 +741,139 @@ export default {
 
 .login-btn-small:hover {
   background: rgba(255, 255, 255, 0.3) !important;
+}
+
+/* 消息通知样式 */
+.message-notification {
+  position: relative;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  transition: all 0.3s;
+  margin-right: 10px;
+}
+
+.message-notification:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.message-notification i {
+  font-size: 22px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.message-notification i.has-unread {
+  color: #ff6b6b;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.message-badge {
+  cursor: pointer;
+}
+
+.message-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 380px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  z-index: 2000;
+  max-height: 500px;
+  display: flex;
+  flex-direction: column;
+}
+
+.message-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px;
+  border-bottom: 1px solid #f0f0f0;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.message-list {
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.empty-message {
+  text-align: center;
+  padding: 40px 20px;
+  color: #999;
+}
+
+.message-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+  border-left: 3px solid transparent;
+}
+
+.message-item:hover {
+  background: #f8f9fa;
+}
+
+.message-item.unread {
+  background: #f0f7ff;
+  border-left-color: #409EFF;
+  font-weight: 500;
+}
+
+.message-icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #f0f0f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: #409EFF;
+}
+
+.message-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.message-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message-text {
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.message-time {
+  font-size: 12px;
+  color: #999;
 }
 
 /* 主内容区域 - 居中放大 */

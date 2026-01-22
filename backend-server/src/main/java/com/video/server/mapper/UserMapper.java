@@ -75,4 +75,10 @@ public interface UserMapper extends BaseMapper<User> {
      */
     Long countByConditionForOffline(@Param("startTime") java.time.LocalDateTime startTime,
                                      @Param("endTime") java.time.LocalDateTime endTime);
+    
+    /**
+     * 查询所有用户（未删除的）
+     * @return 用户列表
+     */
+    List<User> selectAll();
 }

@@ -3,7 +3,7 @@
     <div class="dashboard-control">
       <span class="dashboard-title">数据决策中心</span>
       <div class="control-right">
-        <el-radio-group v-model="dateRange" size="small" style="margin-right: 15px;" @input="handleDateChange">
+        <el-radio-group v-model="dateRange" size="small" style="margin-right: 15px;" @input="handleDateChange" :disabled="loading">
           <el-radio-button label="week">近7天</el-radio-button>
           <el-radio-button label="month">近30天</el-radio-button>
           <el-radio-button label="year">全年</el-radio-button>
@@ -17,7 +17,7 @@
           end-placeholder="结束日期"
           style="width: 240px;">
         </el-date-picker>
-        <el-button type="primary" size="small" icon="el-icon-refresh" style="margin-left: 10px;" @click="refreshData">刷新</el-button>
+        <el-button type="primary" size="small" icon="el-icon-refresh" style="margin-left: 10px;" @click="refreshData" :loading="loading">刷新</el-button>
       </div>
     </div>
 
@@ -128,49 +128,7 @@
 <script>
 import * as echarts from 'echarts';
 import CountTo from 'vue-count-to';
-
-// --- 模拟数据源 (Mock Data) ---
-const MOCK_DATA = {
-  week: {
-    cards: [892300, 45200, 320, 125800],
-    trends: [12.5, 5.2, -2.1, 8.4],
-    mixChart: {
-      xAxis: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
-      user: [20, 49, 70, 23, 25, 76, 135],
-      view: [2000, 4900, 7000, 2300, 2500, 7600, 13500]
-    },
-    barChart: {
-      yAxis: ['Vlog', '猫咪', 'Python', 'Vue3', '健身', '旅行', '探店', '测评', 'LOL', '职场'],
-      data: [320, 302, 301, 334, 390, 450, 420, 480, 500, 550]
-    }
-  },
-  month: {
-    cards: [3580000, 128000, 1050, 480000],
-    trends: [8.5, 3.1, 12.0, 5.5],
-    mixChart: {
-      xAxis: ['1日', '5日', '10日', '15日', '20日', '25日', '30日'],
-      user: [150, 230, 224, 218, 135, 147, 260],
-      view: [15000, 23000, 22400, 21800, 13500, 14700, 26000]
-    },
-    barChart: {
-      yAxis: ['美妆', '穿搭', '数码', '情感', '剧情', '科普', '新闻', '音乐', '舞蹈', '生活'],
-      data: [1200, 1300, 1400, 1500, 1600, 1800, 2100, 2400, 2800, 3000]
-    }
-  },
-  year: {
-    cards: [45000000, 890000, 12000, 5600000],
-    trends: [25.5, 18.2, 30.5, 40.1],
-    mixChart: {
-      xAxis: ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'],
-      user: [2000, 3500, 4000, 3800, 5000, 6000, 7500, 8000, 7000, 6500, 9000, 10000],
-      view: [200000, 350000, 400000, 380000, 500000, 600000, 750000, 800000, 700000, 650000, 900000, 1000000]
-    },
-    barChart: {
-      yAxis: ['年度大赏', '春节', '世界杯', '双11', '毕业季', '开学', '暑假', '寒假', '国庆', '五一'],
-      data: [50000, 52000, 55000, 60000, 65000, 70000, 80000, 85000, 90000, 100000]
-    }
-  }
-};
+import { statsApi } from '@/api/admin';
 
 export default {
   name: 'AdminStats',
@@ -183,20 +141,15 @@ export default {
       funnelChart: null,
       radarChart: null,
       barChart: null,
+      loading: false,
       // 核心数据 (默认值)
       cardData: [
-        { label: '总播放量 (PV)', value: 892300, trend: 12.5, icon: 'el-icon-video-play', colorClass: 'icon-blue' },
-        { label: '日活跃用户 (DAU)', value: 45200, trend: 5.2, icon: 'el-icon-user-solid', colorClass: 'icon-green' },
-        { label: '新增创作者', value: 320, trend: -2.1, icon: 'el-icon-camera', colorClass: 'icon-purple' },
-        { label: '广告总收入 (元)', value: 125800, trend: 8.4, icon: 'el-icon-coin', colorClass: 'icon-red' }
+        { label: '总播放量 (PV)', value: 0, trend: 0, icon: 'el-icon-video-play', colorClass: 'icon-blue' },
+        { label: '日活跃用户 (DAU)', value: 0, trend: 0, icon: 'el-icon-user-solid', colorClass: 'icon-green' },
+        { label: '新增创作者', value: 0, trend: 0, icon: 'el-icon-camera', colorClass: 'icon-purple' },
+        { label: '广告总收入 (元)', value: 0, trend: 0, icon: 'el-icon-coin', colorClass: 'icon-red' }
       ],
-      creatorList: [
-        { name: '极客阿辉', avatar: 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png', score: 98.2 },
-        { name: '美妆小皇后', avatar: 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png', score: 95.6 },
-        { name: '旅行日记', avatar: 'https://cube.elemecdn.com/9/c2/f0ee8a3c7c9638a54940382568c9dpng.png', score: 92.1 },
-        { name: '萌宠集中营', avatar: 'https://cube.elemecdn.com/0/88/03b0d39583f48206768a7534e55bcpng.png', score: 89.5 },
-        { name: 'Java教学', avatar: 'https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png', score: 88.3 }
-      ],
+      creatorList: [],
       // 服务器监控数据
       serverStatus: [
         { name: 'CPU 使用率', usage: 12, desc: '8 Core / 16 Thread', color: '#409EFF' },
@@ -218,7 +171,7 @@ export default {
       this.initCharts();
       window.addEventListener('resize', this.resizeCharts);
       // 初始化加载默认数据
-      this.handleDateChange('week');
+      this.loadStats('week');
 
       // 模拟服务器心跳
       this.timer = setInterval(() => {
@@ -233,42 +186,66 @@ export default {
     this.disposeCharts();
   },
   methods: {
-    // --- 核心：切换时间范围的逻辑 ---
+    // --- 核心：加载统计数据 ---
+    async loadStats(dateRange) {
+      this.loading = true;
+      try {
+        const response = await statsApi.getStats(dateRange);
+        if (response && response.data) {
+          const data = response.data;
+          
+          // 1. 更新顶部卡片数据（确保转换为数字类型）
+          this.cardData[0].value = Number(data.totalViews) || 0;
+          this.cardData[0].trend = Number(data.trends?.totalViews) || 0;
+          this.cardData[1].value = Number(data.dailyActiveUsers) || 0;
+          this.cardData[1].trend = Number(data.trends?.dailyActiveUsers) || 0;
+          this.cardData[2].value = Number(data.newCreators) || 0;
+          this.cardData[2].trend = Number(data.trends?.newCreators) || 0;
+          this.cardData[3].value = data.totalRevenue ? Number(data.totalRevenue) : 0;
+          this.cardData[3].trend = Number(data.trends?.totalRevenue) || 0;
+
+          // 2. 更新混合图表 (Mix Chart)
+          if (this.mixChart && data.mixChartData) {
+            this.mixChart.setOption({
+              xAxis: [{ data: data.mixChartData.xAxis || [] }],
+              series: [
+                { data: data.mixChartData.userData || [] }, // 新增用户
+                { data: data.mixChartData.viewData || [] }  // 播放量
+              ]
+            });
+          }
+
+          // 3. 更新条形图 (Bar Chart)
+          if (this.barChart && data.barChartData) {
+            this.barChart.setOption({
+              yAxis: { data: data.barChartData.yAxis || [] },
+              series: [{ data: data.barChartData.data || [] }]
+            });
+          }
+
+          // 4. 更新优秀创作者列表
+          if (data.creatorList) {
+            this.creatorList = data.creatorList;
+          }
+        }
+      } catch (error) {
+        console.error('加载统计数据失败:', error);
+        this.$message.error('加载统计数据失败，请稍后重试');
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    // --- 切换时间范围的逻辑 ---
     handleDateChange(val) {
+      this.dateRange = val;
       this.$message.info(`正在加载${this.dateRangeLabel}数据...`);
-      
-      const data = MOCK_DATA[val];
-      if (!data) return;
-
-      // 1. 更新顶部卡片数据
-      this.cardData.forEach((item, index) => {
-        item.value = data.cards[index];
-        item.trend = data.trends[index];
-      });
-
-      // 2. 更新混合图表 (Mix Chart)
-      if (this.mixChart) {
-        this.mixChart.setOption({
-          xAxis: { data: data.mixChart.xAxis },
-          series: [
-            { data: data.mixChart.user }, // 新增用户
-            { data: data.mixChart.view }  // 播放量
-          ]
-        });
-      }
-
-      // 3. 更新条形图 (Bar Chart)
-      if (this.barChart) {
-        this.barChart.setOption({
-          yAxis: { data: data.barChart.yAxis },
-          series: [{ data: data.barChart.data }]
-        });
-      }
+      this.loadStats(val);
     },
     
     refreshData() {
       this.$message.success('数据已刷新');
-      this.handleDateChange(this.dateRange); // 重新加载当前选中时间段的数据
+      this.loadStats(this.dateRange); // 重新加载当前选中时间段的数据
     },
     resizeCharts() {
       this.mixChart && this.mixChart.resize();

@@ -1,5 +1,6 @@
 package com.video.server.mapper;
 
+import com.video.server.dto.VideoDTO;
 import com.video.server.entity.Video;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -12,16 +13,21 @@ import java.util.List;
 @Mapper
 public interface VideoMapper extends BaseMapper<Video> {
 
-    List<Video> selectByStatusOrderByPlayCountDesc(@Param("status") String status, @Param("limit") Integer limit);
+    /**
+     * 根据ID查询视频（返回VideoDTO，包含作者昵称）
+     */
+    VideoDTO selectById(@Param("id") Long id);
 
-    List<Video> selectByCondition(@Param("keyword") String keyword,
+    List<VideoDTO> selectByStatusOrderByPlayCountDesc(@Param("status") String status, @Param("limit") Integer limit);
+
+    List<VideoDTO> selectByCondition(@Param("keyword") String keyword,
                                   @Param("status") String status,
                                   @Param("offset") Integer offset,
                                   @Param("limit") Integer limit);
 
     Long countByCondition(@Param("keyword") String keyword, @Param("status") String status);
 
-    List<Video> selectByUserId(@Param("userId") Long userId,
+    List<VideoDTO> selectByUserId(@Param("userId") Long userId,
                                @Param("offset") Integer offset,
                                @Param("limit") Integer limit);
 
@@ -39,7 +45,7 @@ public interface VideoMapper extends BaseMapper<Video> {
 
     int updateHotStatus(@Param("videoId") Long videoId, @Param("isHot") Integer isHot);
 
-    List<Video> selectByIds(@Param("videoIds") List<Long> videoIds);
+    List<VideoDTO> selectByIds(@Param("videoIds") List<Long> videoIds);
 
     List<Video> selectByConditionForOffline(@Param("startTime") java.time.LocalDateTime startTime,
                                             @Param("endTime") java.time.LocalDateTime endTime,
@@ -66,10 +72,15 @@ public interface VideoMapper extends BaseMapper<Video> {
     /**
      * 搜索视频 (前台搜索用)
      */
-    List<Video> searchVideos(@Param("keyword") String keyword,
+    List<VideoDTO> searchVideos(@Param("keyword") String keyword,
                              @Param("categoryId") Integer categoryId,
                              @Param("offset") Integer offset,
                              @Param("limit") Integer limit);
     // 添加接口
     List<Video> selectListByUserId(@Param("userId") Long userId);
+    
+    /**
+     * 获取所有视频的总播放量（仅统计已发布且未删除的视频）
+     */
+    Long getTotalPlayCount();
 }

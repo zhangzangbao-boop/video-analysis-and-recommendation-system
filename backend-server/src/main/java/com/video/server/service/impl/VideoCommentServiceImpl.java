@@ -6,6 +6,7 @@ import com.video.server.entity.VideoComment;
 import com.video.server.mapper.VideoCommentMapper;
 import com.video.server.mapper.VideoMapper;
 import com.video.server.service.VideoCommentService;
+import com.video.server.service.UserMessageService;
 import com.video.server.utils.IdGenerator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,7 @@ public class VideoCommentServiceImpl implements VideoCommentService {
 
     private final VideoCommentMapper commentMapper;
     private final VideoMapper videoMapper;
+    private final UserMessageService messageService;
 
     // 内存 Map 存储点赞状态 Key: commentId, Value: Set<userId>
     private static final Map<Long, Set<Long>> COMMENT_LIKE_MAP = new ConcurrentHashMap<>();
@@ -54,6 +56,12 @@ public class VideoCommentServiceImpl implements VideoCommentService {
 
         VideoCommentDTO dto = commentMapper.selectDTOById(id);
         if (dto != null) dto.setIsLiked(false);
+        
+        // 创建评论消息通知（使用上面已获取的 video 对象）
+        if (video != null && video.getAuthorId() != null) {
+            messageService.createCommentMessage(video.getAuthorId(), userId, videoId, id, content);
+        }
+        
         return dto;
     }
 

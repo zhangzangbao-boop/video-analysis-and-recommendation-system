@@ -206,7 +206,7 @@ export default {
         if (res.code === 200) {
           // 🔥 核心修复：正确读取 list 字段
           this.list = res.data.list || res.data.records || [];
-          this.total = res.data.total || 0;
+          this.total = Number(res.data.total) || 0;
         }
       } catch (error) {
         console.error(error);

@@ -58,17 +58,15 @@
         </div>
         
         <div class="header-right">
-          <div class="sort-options">
-            <span class="sort-label">排序:</span>
-            <button 
-              v-for="option in sortOptions" 
-              :key="option.value"
-              :class="['sort-option', { active: sortType === option.value }]"
-              @click="sortType = option.value"
-            >
-              {{ option.label }}
-            </button>
-          </div>
+          <button 
+            class="refresh-button" 
+            @click="refreshVideos"
+            :disabled="loading"
+            :class="{ refreshing: refreshing }"
+          >
+            <i class="el-icon-refresh" :class="{ rotating: refreshing }"></i>
+            <span>刷新推荐</span>
+          </button>
         </div>
       </div>
       
@@ -235,31 +233,28 @@ export default {
   data() {
     return {
       filterType: 'recommend',
-      sortType: 'recommend',
       videos: [],
       loading: false,
+      refreshing: false,
+      totalPlayCount: 0, // 真实的总播放量
       filterTabs: [
         { value: 'recommend', label: '推荐', icon: 'el-icon-star-on' },
         { value: 'hot', label: '热门', icon: 'el-icon-fire' },
         { value: 'newest', label: '最新', icon: 'el-icon-time' }
-      ],
-      sortOptions: [
-        { value: 'recommend', label: '综合推荐' },
-        { value: 'hot', label: '最多播放' },
-        { value: 'newest', label: '最新发布' }
       ]
     }
   },
   
   computed: {
     totalViews() {
-      const total = this.videos.reduce((sum, video) => sum + (video.views || 0), 0)
-      return this.formatViews(total)
+      // 使用真实的总播放量数据
+      return this.formatViews(this.totalPlayCount)
     }
   },
   
   mounted() {
     this.loadVideos()
+    this.loadTotalPlayCount() // 加载真实的总播放量
     // 监听全局搜索事件
     this.$bus = this.$root.$children.find(c => c.$options.name === 'App') || this.$root;
     if (this.$bus) {
@@ -277,6 +272,20 @@ export default {
   },
   
   methods: {
+    // 加载真实的总播放量
+    async loadTotalPlayCount() {
+      try {
+        const response = await userVideoApi.getTotalPlayCount()
+        if (response && response.data !== undefined) {
+          this.totalPlayCount = response.data || 0
+        }
+      } catch (error) {
+        console.error('加载总播放量失败:', error)
+        // 失败时使用0，不影响页面显示
+        this.totalPlayCount = 0
+      }
+    },
+    
     // 加载视频列表
     async loadVideos() {
       this.loading = true
@@ -302,7 +311,7 @@ export default {
             uploadTime: video.createTime,
             author: {
               id: video.authorId || null,
-              name: video.authorId ? `用户${video.authorId}` : '未知作者'
+              name: video.authorName || (video.authorId ? `用户${video.authorId}` : '未知作者')
             }
           }))
         } else {
@@ -351,8 +360,68 @@ export default {
       this.loadVideos()
     },
     
-    refreshVideos() {
-      this.loadVideos()
+    // 刷新视频推荐（每次刷新推送新视频）
+    async refreshVideos() {
+      if (this.loading || this.refreshing) return
+      
+      this.refreshing = true
+      this.loading = true
+      
+      try {
+        const userId = localStorage.getItem('userId') ? parseInt(localStorage.getItem('userId')) : null
+        
+        // 调用推荐API，每次刷新获取新的推荐
+        let response
+        if (this.filterType === 'hot') {
+          response = await userVideoApi.getHotVideos()
+        } else {
+          // 推荐模式：每次刷新获取新的推荐视频
+          // 获取当前已显示的视频ID列表，传递给后端排除
+          const excludeIds = this.videos.map(v => v.id).join(',')
+          
+          // 后端会根据recommendation_result表按优先级返回推荐
+          // 优先级：REALTIME > OFFLINE，按score降序，rank升序
+          response = await userVideoApi.getRecommendVideos(userId, 20, excludeIds)
+        }
+        
+        if (response && response.data) {
+          // 如果当前有视频，将新视频添加到列表前面（实现推送效果）
+          const newVideos = response.data.map(video => ({
+            id: video.id,
+            title: video.title || '无标题',
+            thumbnail: video.coverUrl || '',
+            duration: this.formatDuration(video.duration || 0),
+            views: video.playCount || 0,
+            likes: video.likeCount || 0,
+            uploadTime: video.createTime,
+            author: {
+              id: video.authorId || null,
+              name: video.authorName || (video.authorId ? `用户${video.authorId}` : '未知作者')
+            }
+          }))
+          
+          // 去重：移除已存在的视频，然后将新视频添加到前面
+          const existingIds = new Set(this.videos.map(v => v.id))
+          const uniqueNewVideos = newVideos.filter(v => !existingIds.has(v.id))
+          
+          if (uniqueNewVideos.length > 0) {
+            this.videos = [...uniqueNewVideos, ...this.videos]
+            this.$message.success(`已推送 ${uniqueNewVideos.length} 个新视频`)
+          } else {
+            // 如果没有新视频，完全替换列表（可能是所有推荐都已显示）
+            this.videos = newVideos
+            this.$message.info('已刷新推荐列表')
+          }
+        } else {
+          this.$message.warning('暂无推荐视频')
+        }
+      } catch (error) {
+        console.error('刷新视频失败:', error)
+        this.$message.error('刷新失败，请稍后重试')
+      } finally {
+        this.loading = false
+        this.refreshing = false
+      }
     }
   }
 }
@@ -1212,24 +1281,58 @@ export default {
   margin-bottom: 24px;
 }
 
-.refresh-button {
-  padding: 12px 32px;
-  background: linear-gradient(135deg, #00aeec 0%, #0082c8 100%);
-  color: white;
-  border: none;
-  border-radius: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s ease;
+.header-right {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 0 auto;
+  gap: 16px;
 }
 
-.refresh-button:hover {
+.header-right .refresh-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  white-space: nowrap;
+}
+
+.header-right .refresh-button:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 174, 236, 0.3);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.header-right .refresh-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.header-right .refresh-button .el-icon-refresh {
+  transition: transform 0.3s ease;
+}
+
+.header-right .refresh-button .el-icon-refresh.rotating {
+  animation: rotate 1s linear infinite;
+}
+
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.header-right .refresh-button.refreshing {
+  background: linear-gradient(135deg, #a8a8a8 0%, #888888 100%);
 }
 
 /* 响应式设计 */

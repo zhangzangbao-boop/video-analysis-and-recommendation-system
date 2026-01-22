@@ -26,4 +26,9 @@ public class VideoCategory {
      * 排序
      */
     private Integer sort;
+    
+    /**
+     * 该分类下的视频数量（非数据库字段，用于前端显示）
+     */
+    private Long videoCount;
 }

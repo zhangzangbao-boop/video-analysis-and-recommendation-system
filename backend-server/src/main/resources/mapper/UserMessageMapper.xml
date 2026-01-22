@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.video.server.mapper.UserMessageMapper">
+
+    <!-- 结果映射 -->
+    <resultMap id="BaseResultMap" type="com.video.server.entity.UserMessage">
+        <id column="id" property="id"/>
+        <result column="user_id" property="userId"/>
+        <result column="type" property="type"/>
+        <result column="title" property="title"/>
+        <result column="content" property="content"/>
+        <result column="related_user_id" property="relatedUserId"/>
+        <result column="related_video_id" property="relatedVideoId"/>
+        <result column="related_comment_id" property="relatedCommentId"/>
+        <result column="related_notice_id" property="relatedNoticeId"/>
+        <result column="is_read" property="isRead"/>
+        <result column="read_time" property="readTime"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+
+    <!-- 查询用户的消息列表 -->
+    <select id="selectByUserId" resultMap="BaseResultMap">
+        SELECT *
+        FROM user_message
+        WHERE user_id = #{userId}
+        <if test="type != null and type != ''">
+            AND type = #{type}
+        </if>
+        <if test="isRead != null">
+            AND is_read = #{isRead}
+        </if>
+        ORDER BY create_time DESC
+        <if test="limit != null and limit > 0">
+            LIMIT #{limit}
+        </if>
+    </select>
+
+    <!-- 统计用户未读消息数 -->
+    <select id="countUnreadByUserId" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM user_message
+        WHERE user_id = #{userId} AND is_read = 0
+    </select>
+
+    <!-- 标记消息为已读 -->
+    <update id="markAsRead">
+        UPDATE user_message
+        SET is_read = 1, read_time = NOW()
+        WHERE id = #{messageId}
+    </update>
+
+    <!-- 一键标记所有消息为已读 -->
+    <update id="markAllAsRead">
+        UPDATE user_message
+        SET is_read = 1, read_time = NOW()
+        WHERE user_id = #{userId} AND is_read = 0
+    </update>
+
+    <!-- 根据类型和相关信息查询消息（用于去重） -->
+    <select id="selectByTypeAndRelated" resultMap="BaseResultMap">
+        SELECT *
+        FROM user_message
+        WHERE user_id = #{userId}
+          AND type = #{type}
+          <if test="relatedUserId != null">
+              AND related_user_id = #{relatedUserId}
+          </if>
+          <if test="relatedVideoId != null">
+              AND related_video_id = #{relatedVideoId}
+          </if>
+          <if test="relatedCommentId != null">
+              AND related_comment_id = #{relatedCommentId}
+          </if>
+        ORDER BY create_time DESC
+        LIMIT 1
+    </select>
+
+    <!-- 插入用户消息 -->
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO user_message (
+            user_id, type, title, content, 
+            related_user_id, related_video_id, related_comment_id, related_notice_id,
+            is_read, read_time, create_time
+        ) VALUES (
+            #{userId}, #{type}, #{title}, #{content},
+            #{relatedUserId}, #{relatedVideoId}, #{relatedCommentId}, #{relatedNoticeId},
+            #{isRead}, #{readTime}, #{createTime}
+        )
+    </insert>
+
+</mapper>

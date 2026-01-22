@@ -165,4 +165,12 @@
         </if>
     </select>
 
+    <!-- 查询所有用户（未删除的） -->
+    <select id="selectAll" resultMap="BaseResultMap">
+        SELECT <include refid="Base_Column_List"/>
+        FROM sys_user
+        WHERE is_deleted = 0
+        ORDER BY create_time DESC
+    </select>
+
 </mapper>

@@ -222,7 +222,7 @@
               <div class="video-info">
                 <h4 class="video-title">{{ video.title }}</h4>
                 <div class="video-meta">
-                  <span class="video-author">{{ video.authorId ? `用户${video.authorId}` : '未知作者' }}</span>
+                  <span class="video-author">{{ video.authorName || (video.authorId ? `用户${video.authorId}` : '未知作者') }}</span>
                   <span class="video-stats">
                     <i class="el-icon-view"></i> {{ formatViews(video.playCount || 0) }}
                     <i class="el-icon-star-on"></i> {{ formatViews(video.likeCount || 0) }}
@@ -311,7 +311,7 @@ export default {
           this.hotRanking = response.data.slice(0, 10).map((video, index) => ({
             id: video.id,
             title: video.title || '无标题',
-            author: video.authorId ? `用户${video.authorId}` : '未知作者',
+            author: video.authorName || (video.authorId ? `用户${video.authorId}` : '未知作者'),
             views: this.formatViews(video.playCount || 0),
             likes: this.formatViews(video.likeCount || 0),
             trending: index < 3 ? 'up' : (index % 2 === 0 ? 'new' : null)

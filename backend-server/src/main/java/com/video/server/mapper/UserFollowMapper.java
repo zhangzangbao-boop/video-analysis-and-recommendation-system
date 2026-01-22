@@ -41,4 +41,18 @@ public interface UserFollowMapper extends BaseMapper<UserFollow> {
      * @return 粉丝列表（包含粉丝用户的信息）
      */
     List<com.video.server.entity.User> selectFansList(@Param("userId") Long userId);
+    
+    /**
+     * 统计用户的关注数（我关注的人的数量）
+     * @param userId 用户ID
+     * @return 关注数
+     */
+    Long countFollowingByUserId(@Param("userId") Long userId);
+    
+    /**
+     * 统计用户的粉丝数（关注我的人的数量）
+     * @param userId 用户ID
+     * @return 粉丝数
+     */
+    Long countFansByUserId(@Param("userId") Long userId);
 }

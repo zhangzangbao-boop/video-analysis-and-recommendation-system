@@ -105,4 +105,9 @@ public class Video {
      * 更新时间
      */
     private LocalDateTime updateTime;
+    
+    /**
+     * 作者昵称（非数据库字段，用于前端显示）
+     */
+    private String authorName;
 }

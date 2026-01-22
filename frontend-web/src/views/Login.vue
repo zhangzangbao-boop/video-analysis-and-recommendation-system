@@ -95,7 +95,7 @@
                 <div class="preview-info">
                   <h4 class="preview-title" :title="video.title">{{ video.title || '无标题' }}</h4>
                   <div class="preview-meta">
-                    <span class="preview-author">UP主: {{ video.authorId ? `用户${video.authorId}` : '未知' }}</span>
+                    <span class="preview-author">UP主: {{ video.authorName || (video.authorId ? `用户${video.authorId}` : '未知') }}</span>
                     <div class="preview-stats">
                       <span><i class="el-icon-view"></i> {{ formatNumber(video.playCount || 0) }}</span>
                       <span><i class="el-icon-star-on"></i> {{ formatNumber(video.likeCount || 0) }}</span>
@@ -126,19 +126,46 @@
     <el-dialog
         title="用户登录"
         :visible.sync="showUserLoginDialog"
-        width="360px"
+        width="400px"
         center
         append-to-body
     >
-      <el-form :model="loginForm" :rules="rules" ref="userLoginForm">
-        <el-form-item prop="username">
-          <el-input v-model="loginForm.username" prefix-icon="el-icon-user" placeholder="账号"></el-input>
-        </el-form-item>
-        <el-form-item prop="password">
-          <el-input v-model="loginForm.password" prefix-icon="el-icon-lock" type="password" placeholder="密码" show-password></el-input>
-        </el-form-item>
-        <el-button type="primary" style="width: 100%;" @click="handleUserLogin" :loading="loading">登 录</el-button>
-      </el-form>
+      <el-tabs v-model="activeTab" @tab-click="handleTabClick">
+        <el-tab-pane label="登录" name="login">
+          <el-form :model="loginForm" :rules="loginRules" ref="userLoginForm" style="margin-top: 20px;">
+            <el-form-item prop="username">
+              <el-input v-model="loginForm.username" prefix-icon="el-icon-user" placeholder="账号"></el-input>
+            </el-form-item>
+            <el-form-item prop="password">
+              <el-input v-model="loginForm.password" prefix-icon="el-icon-lock" type="password" placeholder="密码" show-password></el-input>
+            </el-form-item>
+            <el-button type="primary" style="width: 100%;" @click="handleUserLogin" :loading="loading">登 录</el-button>
+          </el-form>
+        </el-tab-pane>
+        <el-tab-pane label="注册" name="register">
+          <el-form :model="registerForm" :rules="registerRules" ref="userRegisterForm" style="margin-top: 20px;">
+            <el-form-item prop="username">
+              <el-input v-model="registerForm.username" prefix-icon="el-icon-user" placeholder="用户名（必填）"></el-input>
+            </el-form-item>
+            <el-form-item prop="password">
+              <el-input v-model="registerForm.password" prefix-icon="el-icon-lock" type="password" placeholder="密码（必填）" show-password></el-input>
+            </el-form-item>
+            <el-form-item prop="confirmPassword">
+              <el-input v-model="registerForm.confirmPassword" prefix-icon="el-icon-lock" type="password" placeholder="确认密码（必填）" show-password></el-input>
+            </el-form-item>
+            <el-form-item prop="nickname">
+              <el-input v-model="registerForm.nickname" prefix-icon="el-icon-edit" placeholder="昵称（可选）"></el-input>
+            </el-form-item>
+            <el-form-item prop="phone">
+              <el-input v-model="registerForm.phone" prefix-icon="el-icon-phone" placeholder="手机号（可选）"></el-input>
+            </el-form-item>
+            <el-form-item prop="email">
+              <el-input v-model="registerForm.email" prefix-icon="el-icon-message" placeholder="邮箱（可选）"></el-input>
+            </el-form-item>
+            <el-button type="success" style="width: 100%;" @click="handleUserRegister" :loading="registerLoading">注 册</el-button>
+          </el-form>
+        </el-tab-pane>
+      </el-tabs>
     </el-dialog>
 
     <el-dialog
@@ -184,11 +211,50 @@ export default {
       // 弹窗控制
       showUserLoginDialog: false,
       showAdminLoginDialog: false,
+      activeTab: 'login', // 登录/注册标签页
 
       // 表单数据
       loginForm: { username: '', password: '' },
+      registerForm: { 
+        username: '', 
+        password: '', 
+        confirmPassword: '', 
+        nickname: '', 
+        phone: '', 
+        email: '' 
+      },
       adminForm: { username: '', password: '' },
+      registerLoading: false,
 
+      // 登录表单验证规则
+      loginRules: {
+        username: [{ required: true, message: '请输入账号', trigger: 'blur' }],
+        password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
+      },
+      
+      // 注册表单验证规则
+      registerRules: {
+        username: [
+          { required: true, message: '请输入用户名', trigger: 'blur' },
+          { min: 3, max: 20, message: '用户名长度在 3 到 20 个字符', trigger: 'blur' }
+        ],
+        password: [
+          { required: true, message: '请输入密码', trigger: 'blur' },
+          { min: 6, max: 20, message: '密码长度在 6 到 20 个字符', trigger: 'blur' }
+        ],
+        confirmPassword: [
+          { required: true, message: '请确认密码', trigger: 'blur' },
+          { validator: this.validateConfirmPassword, trigger: 'blur' }
+        ],
+        phone: [
+          { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号', trigger: 'blur' }
+        ],
+        email: [
+          { type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }
+        ]
+      },
+      
+      // 管理员表单验证规则
       rules: {
         username: [{ required: true, message: '请输入账号', trigger: 'blur' }],
         password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
@@ -297,6 +363,25 @@ export default {
       this.$message.warning('请先登录后搜索');
       this.showUserLoginDialog = true;
     },
+    
+    // 标签页切换
+    handleTabClick(tab) {
+      // 切换标签页时清空表单
+      if (tab.name === 'login') {
+        this.$refs.userRegisterForm && this.$refs.userRegisterForm.resetFields();
+      } else {
+        this.$refs.userLoginForm && this.$refs.userLoginForm.resetFields();
+      }
+    },
+    
+    // 验证确认密码
+    validateConfirmPassword(rule, value, callback) {
+      if (value !== this.registerForm.password) {
+        callback(new Error('两次输入密码不一致'));
+      } else {
+        callback();
+      }
+    },
 
     // --- 核心：游客文字 5连击 ---
     handleGuestSecretClick() {
@@ -373,9 +458,81 @@ export default {
 
           } catch (e) {
             console.error(e);
-            // 错误提示已由 request.js 拦截器处理，这里只需处理 loading
+            this.$message.error(e.response?.data?.message || e.message || '登录失败，请检查账号密码');
           } finally {
             this.loading = false;
+          }
+        }
+      });
+    },
+    
+    // --- 用户注册逻辑 ---
+    handleUserRegister() {
+      this.$refs.userRegisterForm.validate(async valid => {
+        if (valid) {
+          this.registerLoading = true;
+          try {
+            // 构建注册请求数据
+            const registerData = {
+              username: this.registerForm.username,
+              password: this.registerForm.password,
+              nickname: this.registerForm.nickname || undefined,
+              phone: this.registerForm.phone || undefined,
+              email: this.registerForm.email || undefined
+            };
+            
+            // 调用注册接口
+            const res = await request({
+              url: '/api/auth/register',
+              method: 'post',
+              data: registerData
+            });
+
+            // 注册成功后会自动登录，获取Token
+            const token = res.data ? res.data.token : res.token;
+
+            if (!token) {
+              throw new Error('注册失败：未获取到Token');
+            }
+
+            // 存储Token
+            localStorage.setItem('userToken', token);
+            sessionStorage.setItem('userToken', token);
+
+            // 获取用户信息
+            try {
+              const userRes = await userVideoApi.getCurrentUser();
+              const user = userRes.data;
+
+              if (user) {
+                localStorage.setItem('username', user.nickname || user.username);
+                localStorage.setItem('userAvatar', user.avatarUrl || '');
+                localStorage.setItem('userId', user.id);
+                localStorage.setItem('userRole', 'user');
+
+                sessionStorage.setItem('username', user.nickname || user.username);
+                sessionStorage.setItem('userAvatar', user.avatarUrl || '');
+                sessionStorage.setItem('userId', user.id);
+                sessionStorage.setItem('userRole', 'user');
+
+                this.$message.success('注册成功，欢迎 ' + (user.nickname || user.username) + '！');
+              }
+            } catch (err) {
+              console.warn('获取用户信息失败，但注册已成功', err);
+              localStorage.setItem('username', this.registerForm.username);
+            }
+
+            // 关闭注册弹窗
+            this.showUserLoginDialog = false;
+
+            // 跳转到主页面
+            this.$router.push('/main/video');
+          } catch (error) {
+            console.error('注册失败:', error);
+            const errorMsg = error.response?.data?.message || error.message || '注册失败，请重试';
+            this.$message.error(errorMsg);
+          } finally {
+            this.registerLoading = false;
           }
         }
       });

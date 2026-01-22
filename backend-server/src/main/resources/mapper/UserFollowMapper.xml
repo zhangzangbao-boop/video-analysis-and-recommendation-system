@@ -87,4 +87,18 @@
         ORDER BY uf.create_time DESC
     </select>
 
+    <!-- 统计用户的关注数（我关注的人的数量） -->
+    <select id="countFollowingByUserId" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM sys_user_follow
+        WHERE user_id = #{userId}
+    </select>
+
+    <!-- 统计用户的粉丝数（关注我的人的数量） -->
+    <select id="countFansByUserId" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM sys_user_follow
+        WHERE follow_user_id = #{userId}
+    </select>
+
 </mapper>
