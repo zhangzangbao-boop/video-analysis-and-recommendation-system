@@ -121,10 +121,10 @@ public class VideoServiceImpl implements VideoService {
     
     /**
      * 获取推荐视频列表（支持排除已推送的视频，用于刷新功能）
-     * 混合推荐策略（隐藏逻辑）：
-     * - 70% 从 recommendation_result 表获取（REALTIME优先，按score降序，rank升序）
-     * - 20% 从热门视频获取（按播放量排序）
-     * - 10% 随机推荐（增加多样性）
+     * 推荐策略（优先级）：
+     * 1. 优先从Redis读取（user_recs:{userId}，ZSet格式，按score降序）
+     * 2. 如果Redis没有，从数据库recommendation_result表获取（REALTIME优先，按score降序，rank升序）
+     * 3. 混合策略：70%推荐结果 + 20%热门视频 + 10%随机推荐
      * 
      * @param userId 用户ID
      * @param limit 返回数量限制
@@ -140,44 +140,82 @@ public class VideoServiceImpl implements VideoService {
             usedVideoIds.addAll(excludeVideoIds);
         }
         
-        // ========== 策略1: 70% 从 recommendation_result 表获取 ==========
+        // ========== 策略1: 优先从Redis读取推荐结果 ==========
         int recommendCount = (int) Math.ceil(limit * 0.7);
-        if (userId != null && recommendationResultMapper != null) {
+        List<Long> recommendVideoIds = null;
+        
+        if (userId != null && redisTemplate != null) {
             try {
-                List<Long> recommendVideoIds = recommendationResultMapper.selectVideoIdsByUserId(
-                    userId, recommendCount * 2, excludeVideoIds); // 多取一些，避免过滤后不够
-                if (recommendVideoIds != null && !recommendVideoIds.isEmpty()) {
-                    List<Long> filteredIds = recommendVideoIds.stream()
+                String redisKey = "user_recs:" + userId;
+                // 从Redis ZSet中获取Top N推荐视频ID（按score降序）
+                java.util.Set<Object> videoIdSet = redisTemplate.opsForZSet()
+                    .reverseRange(redisKey, 0, recommendCount * 2 - 1); // 多取一些，避免过滤后不够
+                
+                if (videoIdSet != null && !videoIdSet.isEmpty()) {
+                    List<Long> redisVideoIds = videoIdSet.stream()
+                        .map(obj -> Long.parseLong(obj.toString()))
                         .filter(id -> !usedVideoIds.contains(id))
                         .limit(recommendCount)
                         .collect(java.util.stream.Collectors.toList());
                     
-                    if (!filteredIds.isEmpty()) {
-                        List<VideoDTO> recommendVideoDTOs = videoMapper.selectByIds(filteredIds);
-                        List<Video> recommendVideos = recommendVideoDTOs != null ? recommendVideoDTOs.stream()
-                            .map(dto -> {
-                                Video video = new Video();
-                                BeanUtils.copyProperties(dto, video);
-                                return video;
-                            })
-                            .collect(Collectors.toList()) : null;
-                        if (recommendVideos != null && !recommendVideos.isEmpty()) {
-                            // 保持 recommendation_result 中的顺序
-                            recommendVideos = recommendVideos.stream()
-                                .sorted((v1, v2) -> {
-                                    int idx1 = filteredIds.indexOf(v1.getId());
-                                    int idx2 = filteredIds.indexOf(v2.getId());
-                                    return Integer.compare(idx1, idx2);
-                                })
-                                .collect(java.util.stream.Collectors.toList());
-                            
-                            finalRecommendVideos.addAll(recommendVideos);
-                            recommendVideos.forEach(v -> usedVideoIds.add(v.getId()));
-                        }
+                    if (redisVideoIds != null && !redisVideoIds.isEmpty()) {
+                        recommendVideoIds = redisVideoIds;
+                        System.out.println("[推荐服务] 从Redis获取到 " + recommendVideoIds.size() + " 个推荐视频ID");
+                    }
+                }
+            } catch (Exception e) {
+                System.err.println("[WARN] 从Redis获取推荐失败: " + e.getMessage());
+            }
+        }
+        
+        // ========== 策略2: 如果Redis没有，从数据库获取 ==========
+        if ((recommendVideoIds == null || recommendVideoIds.isEmpty()) && userId != null && recommendationResultMapper != null) {
+            try {
+                List<Long> dbVideoIds = recommendationResultMapper.selectVideoIdsByUserId(
+                    userId, recommendCount * 2, excludeVideoIds); // 多取一些，避免过滤后不够
+                if (dbVideoIds != null && !dbVideoIds.isEmpty()) {
+                    List<Long> filteredDbVideoIds = dbVideoIds.stream()
+                        .filter(id -> !usedVideoIds.contains(id))
+                        .limit(recommendCount)
+                        .collect(java.util.stream.Collectors.toList());
+                    
+                    if (filteredDbVideoIds != null && !filteredDbVideoIds.isEmpty()) {
+                        recommendVideoIds = filteredDbVideoIds;
+                        System.out.println("[推荐服务] 从数据库获取到 " + recommendVideoIds.size() + " 个推荐视频ID");
                     }
                 }
             } catch (Exception e) {
                 System.err.println("[WARN] 从recommendation_result获取推荐失败: " + e.getMessage());
+            }
+        }
+        
+        // ========== 将推荐视频ID转换为Video对象 ==========
+        final List<Long> finalRecommendVideoIds = recommendVideoIds; // 创建final变量供lambda使用
+        if (finalRecommendVideoIds != null && !finalRecommendVideoIds.isEmpty()) {
+            try {
+                List<VideoDTO> recommendVideoDTOs = videoMapper.selectByIds(finalRecommendVideoIds);
+                List<Video> recommendVideos = recommendVideoDTOs != null ? recommendVideoDTOs.stream()
+                    .map(dto -> {
+                        Video video = new Video();
+                        BeanUtils.copyProperties(dto, video);
+                        return video;
+                    })
+                    .collect(Collectors.toList()) : null;
+                if (recommendVideos != null && !recommendVideos.isEmpty()) {
+                    // 保持推荐顺序（Redis或数据库中的顺序）
+                    recommendVideos = recommendVideos.stream()
+                        .sorted((v1, v2) -> {
+                            int idx1 = finalRecommendVideoIds.indexOf(v1.getId());
+                            int idx2 = finalRecommendVideoIds.indexOf(v2.getId());
+                            return Integer.compare(idx1, idx2);
+                        })
+                        .collect(java.util.stream.Collectors.toList());
+                    
+                    finalRecommendVideos.addAll(recommendVideos);
+                    recommendVideos.forEach(v -> usedVideoIds.add(v.getId()));
+                }
+            } catch (Exception e) {
+                System.err.println("[WARN] 获取推荐视频详情失败: " + e.getMessage());
             }
         }
         

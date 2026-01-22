@@ -6,15 +6,20 @@ import com.video.server.mapper.UserBehaviorMapper;
 import com.video.server.service.UserBehaviorService;
 import com.video.server.service.VideoService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.support.SendResult;
 import org.springframework.stereotype.Service;
+import org.springframework.util.concurrent.ListenableFuture;
+import org.springframework.util.concurrent.ListenableFutureCallback;
 
 import java.time.LocalDateTime;
 
 /**
  * 用户行为服务实现类
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserBehaviorServiceImpl implements UserBehaviorService {
@@ -47,11 +52,27 @@ public class UserBehaviorServiceImpl implements UserBehaviorService {
         // 3. 如果Kafka可用，发送行为数据到 Kafka
         if (kafkaTemplate != null) {
             try {
-                kafkaTemplate.send(KAFKA_TOPIC, userBehavior);
+                log.info("发送用户行为数据到Kafka: userId={}, videoId={}, actionType={}", 
+                        userBehavior.getUserId(), userBehavior.getVideoId(), userBehavior.getActionType());
+                ListenableFuture<SendResult<String, Object>> future = kafkaTemplate.send(KAFKA_TOPIC, userBehavior);
+                future.addCallback(new ListenableFutureCallback<SendResult<String, Object>>() {
+                    @Override
+                    public void onSuccess(SendResult<String, Object> result) {
+                        log.info("Kafka消息发送成功: topic={}, offset={}", 
+                                KAFKA_TOPIC, result.getRecordMetadata().offset());
+                    }
+                    
+                    @Override
+                    public void onFailure(Throwable ex) {
+                        log.error("Kafka消息发送失败: topic={}, error={}", KAFKA_TOPIC, ex.getMessage(), ex);
+                    }
+                });
             } catch (Exception e) {
                 // Kafka发送失败不影响主流程，只记录日志
-                System.err.println("Kafka消息发送失败: " + e.getMessage());
+                log.error("Kafka消息发送异常: topic={}, error={}", KAFKA_TOPIC, e.getMessage(), e);
             }
+        } else {
+            log.warn("KafkaTemplate未配置，跳过消息发送");
         }
     }
 }

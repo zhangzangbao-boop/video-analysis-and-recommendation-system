@@ -2,7 +2,7 @@ package com.shortvideo.recommendation.realtime
 
 import com.shortvideo.recommendation.common.entity.{UserBehavior, UserBehaviorEvent}
 import com.shortvideo.recommendation.common.exception.{KafkaException, SparkException}
-import com.shortvideo.recommendation.common.utils.TimeUtil
+import com.shortvideo.recommendation.common.utils.{TimeUtil, ConfigUtils}
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.spark.streaming.Seconds
 import org.apache.spark.streaming.dstream.DStream
@@ -59,11 +59,16 @@ object BehaviorParser {
 
   /**
    * 主解析入口：从原始 Kafka DStream 解析成 UserBehavior 流
+   * 添加时间窗口过滤，只处理最近N秒内的数据
    *
    * @param rawStream Kafka 原始输入流
    * @return 解析后的 UserBehavior DStream
    */
   def parse(rawStream: DStream[ConsumerRecord[String, String]]): DStream[UserBehavior] = {
+    // 获取时间窗口配置（默认10秒）
+    val windowSeconds = ConfigUtils.getInt("kafka.realtime.window.seconds", 10)
+    val windowMillis = windowSeconds * 1000L
+    
     rawStream
       .map(record => (record.key(), record.value()))     // (key, value)
       .flatMap {
@@ -81,6 +86,19 @@ object BehaviorParser {
           }
       }
       .filter(isValidBehavior)  // 过滤掉无效数据
+      .filter { behavior =>
+        // 时间窗口过滤：只处理最近N秒内的数据（在每个批次中动态计算当前时间）
+        val currentTime = System.currentTimeMillis()
+        val behaviorTime = behavior.behaviorTime.getTime
+        val timeDiff = currentTime - behaviorTime
+        val isRecent = timeDiff >= 0 && timeDiff <= windowMillis
+        
+        if (!isRecent) {
+          println(s"[时间窗口过滤] 过滤掉过期数据: behaviorTime=${behavior.behaviorTime}, 时间差=${timeDiff}ms, 窗口=${windowSeconds}秒")
+        }
+        
+        isRecent
+      }
   }
 
   /**
