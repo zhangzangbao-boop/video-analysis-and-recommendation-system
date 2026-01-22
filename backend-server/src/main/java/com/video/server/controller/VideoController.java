@@ -111,10 +111,10 @@ public class VideoController {
                 try {
                     userId = Long.parseLong(userIdStr);
                 } catch (NumberFormatException e) {
-                    userId = 1L;
+                    return ResponseEntity.ok(ApiResponse.fail(401, "无效的用户ID"));
                 }
             } else {
-                userId = 1L;
+                return ResponseEntity.ok(ApiResponse.fail(401, "未登录或身份验证失败"));
             }
         }
 

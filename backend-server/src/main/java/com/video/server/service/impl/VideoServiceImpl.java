@@ -340,6 +340,7 @@ public class VideoServiceImpl implements VideoService {
     }
 
     @Override
+    @Transactional
     public void uploadAndPublish(MultipartFile file, MultipartFile coverFile, String title, String description, Integer categoryId, String tags, Long userId) {
         if (file.isEmpty()) throw new RuntimeException("视频文件不能为空");
         String videoUrl = tencentCosVideoUtil.uploadVideo(file);

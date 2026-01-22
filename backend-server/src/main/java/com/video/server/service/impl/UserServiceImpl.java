@@ -104,7 +104,7 @@ public class UserServiceImpl implements UserService {
 
         user.setStatusStr(status);
         if ("normal".equals(status)) user.setStatus(1);
-        else if ("frozen".equals(status)) user.setStatus(0);
+        else if ("freeze".equals(status)) user.setStatus(0);
         else if ("muted".equals(status)) user.setStatus(2);
 
         user.setUpdateTime(LocalDateTime.now());
